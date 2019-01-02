@@ -5,7 +5,7 @@ import mathutils
 
 bl_info = {
     "name"         : "Supershape",
-    "location"     : "View3D > Add > Mesh > New MESH",
+    "location"     : "View3D > Add > Mesh > Add Supershape",
     "category"     : "Add Mesh",
     "description"  : "Add a supershape!",
     "author"       : "Wannes Malfait",
