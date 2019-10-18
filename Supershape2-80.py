@@ -134,7 +134,7 @@ class MESH_OT_addSupershape(bpy.types.Operator, bpy_extras.object_utils.AddObjec
         myobject = bpy.data.objects.new("Supershape", mymesh)
 
         # set mesh location
-        myobject.location = bpy.context.scene.cursor_location
+        myobject.location = bpy.context.scene.cursor.location
         #bpy.context.scene.objects.link(myobject)
 
         # create mesh from python data
