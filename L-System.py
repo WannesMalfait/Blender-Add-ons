@@ -4,7 +4,7 @@ import math
 import mathutils
 
 bl_info = {
-    "name": "Sierpinski",
+    "name": "L-System",
     "location": "View3D > Add > Mesh > Add Fractal",
     "category": "Add Mesh",
     "description": "Add a fractal!",
