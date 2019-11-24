@@ -120,11 +120,7 @@ class MESH_OT_addFractal(bpy.types.Operator, bpy_extras.object_utils.AddObjectHe
                 
         # create mesh and object
         mymesh = bpy.data.meshes.new("Fractal")
-        myobject = bpy.data.objects.new("Fractal", mymesh)
         
-        # set mesh location
-        myobject.location = bpy.context.scene.cursor.location
-        #bpy.context.scene.objects.link(myobject)
         
         # create mesh from python data
         mymesh.from_pydata(verts, edges, faces)
