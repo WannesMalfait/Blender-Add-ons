@@ -51,7 +51,7 @@ class Params(bpy.types.PropertyGroup):
         name="Angle",
         description="The angle each segment is turned by",
         default = 60,
-        min = 0.001,
+        min = -360,
         max = 360)
     Length : bpy.props.FloatProperty(
         name="Length",
@@ -104,19 +104,92 @@ class MESH_OT_addFractal(bpy.types.Operator, bpy_extras.object_utils.AddObjectHe
         theta = 0 # we start by moving forward
         count = 0
         if  constants == "+-" or constants == "-+": #We use A and B as move forward
-            constants+=variables
-        for symb in code:
-            if symb =="+":
-                theta += angle #turn right
-            elif symb == "-":
-                theta -= angle #turn left
-            elif symb in constants: # if it is a constant we need to add a new segment
-                x = verts[-1][0] + length*math.cos(theta) #we add a new segment
-                y = verts[-1][1] + length*math.sin(theta)
-                vert = (x, y, 0) 
-                verts.append(vert)
-                count+=1
-                edges.append((count-1,count)) #connect the new vertex
+            for symb in code:
+                if symb =="+":
+                    theta += angle #turn right
+                elif symb == "-":
+                    theta -= angle #turn left
+                else: # otherwise it means we have to add a new segment
+                    x = verts[-1][0] + length*math.cos(theta) #we add a new segment
+                    y = verts[-1][1] + length*math.sin(theta)
+                    vert = (x, y, 0) 
+                    verts.append(vert)
+                    count+=1
+                    edges.append((count-1,count)) #connect the new vertex
+        elif ("<" in constants and ">" in constants) or ("[" in constants and "]" in constants):
+            prev_locations = []
+            prev_angles = []
+            prevx = 0
+            prevy = 0
+            older_vert = False
+            old_ind = 0
+            for symb in code:
+                if symb == "x" or symb == "X":
+                    continue 
+                elif symb =="+":
+                    theta += angle #turn right
+                elif symb == "-":
+                    theta -= angle #turn left
+                elif symb == "<" or symb == "[":
+                    prev_locations.append((prevx,prevy,count))
+                    prev_angles.append(theta)
+                    theta-=angle
+                elif symb == ">" or symb == "]":
+                    vert = prev_locations.pop()
+                    prevx = vert[0]
+                    prevy = vert[1]
+                    old_ind = vert[2]
+                    older_vert = True
+                    theta = prev_angles.pop()
+                    theta+=angle  
+                else: # otherwise we need to add a new segment
+                    x = prevx + length*math.cos(theta) #we add a new segment
+                    y = prevy + length*math.sin(theta)
+                    vert = (x, y, 0) 
+                    verts.append(vert)
+                    count+=1
+                    if(older_vert):
+                        edges.append((old_ind,count)) #connect with an old point
+                        older_vert = False
+                    else:
+                        edges.append((count-1,count)) #connect the new vertex
+                    prevx = x
+                    prevy = y
+                    
+        elif constants == "" and len(variables) >0:
+            x_loc = 0
+            y_loc = 0
+            theta = angle
+            if(len(variables)==1):
+                variables+="B" #just so we don't get any errors
+            for symb in code:
+                if symb == variables[1]:
+                    x_loc += length*math.cos(theta) #we move forward
+                    y_loc += length*math.sin(theta)
+                    vert = (x_loc, y_loc, 0) 
+                    verts.append(vert)
+                    count+=1
+                else: # otherwise it means we have to add a new segment
+                    x_loc += length*math.cos(theta) #we add a new segment
+                    y_loc += length*math.sin(theta)
+                    vert = (x_loc, y_loc, 0) 
+                    verts.append(vert)
+                    count+=1
+                    edges.append((count-1,count)) #connect the new vertex
+        else:
+            for symb in code:
+                if symb =="+":
+                    theta += angle #turn right
+                elif symb == "-":
+                    theta -= angle #turn left
+                elif symb in constants:
+                    x = verts[-1][0] + length*math.cos(theta) #we add a new segment
+                    y = verts[-1][1] + length*math.sin(theta)
+                    vert = (x, y, 0) 
+                    verts.append(vert)
+                    count+=1
+                    edges.append((count-1,count)) #connect the new vertex
+        
                 
         # create mesh and object
         mymesh = bpy.data.meshes.new("Fractal")
