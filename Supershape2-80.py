@@ -131,16 +131,12 @@ class MESH_OT_addSupershape(bpy.types.Operator, bpy_extras.object_utils.AddObjec
 
         # create mesh and object
         mymesh = bpy.data.meshes.new("Supershape")
-        myobject = bpy.data.objects.new("Supershape", mymesh)
-
-        # set mesh location
-        myobject.location = bpy.context.scene.cursor.location
-        #bpy.context.scene.objects.link(myobject)
 
         # create mesh from python data
         mymesh.from_pydata(verts, edges, faces)
         mymesh.update(calc_edges=True)
         bpy_extras.object_utils.object_data_add(context, mymesh, operator=self)
+        # test
         #go to editmode
         bpy.ops.object.editmode_toggle()
 
@@ -155,8 +151,12 @@ class MESH_OT_addSupershape(bpy.types.Operator, bpy_extras.object_utils.AddObjec
 
         # Control the detail level
         if self.p.Subdivision != 0:
+
             bpy.ops.object.modifier_add(type='SUBSURF')
             bpy.context.object.modifiers["Subdivision"].levels = self.p.Subdivision
+
+            #myobject.modifier_add("subd", type='SUBSURF')
+            #myobject.modifiers['subd'].levels = self.p.Subdivision
         if self.p.Smooth_Shading:
             mypolys = mymesh.polygons
             for p in mypolys:
@@ -187,6 +187,8 @@ def addMenu(self, context):
                          text="Add Supershape")
 
 
+
+#register, unregister = bpy.utils.register_classes_factory(classes)
 def register():
     bpy.utils.register_class(Params)
     bpy.utils.register_class(MESH_OT_addSupershape)
