@@ -113,3 +113,8 @@ def unregister():
     bpy.types.VIEW3D_MT_mesh_add.remove(draw_add_menu)
     for c in classes:
         bpy.utils.unregister_class(c)
+
+
+# We need this line if you don't install it as an addon but run it as a script
+if __name__ == '__main__':
+    register()
