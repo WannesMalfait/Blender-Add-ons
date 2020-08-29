@@ -72,7 +72,7 @@ class VF_OT_value_finder(bpy.types.Operator):
         rd = context.scene.render
         
         input_socket = node_active.inputs[props.input] 
-        original_path = rd.filepath    
+        original_path = rd.filepath
         for step in range(props.steps):
             # Steps is at least 2, so no zero division errors
             slope = (props.end_input-props.start_input)/(props.steps-1)
@@ -82,7 +82,7 @@ class VF_OT_value_finder(bpy.types.Operator):
             bpy.ops.render.render(write_still = True)
         rd.filepath = original_path
         
-        self.report({'INFO'}, "{}: Not yet implemented".format(self.bl_idname))
+        self.report({'INFO'}, "Finished Rendering")
         return {'FINISHED'}
 
 
