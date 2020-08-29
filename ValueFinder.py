@@ -78,7 +78,7 @@ class VF_OT_value_finder(bpy.types.Operator):
             slope = (props.end_input-props.start_input)/(props.steps-1)
             value = props.start_input+slope*step
             input_socket.default_value = value
-            rd.filepath = original_path + "-" + str(step+1) + "({} = {})".format(input_socket.name,value)
+            rd.filepath = f"{original_path}-{str(step+1)}({input_socket.name} = {value})"
             bpy.ops.render.render(write_still = True)
         rd.filepath = original_path
         
