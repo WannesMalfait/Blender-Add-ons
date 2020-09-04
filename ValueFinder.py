@@ -102,12 +102,11 @@ class VF_OT_value_finder(bpy.types.Operator):
             # Steps is at least 2, so no zero division errors
             slope = (props.end_input-props.start_input)/(props.steps-1)
             value = props.start_input+slope*step
-            input_socket.default_value = value
+            input_socket.default_value = value 
             if props.image_info:
-                rd.filepath = original_path + "_({}_{:n}={:.2f})".format(input_socket.name,
-                                                step+1, value)
+                rd.filepath = f"{original_path}_({input_socket.name}_{step+1:n}={value:.2f})"
             else:
-                rd.filepath = original_path + str(step+1)
+                rd.filepath = f"{original_path}{step+1:n}"
             bpy.ops.render.render(write_still = True)
         # Restore the originals
         rd.filepath = original_path
