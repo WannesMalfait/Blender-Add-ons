@@ -106,7 +106,7 @@ class VF_OT_value_finder(bpy.types.Operator):
             if props.image_info:
                 rd.filepath = f"{original_path}_({input_socket.name}_{step+1:n}={value:.2f})"
             else:
-                rd.filepath = original_path + str(step+1)
+                rd.filepath = f"{original_path}{step+1:n}"
             bpy.ops.render.render(write_still = True)
         # Restore the originals
         rd.filepath = original_path
