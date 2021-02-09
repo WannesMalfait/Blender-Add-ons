@@ -18,3 +18,14 @@ A helper add-on to speed up the process of finding the best values for your curr
 Current features:
 - Generate a 2D or 3D scene for comparing values.
 - Generate a sequence of images for different values of a node input socket.
+
+## Math Formula
+- For geometry nodes only!
+- Type in a formula in reverse polish notation, and then automatically add in attribute math nodes
+- Anything that is not a function is seen as an argument
+### Example formula
+```x y + 2 / scale * sin```
+
+![Formula Result](images/math_formula.png)
+
+
