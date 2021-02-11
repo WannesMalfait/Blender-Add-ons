@@ -22,9 +22,13 @@ Current features:
 ## Math Formula
 - For geometry nodes only!
 - Type in a formula in reverse polish notation, and then automatically add in attribute math nodes
+- If the operation is a vector math operation that is also a math operation, prefix it with "v" (example `v+`, `vadd`)
+- Use `{}[]` to visually group things together (these are ignored)
+- Make a vector using `()` (ex: `(2 4 5.7)`)
+- You can set the name of the resulting attribute by adding `-> attribute_name` at the end.
 - Anything that is not a function is seen as an argument
 ### Example formula
-```x y + 2 / scale * sin```
+```(1 1 1){[x y + 2 /] [position length]*} scale vsin -> position```
 
 ![Formula Result](images/math_formula.png)
 
