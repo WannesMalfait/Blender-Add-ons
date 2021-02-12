@@ -22,7 +22,7 @@ Current features:
 ## Math Formula
 - For geometry nodes only!
 - Type in a formula in reverse polish notation, and then automatically add in attribute math nodes
-- You can also open a menu with `SHIFT + F`, and type there. Change the shortcut in the addon preferences.
+- You can also open a menu with `SHIFT + F`, and type there. Change the shortcut in the addon preferences. This adds the nodes at the cursor location.
 - If the operation is a vector math operation that is also a math operation, prefix it with "v" (example `v+`, `vadd`). One exception is `scale`, which you have to call using `vscale`, because `scale` is an internal attribute that is already used.
 - Use `{}[]` to visually group things together (these are ignored)
 - Make a vector using `()` (ex: `(2 4 5.7)`)

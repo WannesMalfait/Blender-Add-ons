@@ -1,19 +1,21 @@
 
 
 import bpy
-from bpy import context
+import blf
+import bgl
 import rna_keymap_ui
 
 
 bl_info = {
     "name": "Node Math Formula",
     "author": "Wannes Malfait",
-    "version": (0, 2, 0),
+    "version": (0, 3, 0),
     "location": "Node Editor Toolbar",
     "description": "Quickly add math nodes by typing in a formula",
     "category": "Node",
     "blender": (2, 91, 0),  # Required so the add-on will actually load
 }
+
 
 # Operations used by the math node
 math_operations = [
@@ -90,13 +92,32 @@ vector_math_operations = [
     (('vwrap',), 'WRAP', 3),
 ]
 
+builtin_attributes = [
+    'position',
+    'scale',
+    'rotation',
+    'radius',
+    'id',
+]
+
 
 class MFMathFormula(bpy.types.AddonPreferences):
     bl_idname = __name__
 
+    font_size: bpy.props.IntProperty(
+        name="Font Size",
+        description="Font size used for displaying text",
+        default=15,
+        min=8,
+        soft_max=20,
+    )
+
     def draw(self, context):
         layout = self.layout
         col = layout.column()
+        col.prop(self, 'font_size')
+        col.separator()
+        col.label(text="Keymaps:")
         kc = bpy.context.window_manager.keyconfigs.addon
         for km, kmi in addon_keymaps:
             km = km.active()
@@ -437,7 +458,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         return self.execute(context)
 
 
-class VF_PT_panel(bpy.types.Panel, MFBase):
+class MF_PT_panel(bpy.types.Panel, MFBase):
     bl_idname = "NODE_PT_mf_math_formula"
     bl_space_type = 'NODE_EDITOR'
     bl_label = "Add Math Formula"
@@ -452,6 +473,7 @@ class VF_PT_panel(bpy.types.Panel, MFBase):
         props = scene.math_formula_add
 
         col = layout.column(align=True)
+        col.label(text="Addon Preferences has more settings")
         col.prop(props, 'formula')
         col.prop(props, 'temp_attr_name')
         col.prop(props, 'no_arg')
@@ -460,33 +482,125 @@ class VF_PT_panel(bpy.types.Panel, MFBase):
         col.operator(MF_OT_math_formula_add.bl_idname)
 
 
-class VF_MT_menu(bpy.types.Menu, bpy.types.UIPopupMenu, MFBase):
-    bl_idname = "NODE_MT_mf_math_formula_menu"
-    bl_label = "Math Formula Menu"
+def draw_callback_px(self,):
+    font_id = 0
+    font_size = self.font_size
+    blf.size(font_id, font_size, 72)
 
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        props = scene.math_formula_add
+    posx = self.mouse_loc[0]
+    posy = self.mouse_loc[1]
+    posz = 0
+    width, height = blf.dimensions(font_id, "Formula: ")
+    blf.color(font_id, 0.7, 0.0, 0.0, 1.0)
+    blf.position(font_id, posx, posy+height+10, posz)
+    blf.draw(font_id, "(Press ENTER to confirm, ESC to cancel)")
 
-        col = layout.column(align=True)
-        col.prop(props, 'menu_formula', text='', icon='EXPERIMENTAL')
+    blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
+    blf.position(font_id, posx, posy, posz)
+    blf.draw(font_id, "Formula: ")
+
+    for string in self.formula.split(' '):
+        blf.position(font_id, posx+width, posy, posz)
+        color_set = False
+        for operation in math_operations:
+            if string in operation[0]:
+                # Green
+                blf.color(font_id, 0.0, 0.8, 0.1, 1.0)
+                color_set = True
+                break
+        if not color_set:
+            for operation in vector_math_operations:
+                if string in operation[0]:
+                    # Blue
+                    blf.color(font_id, 0.0, 0.1, 0.8, 1.0)
+                    color_set = True
+                    break
+        if not color_set and string == "->":
+            # Pink
+            blf.color(font_id, 0.3, 0.1, 0.8, 1.0)
+            color_set = True
+        elif not color_set and string in builtin_attributes:
+            # Orange
+            blf.color(font_id, 0.5, 0.3, 0.05, 1.0)
+            color_set = True
+        # Draw the text
+        blf.draw(font_id, string)
+        if color_set:
+            # Back to default white
+            blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
+        width += blf.dimensions(font_id, string + ' ')[0]
+
+    # Draw location of the cursor
+    width = blf.dimensions(font_id, "Formula: " +
+                           self.formula[:max(self.cursor_index - 1, 0)])[0]
+    blf.position(font_id, posx + width, posy-font_size/10, posz)
+    blf.color(font_id, 0.1, 0.5, 0.2, 1.0)
+    blf.draw(font_id, '_')
+
+
+class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
+    """Type the formula then add the attribute nodes"""
+    bl_idname = "node.mf_type_formula_then_add_nodes"
+    bl_label = "Type math formula then add node"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def modal(self, context, event):
+        context.area.tag_redraw()
+        # Exit When they press enter
+        if event.type == 'RET':
+            bpy.types.SpaceNodeEditor.draw_handler_remove(
+                self._handle, 'WINDOW')
+            context.scene.math_formula_add.formula = self.formula
+            bpy.ops.node.mf_math_formula_add(use_mouse_location=True)
+            return {'FINISHED'}
+        elif event.type == 'ESC':
+            bpy.types.SpaceNodeEditor.draw_handler_remove(
+                self._handle, 'WINDOW')
+            return {'CANCELLED'}
+        elif event.value == 'RELEASE':
+            self.lock = False
+        elif event.type == 'LEFT_ARROW':
+            self.cursor_index = max(0, self.cursor_index - 1)
+        elif event.type == 'RIGHT_ARROW':
+            self.cursor_index = max(len(self.formula), self.cursor_index + 1)
+        elif (not self.lock or event.is_repeat) and event.type == 'BACK_SPACE' and self.cursor_index != 0:
+            self.formula = self.formula[:self.cursor_index -
+                                        1] + self.formula[self.cursor_index:]
+            self.cursor_index = self.cursor_index - 1
+            self.lock = True
+        elif event.unicode != "" and event.unicode.isprintable():
+            self.formula += event.unicode
+            self.cursor_index += 1
+
+        return {'RUNNING_MODAL'}
+
+    def invoke(self, context, event):
+        args = (self,)
+        self._handle = bpy.types.SpaceNodeEditor.draw_handler_add(
+            draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
+        self.mouse_loc = (event.mouse_region_x, event.mouse_region_y)
+        self.cursor_index = 0
+        self.lock = False
+        self.formula = ""
+        self.font_size = context.preferences.addons[__name__].preferences.font_size
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
 
 
 addon_keymaps = []
 kmi_defs = [
-    # kmi_defs entry: (identifier, key, action, CTRL, SHIFT, ALT, props, nice name)
+    # kmi_defs entry: (identifier, key, action, CTRL, SHIFT, ALT, props)
     # props entry: (property name, property value)
-    ('wm.call_menu', 'F', 'PRESS', False, True, False,
-     (('name', VF_MT_menu.bl_idname),)),
+    (MF_OT_type_formula_then_add_nodes.bl_idname,
+     'F', 'PRESS', False, True, False, None)
 ]
 
 classes = (
     MFMathFormula,
     MF_Settings,
     MF_OT_math_formula_add,
-    VF_PT_panel,
-    VF_MT_menu,
+    MF_PT_panel,
+    MF_OT_type_formula_then_add_nodes,
 )
 
 
