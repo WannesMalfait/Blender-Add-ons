@@ -1,6 +1,8 @@
 
 
 import bpy
+from bpy import context
+import rna_keymap_ui
 
 
 bl_info = {
@@ -88,11 +90,37 @@ vector_math_operations = [
 ]
 
 
+class MFMathFormula(bpy.types.AddonPreferences):
+    bl_idname = __name__
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column()
+        kc = bpy.context.window_manager.keyconfigs.addon
+        for km, kmi in addon_keymaps:
+            km = km.active()
+            # kmi.show_expanded = True
+            col.context_pointer_set("keymap", km)
+            rna_keymap_ui.draw_kmi([], kc, km, kmi, col, 0)
+
+
+def formula_callback(self, value):
+    self.formula = value
+    bpy.ops.node.mf_math_formula_add(use_mouse_location=True)
+    return None
+
+
 class MF_Settings(bpy.types.PropertyGroup):
     formula: bpy.props.StringProperty(
         name="Formula",
         description="Formula written in Reverse Polish Notation",
         default="4 5 *",
+    )
+    menu_formula: bpy.props.StringProperty(
+        name="Math Formula",
+        description="Formula written in Reverse Polish Notation",
+        default="",
+        set=formula_callback,
     )
     temp_attr_name: bpy.props.StringProperty(
         name="Temporary Attribute",
@@ -102,7 +130,7 @@ class MF_Settings(bpy.types.PropertyGroup):
     add_frame: bpy.props.BoolProperty(
         name="Add Frame",
         description='Put all the nodes in a frame',
-        default=True,
+        default=False,
     )
 
 
@@ -172,10 +200,10 @@ def get_args(cls, stack, num_args, func_name):
     return args
 
 
-def place_node(tree, node, nodes):
+def place_node(tree, node, nodes, loc):
     # First node
     if nodes == []:
-        node.location = (0, 0)
+        node.location = loc
     else:
         prev_node = nodes[-1]
         node.location = (prev_node.location.x +
@@ -183,9 +211,9 @@ def place_node(tree, node, nodes):
         tree.links.new(prev_node.outputs["Geometry"], node.inputs["Geometry"])
 
 
-def add_math_node(tree, nodes, args, func_name):
+def add_math_node(tree, nodes, args, func_name, loc):
     node = tree.nodes.new(type="GeometryNodeAttributeMath")
-    place_node(tree, node, nodes)
+    place_node(tree, node, nodes, loc)
     node.operation = func_name
     l = len(args)
     # False -> ATTRIBUTE, True -> FLOAT
@@ -214,9 +242,9 @@ def add_math_node(tree, nodes, args, func_name):
     return node
 
 
-def add_vector_math_node(tree, nodes, args, func_name):
+def add_vector_math_node(tree, nodes, args, func_name, loc):
     node = tree.nodes.new(type="GeometryNodeAttributeVectorMath")
-    place_node(tree, node, nodes)
+    place_node(tree, node, nodes, loc)
     node.operation = func_name
     l = len(args)
     # Socket ordering:
@@ -288,9 +316,28 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
     bl_label = "Add Math Formula"
     bl_options = {'REGISTER', 'UNDO'}
 
+    use_mouse_location: bpy.props.BoolProperty(
+        default=False,
+    )
+
+    @staticmethod
+    def store_mouse_cursor(context, event):
+        space = context.space_data
+        tree = space.edit_tree
+
+        # convert mouse position to the View2D for later node placement
+        if context.region.type == 'WINDOW':
+            # convert mouse position to the View2D for later node placement
+            space.cursor_location_from_region(
+                event.mouse_region_x, event.mouse_region_y)
+        else:
+            space.cursor_location = tree.view_center
+
     def execute(self, context):
+        space = context.space_data
+        loc = space.cursor_location if self.use_mouse_location else (0, 0)
         # Safe because of poll function
-        tree = context.space_data.node_tree
+        tree = space.edit_tree
         props = context.scene.math_formula_add
         # The formula that we parse. Should be in Reverse Polish Notation
         formula = props.formula
@@ -328,7 +375,8 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                     was_func = True
                     break
             if was_func:
-                node = add_math_node(tree, nodes, args, func_name)
+                node = add_math_node(
+                    tree, nodes, args, func_name, loc)
                 res_string = self.temp_attr_name + \
                     (str(self.number_of_temp_attributes)
                      if self.number_of_temp_attributes else "")
@@ -338,12 +386,15 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             else:
                 for operation in vector_math_operations:
                     if element in operation[0]:
+                        print(element, operation, operation[0])
                         func_name = operation[1]
-                        args = get_args(self, stack, operation[2], func_name)
+                        args = get_args(
+                            self, stack, operation[2], func_name)
                         was_func = True
                         break
                 if was_func:
-                    node = add_vector_math_node(tree, nodes, args, func_name)
+                    node = add_vector_math_node(
+                        tree, nodes, args, func_name, loc)
                     res_string = self.temp_attr_name + \
                         (str(self.number_of_temp_attributes)
                          if self.number_of_temp_attributes else "")
@@ -360,8 +411,13 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 node.parent = frame
             frame.update()
         # Force an update
+        tree.nodes.update()
         tree.update_tag()
         return {'FINISHED'}
+
+    def invoke(self, context, event):
+        self.store_mouse_cursor(context, event)
+        return self.execute(context)
 
 
 class VF_PT_panel(bpy.types.Panel, MFBase):
@@ -386,16 +442,54 @@ class VF_PT_panel(bpy.types.Panel, MFBase):
         col.operator(MF_OT_math_formula_add.bl_idname)
 
 
+class VF_MT_menu(bpy.types.Menu, bpy.types.UIPopupMenu, MFBase):
+    bl_idname = "NODE_MT_mf_math_formula_menu"
+    bl_label = "Math Formula Menu"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        props = scene.math_formula_add
+
+        col = layout.column(align=True)
+        col.prop(props, 'menu_formula', text='', icon='EXPERIMENTAL')
+
+
+addon_keymaps = []
+kmi_defs = [
+    # kmi_defs entry: (identifier, key, action, CTRL, SHIFT, ALT, props, nice name)
+    # props entry: (property name, property value)
+    ('wm.call_menu', 'F', 'PRESS', False, True, False,
+     (('name', VF_MT_menu.bl_idname),)),
+]
+
 classes = (
+    MFMathFormula,
     MF_Settings,
     MF_OT_math_formula_add,
     VF_PT_panel,
+    VF_MT_menu,
 )
 
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
+
+    # keymaps (Code from node wrangler)
+    addon_keymaps.clear()
+    kc = bpy.context.window_manager.keyconfigs.addon
+    if kc:
+        km = kc.keymaps.new(name='Node Editor', space_type="NODE_EDITOR")
+        for (identifier, key, action, CTRL, SHIFT, ALT, props) in kmi_defs:
+            kmi = km.keymap_items.new(
+                identifier, key, action, ctrl=CTRL, shift=SHIFT, alt=ALT)
+            kmi.active = True
+            if props:
+                for prop, value in props:
+                    setattr(kmi.properties, prop, value)
+            addon_keymaps.append((km, kmi))
+
     bpy.types.Scene.math_formula_add = bpy.props.PointerProperty(
         type=MF_Settings)
 
@@ -403,6 +497,11 @@ def register():
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
+
+    for km, kmi in addon_keymaps:
+        km.keymap_items.remove(kmi)
+    addon_keymaps.clear()
+
     del bpy.types.Scene.math_formula_add
 
 
