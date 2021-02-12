@@ -8,7 +8,7 @@ import rna_keymap_ui
 bl_info = {
     "name": "Node Math Formula",
     "author": "Wannes Malfait",
-    "version": (0, 1, 0),
+    "version": (0, 2, 0),
     "location": "Node Editor Toolbar",
     "description": "Quickly add math nodes by typing in a formula",
     "category": "Node",
@@ -128,6 +128,11 @@ class MF_Settings(bpy.types.PropertyGroup):
         description="Name of the temporary attribute used to store in between results",
         default="mf_temp",
     )
+    no_arg: bpy.props.StringProperty(
+        name="Missing Argument Name",
+        default="",
+        description="The name of the attribute used to fill in missing arguments."
+    )
     add_frame: bpy.props.BoolProperty(
         name="Add Frame",
         description='Put all the nodes in a frame',
@@ -168,7 +173,7 @@ def get_args(cls, stack, num_args, func_name):
         if stack == []:
             cls.report(
                 {'WARNING'}, f"Invalid number of arguments for {func_name.lower()}. Expected {num_args} arguments, got args: {args}.")
-            args.append("no_arg")
+            args.append(cls.no_arg)
         else:
             str = stack.pop()
             if str.endswith(")"):
@@ -280,10 +285,8 @@ def add_vector_math_node(tree, nodes, args, func_name, loc):
     else:
         # If it's a float we convert it to a vec3
         for i in range(l):
-            print(args[i], type(args[i]))
             if type(args[i]) == float:
                 args[i] = [args[i] for _ in range(3)]
-            print(args[i], type(args[i]))
         node.input_type_a = 'ATTRIBUTE'
         entry = args[0]
         if type(entry) == list:
@@ -344,6 +347,8 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         formula = props.formula
         # Used to store temporary results
         self.temp_attr_name = props.temp_attr_name
+        # Used to fill in missing arguments
+        self.no_arg = props.no_arg
         # If two results are stored as temp attributes we need separate names
         self.number_of_temp_attributes = 0
         stack = []
@@ -360,8 +365,11 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 # Set the attribute name of the final result
                 if nodes == []:
                     self.report(
-                        {'WARNING', "No operations added but result set"})
-                    return {'CANCELLED'}
+                        {'WARNING'}, "No operations added but result set")
+                    node = tree.nodes.new('GeometryNodeAttributeFill')
+                    node.location = loc
+                    node.inputs["Attribute"].default_value = search_string[-1]
+                    break
                 node = nodes[-1]
                 result = search_string[-1]
                 node.inputs["Result"].default_value = result
@@ -387,7 +395,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             else:
                 for operation in vector_math_operations:
                     if element in operation[0]:
-                        print(element, operation, operation[0])
                         func_name = operation[1]
                         args = get_args(
                             self, stack, operation[2], func_name)
@@ -404,7 +411,16 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                     self.number_of_temp_attributes += 1
                 else:  # It is an argument and not a function
                     stack.append(element)
-        if props.add_frame and nodes != []:
+        if nodes == [] and stack != []:
+            offset = 0
+            # Add the given attributes as attribute fill nodes
+            for name in stack:
+                node = tree.nodes.new('GeometryNodeAttributeFill')
+                node.location = (
+                    loc[0] + offset, loc[1])
+                node.inputs["Attribute"].default_value = name
+                offset += node.width + 20
+        elif props.add_frame:
             # Add all nodes in a frame
             frame = tree.nodes.new(type='NodeFrame')
             frame.label = formula
@@ -438,6 +454,7 @@ class VF_PT_panel(bpy.types.Panel, MFBase):
         col = layout.column(align=True)
         col.prop(props, 'formula')
         col.prop(props, 'temp_attr_name')
+        col.prop(props, 'no_arg')
         col.prop(props, 'add_frame')
         col.separator()
         col.operator(MF_OT_math_formula_add.bl_idname)
