@@ -3,13 +3,14 @@
 import bpy
 import blf
 import bgl
+from bpy.types import AnyType
 import rna_keymap_ui
 
 
 bl_info = {
     "name": "Node Math Formula",
     "author": "Wannes Malfait",
-    "version": (0, 3, 0),
+    "version": (0, 3, 1),
     "location": "Node Editor Toolbar",
     "description": "Quickly add math nodes by typing in a formula",
     "category": "Node",
@@ -111,12 +112,56 @@ class MFMathFormula(bpy.types.AddonPreferences):
         min=8,
         soft_max=20,
     )
+    builtin_attr_color: bpy.props.FloatVectorProperty(
+        name="Built-in Attribute Color",
+        default=(0.5, 0.3, 0.05),
+        subtype='COLOR',
+    )
+    math_func_color: bpy.props.FloatVectorProperty(
+        name="Math Function Color",
+        default=(0.0, 0.8, 0.1),
+        subtype='COLOR',
+    )
+    vector_math_func_color: bpy.props.FloatVectorProperty(
+        name="Vector Math Function Color",
+        default=(0.142, 0.408, 0.8),
+        subtype='COLOR',
+    )
+    grouping_color: bpy.props.FloatVectorProperty(
+        name="Grouping Indicator Color",
+        default=(0.3, 0.1, 0.8),
+        subtype='COLOR',
+    )
+    float_color: bpy.props.FloatVectorProperty(
+        name="Number Color",
+        default=(0.7, 0.515, 0.462),
+        subtype='COLOR',
+    )
+    default_color: bpy.props.FloatVectorProperty(
+        name="Default Color",
+        default=(1.0, 1.0, 1.0),
+        subtype='COLOR',
+    )
+    result_color: bpy.props.FloatVectorProperty(
+        name="Result Color",
+        default=(0.103, 0.8, 0.492),
+        subtype='COLOR',
+    )
 
     def draw(self, context):
         layout = self.layout
         col = layout.column()
         col.prop(self, 'font_size')
-        col.separator()
+        box = layout.box()
+        box.label(text="Syntax Highlighting")
+        box.prop(self, 'builtin_attr_color')
+        box.prop(self, 'math_func_color')
+        box.prop(self, 'vector_math_func_color')
+        box.prop(self, 'grouping_color')
+        box.prop(self, 'float_color')
+        box.prop(self, 'default_color')
+        box.prop(self, 'result_color')
+        col = layout.column()
         col.label(text="Keymaps:")
         kc = bpy.context.window_manager.keyconfigs.addon
         for km, kmi in addon_keymaps:
@@ -126,28 +171,16 @@ class MFMathFormula(bpy.types.AddonPreferences):
             rna_keymap_ui.draw_kmi([], kc, km, kmi, col, 0)
 
 
-def formula_callback(self, value):
-    self.formula = value
-    bpy.ops.node.mf_math_formula_add(use_mouse_location=True)
-    return None
-
-
 class MF_Settings(bpy.types.PropertyGroup):
     formula: bpy.props.StringProperty(
         name="Formula",
         description="Formula written in Reverse Polish Notation",
         default="4 5 *",
     )
-    menu_formula: bpy.props.StringProperty(
-        name="Math Formula",
-        description="Formula written in Reverse Polish Notation",
-        default="",
-        set=formula_callback,
-    )
     temp_attr_name: bpy.props.StringProperty(
         name="Temporary Attribute",
         description="Name of the temporary attribute used to store in between results",
-        default="mf_temp",
+        default="tmp",
     )
     no_arg: bpy.props.StringProperty(
         name="Missing Argument Name",
@@ -161,7 +194,7 @@ class MF_Settings(bpy.types.PropertyGroup):
     )
 
 
-def mf_check(context):
+def mf_check(context) -> bool:
     space = context.space_data
     return space.type == 'NODE_EDITOR' and space.node_tree is not None and space.tree_type == 'GeometryNodeTree'
 
@@ -172,167 +205,174 @@ class MFBase:
         return mf_check(context)
 
 
-def is_float(str):
-    try:
-        float(str)
-        return True
-    except:
-        return False
+class Token():
+    """
+    Class used to store the possible types of tokens that
+    arise from parsing the formula
+    """
+
+    def __init__(self, token_type, value, color, print_value=None, data=None) -> None:
+        self.type = token_type
+        self.data = data
+        self.value = value
+        self.print_value = print_value
+        self.color = color
+
+    def highlight(self, font_id) -> None:
+        """
+        Set the color for text drawing to the color associated with the token
+        """
+        blf.color(font_id, self.color[0], self.color[1], self.color[2], 1.0)
+
+    def value_for_print(self) -> str:
+        """
+        Get the value where the token was constructed from
+        """
+        return self.print_value if self.print_value is not None else self.value
+
+    def __str__(self) -> str:
+        return f"{{Token {self.value_for_print()}: type: {self.type}, value: {self.value}, data: {self.data} }}"
 
 
-def parse_add(ind, str, vec, cls):
-    if is_float(str):
-        vec[ind] = float(str)
-    else:
-        cls.report(
-            {'WARNING', f"Vectors are made up of floats separated by spaces. Got: {str}"})
+class MFParser:
+    """
+    Class to parse a formula into a list of tokens.
+    """
 
+    def __init__(self) -> None:
+        self.tokens = []
+        self.reset()
 
-def get_args(cls, stack, num_args, func_name):
-    args = []
-    for _ in range(num_args):
-        if stack == []:
-            cls.report(
-                {'WARNING'}, f"Invalid number of arguments for {func_name.lower()}. Expected {num_args} arguments, got args: {args}.")
-            args.append(cls.no_arg)
-        else:
-            str = stack.pop()
-            if str.endswith(")"):
-                # It's a vector which we have to parse
-                vec = [0, 0, 0]
-                num = str
-                if str == ")":
-                    num = stack.pop()
+    def reset(self):
+        self.current_text = ""
+        self.prev_char = " "
+        self.making_vector = False
+        self.is_res = False
+        self.done = False
+
+    @staticmethod
+    def is_float(input) -> bool:
+        """
+        Check if the argument can be converted to a `float`.
+        """
+        try:
+            float(input)
+            return True
+        except:
+            return False
+
+    def add_token_check(self, prefs) -> None:
+        """
+        After finishing a token check if it is empty. If not add
+        it to the tokens.
+        """
+        if self.current_text != "" or self.prev_char in "})]":
+            # Separate the entries of the vector with a space
+            if self.making_vector:
+                self.current_text += ' '
+            else:
+                token = self.get_token(self.current_text)
+                self.tokens.append(token)
+                token = Token('excess', ' ', prefs.default_color)
+                self.tokens.append(token)
+                self.current_text = ""
+
+    def parse(self, string: str, cursor=None) -> list:
+        """
+        Parse the input string and return a list of tokens
+        """
+        prefs = bpy.context.preferences.addons[__name__].preferences
+        added_cursor = False
+        for index, char in enumerate(string):
+            if self.done:
+                break
+            if cursor is not None and index == cursor:
+                cur_length = len(
+                    ''.join([token.value_for_print() for token in self.tokens]))
+                token = Token('cursor', '_', prefs.grouping_color,
+                              data=len(self.current_text))
+                self.tokens.append(token)
+                added_cursor = True
+            if char == ' ':
+                self.add_token_check(prefs)
+            elif char in '[]{}':
+                self.add_token_check(prefs)
+                token = Token('excess', char, prefs.grouping_color)
+                self.tokens.append(token)
+            elif char == '(':
+                # Add it so the user can see what they typed
+                token = Token('excess', '(', prefs.default_color)
+                self.tokens.append(token)
+                self.making_vector = True
+            elif char == ')':
+                # Add it so the user can see what they typed
+                token = self.get_token(self.current_text)
+                self.tokens.append(token)
+                token = Token('excess', ')', prefs.default_color)
+                self.tokens.append(token)
+                self.current_text = ""
+                self.making_vector = False
+            else:
+                self.current_text += char
+            self.prev_char = char
+        if self.current_text != "":
+            token = self.get_token(self.current_text)
+            self.tokens.append(token)
+        if cursor is not None and not added_cursor:
+            token = Token('cursor', '_', prefs.grouping_color,
+                          data=0)
+            self.tokens.append(token)
+        self.reset()
+        return self.tokens
+
+    def get_token(self, string: str) -> Token:
+        """
+        Create a token from the string and return it
+        """
+        prefs = bpy.context.preferences.addons[__name__].preferences
+        if self.making_vector:
+            components = string.split(' ')
+            # In case of double spaces
+            components = [c for c in components if c != '']
+            for i in range(len(components)):
+                if self.is_float(components[i]):
+                    components[i] = float(components[i])
                 else:
-                    # something like "20)""
-                    num = str[:-1]
-                parse_add(2, num, vec, cls)
-                parse_add(1, stack.pop(), vec, cls)
-                num = stack.pop()
-                if num.startswith("("):
-                    num = num[1:]
-                else:
-                    # Get rid of the left-over "("
-                    stack.pop()
-                parse_add(0, num, vec, cls)
-                args.append(vec)
-            elif is_float(str):
-                args.append(float(str))
-            else:
-                # Check if it's a temporary attribute that we created
-                if str.startswith(cls.temp_attr_name):
-                    cls.number_of_temp_attributes -= 1
-                args.append(str)
-    args.reverse()
-    return args
-
-
-def place_node(tree, node, nodes, loc):
-    # First node
-    if nodes == []:
-        node.location = loc
-    else:
-        prev_node = nodes[-1]
-        node.location = (prev_node.location.x +
-                         prev_node.width + 50, prev_node.location.y)
-        tree.links.new(prev_node.outputs["Geometry"], node.inputs["Geometry"])
-
-
-def add_math_node(tree, nodes, args, func_name, loc):
-    node = tree.nodes.new(type="GeometryNodeAttributeMath")
-    place_node(tree, node, nodes, loc)
-    node.operation = func_name
-    l = len(args)
-    # False -> ATTRIBUTE, True -> FLOAT
-    arg_types = ['FLOAT' if type(
-        arg) == float else 'ATTRIBUTE' for arg in args]
-    # Convert the wrong vectors to strings
-    for i in range(l):
-        if type(args[i]) == list:
-            # It's a vec3
-            args[i] = str(args[i])
-    # Possible types for the socket
-    node.input_type_a = arg_types[0]
-    if l >= 2:
-        node.input_type_b = arg_types[1]
-    if l == 3:
-        node.input_type_c = arg_types[2]
-    for i in range(l):
-        # First input is Geometry so we skip it
-        # The inputs are in the following order:
-        # STRING, FLOAT for each socket
-        # So we need to go in pairs of two
-        offset = 0 if arg_types[i] == 'ATTRIBUTE' else 1
-        node.inputs[1 + 2*i + offset].default_value = args[i]
-
-    nodes.append(node)
-    return node
-
-
-def add_vector_math_node(tree, nodes, args, func_name, loc):
-    node = tree.nodes.new(type="GeometryNodeAttributeVectorMath")
-    place_node(tree, node, nodes, loc)
-    node.operation = func_name
-    l = len(args)
-    # Socket ordering:
-    # Geometry
-    # A Attribute
-    # A Vector
-    # B Attribute
-    # B Vector
-    # B Float (Only used if func_name is 'SCALE')
-    # C Attribute
-    # C Vector
-    # Result Attribute
-    if func_name == 'SCALE':
-        node.input_type_a = 'VECTOR'
-        if type(args[0]) == float:
-            args[0] = [args[0] for _ in range(3)]
-            node.inputs[2].default_value = args[0]
-        elif type(args[0]) == list:
-            node.inputs[2].default_value = args[0]
+                    components[i] = 0.0
+                    print("Vectors need floats")
+            return Token('vector', components,
+                         prefs.float_color, print_value=string)
+        elif string == "":
+            return Token('excess', '', prefs.default_color)
+        elif string == '->':
+            self.is_res = True
+            return Token('excess', '->', prefs.grouping_color)
+        elif self.is_res:
+            self.done = True
+            return Token('result', string, prefs.result_color)
         else:
-            node.input_type_a = 'ATTRIBUTE'
-            node.inputs[1].default_value = args[0]
+            for operation in math_operations:
+                if string in operation[0]:
+                    return Token(
+                        'math_func', operation[1], prefs.math_func_color, print_value=string, data=operation[2])
+            for operation in vector_math_operations:
+                if string in operation[0]:
+                    return Token(
+                        'vector_math_func', operation[1], prefs.vector_math_func_color, print_value=string, data=operation[2])
+            if self.is_float(string):
+                return Token('float', float(string),
+                             prefs.float_color, print_value=string)
+            elif string in builtin_attributes:
+                return Token('default', string, prefs.builtin_attr_color)
+            return Token('default', string, prefs.default_color)
 
-        node.input_type_b = 'ATTRIBUTE'
-        if type(args[1]) == float:
-            node.input_type_b = 'FLOAT'
-            node.inputs[5].default_value = args[1]
-        elif type(args[1]) == list:
-            node.inputs[3].default_value = str(args[1])
-        else:
-            node.inputs[3].default_value = args[1]
-    else:
-        # If it's a float we convert it to a vec3
-        for i in range(l):
-            if type(args[i]) == float:
-                args[i] = [args[i] for _ in range(3)]
-        node.input_type_a = 'ATTRIBUTE'
-        entry = args[0]
-        if type(entry) == list:
-            node.input_type_a = 'VECTOR'
-            node.inputs[2].default_value = entry
-        else:
-            node.inputs[1].default_value = entry
-        if l >= 2:
-            node.input_type_b = 'ATTRIBUTE'
-            entry = args[1]
-            if type(entry) == list:
-                node.input_type_b = 'VECTOR'
-                node.inputs[4].default_value = entry
-            else:
-                node.inputs[3].default_value = entry
-        if l == 3:
-            node.input_type_c = 'ATTRIBUTE'
-            entry = args[2]
-            if type(entry) == list:
-                node.input_type_c = 'VECTOR'
-                node.inputs[7].default_value = entry
-            else:
-                node.inputs[6].default_value = entry
-    nodes.append(node)
-    return node
+    def update_last_token(self, string):
+        """
+        TODO: Implement this function
+
+        Try updating the last token with the new token from the string
+        """
+        pass
 
 
 class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
@@ -358,9 +398,113 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         else:
             space.cursor_location = tree.view_center
 
+    def get_args(self, stack, num_args, func_name):
+        args = []
+        for _ in range(num_args):
+            if stack == []:
+                self.report(
+                    {'WARNING'}, f"Invalid number of arguments for {func_name.lower()}. Expected {num_args} arguments, got args: {args}.")
+                args.append(self.no_arg)
+            else:
+                args.append(stack.pop())
+        args.reverse()
+        return args
+
+    def place_node(self, context, node, nodes):
+        space = context.space_data
+        tree = space.edit_tree
+        # First node
+        if nodes == []:
+            node.location = space.cursor_location if self.use_mouse_location else (
+                0, 0)
+        else:
+            prev_node = nodes[-1]
+            node.location = (prev_node.location.x +
+                             prev_node.width + 50, prev_node.location.y)
+            tree.links.new(
+                prev_node.outputs["Geometry"], node.inputs["Geometry"])
+
+    def add_math_node(self, context, nodes, args, func_name):
+        tree = context.space_data.edit_tree
+        node = tree.nodes.new(type="GeometryNodeAttributeMath")
+        self.place_node(context, node, nodes)
+        node.operation = func_name
+        l = len(args)
+        # False -> ATTRIBUTE, True -> FLOAT
+        arg_types = ['FLOAT' if type(
+            arg) == float else 'ATTRIBUTE' for arg in args]
+        # Convert the wrong vectors to strings
+        for i in range(l):
+            if type(args[i]) == list:
+                # It's a vec3
+                args[i] = str(args[i])
+        # Possible types for the socket
+        node.input_type_a = arg_types[0]
+        if l >= 2:
+            node.input_type_b = arg_types[1]
+        if l == 3:
+            node.input_type_c = arg_types[2]
+        for i in range(l):
+            # First input is Geometry so we skip it
+            # The inputs are in the following order:
+            # Geometry
+            # A Attribute
+            # A Float
+            # B Attribute
+            # B Float
+            # C Attribute
+            # C Float
+            # Result Attribute
+            # So we need to go in pairs of two
+            offset = 0 if arg_types[i] == 'ATTRIBUTE' else 1
+            node.inputs[1 + 2*i + offset].default_value = args[i]
+
+        nodes.append(node)
+        return node
+
+    def add_vector_math_node(self, context, nodes, args, func_name):
+        tree = context.space_data.edit_tree
+        node = tree.nodes.new(type="GeometryNodeAttributeVectorMath")
+        self.place_node(context, node, nodes)
+        node.operation = func_name
+        # Socket ordering:
+        # Geometry
+        # A Attribute
+        # A Vector
+        # B Attribute
+        # B Vector
+        # B Float (Only used if func_name is 'SCALE')
+        # C Attribute
+        # C Vector
+        # Result Attribute
+
+        # Index of the first socket for 'A','B', and 'C'
+        first_socket = (1, 3, 6)
+
+        l = len(args)
+
+        # If it's a float we convert it to a vec3
+        for i in range(l):
+            if type(args[i]) == float and not(func_name == 'SCALE' and i == 1):
+                args[i] = [args[i] for _ in range(3)]
+        print(args)
+        arg_types = ['VECTOR' if type(arg) == list else 'FLOAT'if type(
+            arg) == float else'ATTRIBUTE' for arg in args]
+        print(arg_types)
+        node.input_type_a = arg_types[0]
+        if l >= 2:
+            node.input_type_b = arg_types[1]
+        if l == 3:
+            node.input_type_c = arg_types[2]
+
+        for i in range(l):
+            offset = 0 if arg_types[i] == 'ATTRIBUTE' else 1 if arg_types[i] == 'VECTOR' else 2
+            node.inputs[first_socket[i] + offset].default_value = args[i]
+        nodes.append(node)
+        return node
+
     def execute(self, context):
         space = context.space_data
-        loc = space.cursor_location if self.use_mouse_location else (0, 0)
         # Safe because of poll function
         tree = space.edit_tree
         props = context.scene.math_formula_add
@@ -375,71 +519,45 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         stack = []
         # The nodes that we added
         nodes = []
-        # The brackets are only there for visual aid
-        search_string = formula.replace('[', ' ').replace(
-            ']', ' ').replace('{', ' ').replace('}', ' ').split(' ')
-        for element in search_string:
-            # In case of double spaces element might be ""
-            if element.strip() == "":
+        result_of_last_node = ""
+        # Parse the input string into a sequence of tokens
+        parser = MFParser()
+        tokens = parser.parse(formula)
+        for token in tokens:
+            if token.type == 'excess':
                 continue
-            if element == "->":
-                # Set the attribute name of the final result
-                if nodes == []:
-                    self.report(
-                        {'WARNING'}, "No operations added but result set")
-                    node = tree.nodes.new('GeometryNodeAttributeFill')
-                    node.location = loc
-                    node.inputs["Attribute"].default_value = search_string[-1]
-                    break
-                node = nodes[-1]
-                result = search_string[-1]
-                node.inputs["Result"].default_value = result
-                break
-            was_func = False
-            func_name = None
-            args = None
-            for operation in math_operations:
-                if element in operation[0]:
-                    func_name = operation[1]
-                    args = get_args(self, stack, operation[2], func_name)
-                    was_func = True
-                    break
-            if was_func:
-                node = add_math_node(
-                    tree, nodes, args, func_name, loc)
+            elif token.type == 'math_func' or token.type == 'vector_math_func':
+                num_args = token.data
+                func_name = token.value
+                args = self.get_args(stack, num_args, func_name)
+                node = None
+                if token.type == 'math_func':
+                    node = self.add_math_node(context, nodes, args, func_name)
+                else:
+                    node = self.add_vector_math_node(
+                        context, nodes, args, func_name)
                 res_string = self.temp_attr_name + \
                     (str(self.number_of_temp_attributes)
                      if self.number_of_temp_attributes else "")
                 node.inputs["Result"].default_value = res_string
                 stack.append(res_string)
                 self.number_of_temp_attributes += 1
+            elif token.type == 'result':
+                result_of_last_node = token.value_for_print()
+                # This is the final token
+                break
             else:
-                for operation in vector_math_operations:
-                    if element in operation[0]:
-                        func_name = operation[1]
-                        args = get_args(
-                            self, stack, operation[2], func_name)
-                        was_func = True
-                        break
-                if was_func:
-                    node = add_vector_math_node(
-                        tree, nodes, args, func_name, loc)
-                    res_string = self.temp_attr_name + \
-                        (str(self.number_of_temp_attributes)
-                         if self.number_of_temp_attributes else "")
-                    node.inputs["Result"].default_value = res_string
-                    stack.append(res_string)
-                    self.number_of_temp_attributes += 1
-                else:  # It is an argument and not a function
-                    stack.append(element)
+                stack.append(token.value)
         if nodes == [] and stack != []:
             offset = 0
+            loc = space.cursor_location if self.use_mouse_location else (
+                0, 0)
             # Add the given attributes as attribute fill nodes
             for name in stack:
                 node = tree.nodes.new('GeometryNodeAttributeFill')
                 node.location = (
                     loc[0] + offset, loc[1])
-                node.inputs["Attribute"].default_value = name
+                node.inputs["Attribute"].default_value = str(name)
                 offset += node.width + 20
         elif props.add_frame:
             # Add all nodes in a frame
@@ -448,6 +566,9 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             for node in nodes:
                 node.parent = frame
             frame.update()
+        if nodes != []:
+            last_node = nodes[-1]
+            last_node.inputs["Result"].default_value = result_of_last_node
         # Force an update
         tree.nodes.update()
         tree.update_tag()
@@ -486,10 +607,12 @@ def draw_callback_px(self,):
     font_id = 0
     font_size = self.font_size
     blf.size(font_id, font_size, 72)
-
+    # Set the initial positions of the text
     posx = self.mouse_loc[0]
     posy = self.mouse_loc[1]
     posz = 0
+
+    # Get the dimensions so that we know where to place the next text
     width, height = blf.dimensions(font_id, "Formula: ")
     blf.color(font_id, 0.7, 0.0, 0.0, 1.0)
     blf.position(font_id, posx, posy+height+10, posz)
@@ -498,44 +621,35 @@ def draw_callback_px(self,):
     blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
     blf.position(font_id, posx, posy, posz)
     blf.draw(font_id, "Formula: ")
+    parser = MFParser()
+    tokens = parser.parse(self.formula, cursor=self.cursor_index)
+    self.formula = ''
+    cursor = None
+    cursor_pos = 0
+    for index, token in enumerate(tokens):
+        if token.type == 'cursor':
+            # Find the correct placement of the cursor
+            cursor = token
+            ind_offset = cursor.data
+            self.cursor_index = len(self.formula) + ind_offset
+            cursor_pos = width
+            if index + 1 < len(tokens):
+                next_text = tokens[index+1].value_for_print()
+                if next_text != "":
+                    cursor_pos += blf.dimensions(font_id,
+                                                 next_text[:ind_offset])[0]
+            # Draw location of the cursor
+            blf.position(font_id, posx + cursor_pos, posy-font_size/10, posz)
+            cursor.highlight(font_id)
+            blf.draw(font_id, cursor.value_for_print())
+            continue
 
-    for string in self.formula.split(' '):
         blf.position(font_id, posx+width, posy, posz)
-        color_set = False
-        for operation in math_operations:
-            if string in operation[0]:
-                # Green
-                blf.color(font_id, 0.0, 0.8, 0.1, 1.0)
-                color_set = True
-                break
-        if not color_set:
-            for operation in vector_math_operations:
-                if string in operation[0]:
-                    # Blue
-                    blf.color(font_id, 0.0, 0.1, 0.8, 1.0)
-                    color_set = True
-                    break
-        if not color_set and string == "->":
-            # Pink
-            blf.color(font_id, 0.3, 0.1, 0.8, 1.0)
-            color_set = True
-        elif not color_set and string in builtin_attributes:
-            # Orange
-            blf.color(font_id, 0.5, 0.3, 0.05, 1.0)
-            color_set = True
-        # Draw the text
-        blf.draw(font_id, string)
-        if color_set:
-            # Back to default white
-            blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
-        width += blf.dimensions(font_id, string + ' ')[0]
-
-    # Draw location of the cursor
-    width = blf.dimensions(font_id, "Formula: " +
-                           self.formula[:max(self.cursor_index - 1, 0)])[0]
-    blf.position(font_id, posx + width, posy-font_size/10, posz)
-    blf.color(font_id, 0.1, 0.5, 0.2, 1.0)
-    blf.draw(font_id, '_')
+        token.highlight(font_id)
+        text = token.value_for_print()
+        self.formula += text
+        blf.draw(font_id, text)
+        width += blf.dimensions(font_id, text)[0]
 
 
 class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
@@ -546,30 +660,55 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
 
     def modal(self, context, event):
         context.area.tag_redraw()
-        # Exit When they press enter
+        # Exit when they press enter
         if event.type == 'RET':
             bpy.types.SpaceNodeEditor.draw_handler_remove(
                 self._handle, 'WINDOW')
             context.scene.math_formula_add.formula = self.formula
             bpy.ops.node.mf_math_formula_add(use_mouse_location=True)
             return {'FINISHED'}
-        elif event.type == 'ESC':
+        # Cancel when they press Esc or Rmb
+        elif event.type in ('ESC', 'RIGHTMOUSE'):
             bpy.types.SpaceNodeEditor.draw_handler_remove(
                 self._handle, 'WINDOW')
             return {'CANCELLED'}
+
+        # Prevent unwanted repetition
         elif event.value == 'RELEASE':
+            # Lock is needed because of oversensitve keys
             self.lock = False
+
+        # NAVIGATION
         elif event.type == 'LEFT_ARROW':
             self.cursor_index = max(0, self.cursor_index - 1)
         elif event.type == 'RIGHT_ARROW':
-            self.cursor_index = max(len(self.formula), self.cursor_index + 1)
+            self.cursor_index = min(len(self.formula), self.cursor_index + 1)
+        elif event.type == 'HOME':
+            self.cursor_index = 0
+        elif event.type == 'END':
+            self.cursor_index = len(self.formula)
+
+        # INSERTION + DELETING
         elif (not self.lock or event.is_repeat) and event.type == 'BACK_SPACE' and self.cursor_index != 0:
+            # Remove the char at the index
             self.formula = self.formula[:self.cursor_index -
                                         1] + self.formula[self.cursor_index:]
             self.cursor_index = self.cursor_index - 1
+            # Prevent over sensitive keys
+            self.lock = True
+        elif (not self.lock or event.is_repeat) and event.type == 'DEL' and self.cursor_index != len(self.formula):
+            # Remove the char at the index + 1
+            self.formula = self.formula[:self.cursor_index] + \
+                self.formula[self.cursor_index+1:]
+            # Prevent wrapping when cursor is at the front
+            self.cursor_index = max(0, self.cursor_index - 1)
             self.lock = True
         elif event.unicode != "" and event.unicode.isprintable():
-            self.formula += event.unicode
+            # Only allow printable characters
+
+            # Insert char at the index
+            self.formula = self.formula[:self.cursor_index] + \
+                event.unicode + self.formula[self.cursor_index:]
             self.cursor_index += 1
 
         return {'RUNNING_MODAL'}
