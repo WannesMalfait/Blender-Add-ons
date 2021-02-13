@@ -1,20 +1,17 @@
-
-
 import bpy
 import blf
 import bgl
-from bpy.types import AnyType
 import rna_keymap_ui
 
 
 bl_info = {
     "name": "Node Math Formula",
     "author": "Wannes Malfait",
-    "version": (0, 3, 1),
+    "version": (0, 4, 0),
     "location": "Node Editor Toolbar",
     "description": "Quickly add math nodes by typing in a formula",
     "category": "Node",
-    "blender": (2, 91, 0),  # Required so the add-on will actually load
+    "blender": (2, 93, 0),  # Required so the add-on will actually load
 }
 
 
@@ -112,6 +109,12 @@ class MFMathFormula(bpy.types.AddonPreferences):
         min=8,
         soft_max=20,
     )
+    node_distance: bpy.props.IntProperty(
+        name="Distance between nodes",
+        description="The distance placed between the nodes from the formula",
+        default=30,
+        min=0,
+    )
     builtin_attr_color: bpy.props.FloatVectorProperty(
         name="Built-in Attribute Color",
         default=(0.5, 0.3, 0.05),
@@ -130,6 +133,11 @@ class MFMathFormula(bpy.types.AddonPreferences):
     grouping_color: bpy.props.FloatVectorProperty(
         name="Grouping Indicator Color",
         default=(0.3, 0.1, 0.8),
+        subtype='COLOR',
+    )
+    separate_combine_color: bpy.props.FloatVectorProperty(
+        name="Combine Separate XYZ Color",
+        default=(0.76, 0.195, 0.071),
         subtype='COLOR',
     )
     float_color: bpy.props.FloatVectorProperty(
@@ -152,12 +160,14 @@ class MFMathFormula(bpy.types.AddonPreferences):
         layout = self.layout
         col = layout.column()
         col.prop(self, 'font_size')
+        col.prop(self, 'node_distance')
         box = layout.box()
         box.label(text="Syntax Highlighting")
         box.prop(self, 'builtin_attr_color')
         box.prop(self, 'math_func_color')
         box.prop(self, 'vector_math_func_color')
         box.prop(self, 'grouping_color')
+        box.prop(self, 'separate_combine_color')
         box.prop(self, 'float_color')
         box.prop(self, 'default_color')
         box.prop(self, 'result_color')
@@ -166,7 +176,6 @@ class MFMathFormula(bpy.types.AddonPreferences):
         kc = bpy.context.window_manager.keyconfigs.addon
         for km, kmi in addon_keymaps:
             km = km.active()
-            # kmi.show_expanded = True
             col.context_pointer_set("keymap", km)
             rna_keymap_ui.draw_kmi([], kc, km, kmi, col, 0)
 
@@ -248,7 +257,6 @@ class MFParser:
         self.prev_char = " "
         self.making_vector = False
         self.is_res = False
-        self.done = False
 
     @staticmethod
     def is_float(input) -> bool:
@@ -261,6 +269,17 @@ class MFParser:
         except:
             return False
 
+    def is_res_check(self, token, prefs):
+        if self.is_res and token.type != 'excess':
+            if token.type in ('vector', 'combine_xyz'):
+                for i in range(3):
+                    token.value[i] = str(token.value[i])
+            else:
+                token.value = token.value_for_print()
+            token.type = 'result'
+            token.color = prefs.result_color
+            self.is_res = False
+
     def add_token_check(self, prefs) -> None:
         """
         After finishing a token check if it is empty. If not add
@@ -272,6 +291,7 @@ class MFParser:
                 self.current_text += ' '
             else:
                 token = self.get_token(self.current_text)
+                self.is_res_check(token, prefs)
                 self.tokens.append(token)
                 token = Token('excess', ' ', prefs.default_color)
                 self.tokens.append(token)
@@ -284,11 +304,7 @@ class MFParser:
         prefs = bpy.context.preferences.addons[__name__].preferences
         added_cursor = False
         for index, char in enumerate(string):
-            if self.done:
-                break
             if cursor is not None and index == cursor:
-                cur_length = len(
-                    ''.join([token.value_for_print() for token in self.tokens]))
                 token = Token('cursor', '_', prefs.grouping_color,
                               data=len(self.current_text))
                 self.tokens.append(token)
@@ -300,6 +316,7 @@ class MFParser:
                 token = Token('excess', char, prefs.grouping_color)
                 self.tokens.append(token)
             elif char == '(':
+                self.add_token_check(prefs)
                 # Add it so the user can see what they typed
                 token = Token('excess', '(', prefs.default_color)
                 self.tokens.append(token)
@@ -307,6 +324,7 @@ class MFParser:
             elif char == ')':
                 # Add it so the user can see what they typed
                 token = self.get_token(self.current_text)
+                self.is_res_check(token, prefs)
                 self.tokens.append(token)
                 token = Token('excess', ')', prefs.default_color)
                 self.tokens.append(token)
@@ -317,6 +335,7 @@ class MFParser:
             self.prev_char = char
         if self.current_text != "":
             token = self.get_token(self.current_text)
+            self.is_res_check(token, prefs)
             self.tokens.append(token)
         if cursor is not None and not added_cursor:
             token = Token('cursor', '_', prefs.grouping_color,
@@ -333,23 +352,32 @@ class MFParser:
         if self.making_vector:
             components = string.split(' ')
             # In case of double spaces
-            components = [c for c in components if c != '']
-            for i in range(len(components)):
+            components = [c for i, c in enumerate(
+                components) if c != '' and i < 3]
+            l = len(components)
+            # Fill in possibly missing components
+            components = [components[i] if i < l else 0 for i in range(3)]
+            all_floats = True
+            for i in range(l):
                 if self.is_float(components[i]):
                     components[i] = float(components[i])
                 else:
-                    components[i] = 0.0
-                    print("Vectors need floats")
-            return Token('vector', components,
-                         prefs.float_color, print_value=string)
+                    all_floats = False
+            if all_floats:
+                return Token('vector', components,
+                             prefs.float_color, print_value=string)
+            else:
+                return Token('combine_xyz', components, prefs.separate_combine_color, print_value=string)
         elif string == "":
             return Token('excess', '', prefs.default_color)
         elif string == '->':
             self.is_res = True
             return Token('excess', '->', prefs.grouping_color)
-        elif self.is_res:
-            self.done = True
-            return Token('result', string, prefs.result_color)
+        elif (ind := string.find('.')) != -1:
+            name = string[:ind]
+            end = string[ind:]
+            components = ('x' in end, 'y' in end, 'z' in end)
+            return Token('separate_xyz', name, prefs.separate_combine_color, print_value=string, data=components)
         else:
             for operation in math_operations:
                 if string in operation[0]:
@@ -406,11 +434,16 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                     {'WARNING'}, f"Invalid number of arguments for {func_name.lower()}. Expected {num_args} arguments, got args: {args}.")
                 args.append(self.no_arg)
             else:
-                args.append(stack.pop())
+                arg = stack.pop()
+                if type(arg) == str and arg.startswith(self.temp_attr_name):
+                    self.number_of_temp_attributes = max(
+                        0, self.number_of_temp_attributes-1)
+                args.append(arg)
         args.reverse()
         return args
 
     def place_node(self, context, node, nodes):
+        prefs = bpy.context.preferences.addons[__name__].preferences
         space = context.space_data
         tree = space.edit_tree
         # First node
@@ -420,9 +453,37 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         else:
             prev_node = nodes[-1]
             node.location = (prev_node.location.x +
-                             prev_node.width + 50, prev_node.location.y)
+                             prev_node.width + prefs.node_distance, prev_node.location.y)
             tree.links.new(
                 prev_node.outputs["Geometry"], node.inputs["Geometry"])
+
+    def add_combine_xyz_node(self, context, nodes, vec):
+        tree = context.space_data.edit_tree
+        node = tree.nodes.new(type="GeometryNodeAttributeCombineXYZ")
+        self.place_node(context, node, nodes)
+        types = ['FLOAT' if type(
+            comp) == float else 'ATTRIBUTE' for comp in vec]
+        node.input_type_x = types[0]
+        node.input_type_y = types[1]
+        node.input_type_z = types[2]
+        for i in range(3):
+            offset = 0 if types[i] == 'ATTRIBUTE' else 1
+            node.inputs[1 + 2*i + offset].default_value = vec[i]
+        nodes.append(node)
+        return node
+
+    def add_separate_xyz_node(self, context, nodes, name, components):
+        tree = context.space_data.edit_tree
+        node = tree.nodes.new(type="GeometryNodeAttributeSeparateXYZ")
+        self.place_node(context, node, nodes)
+        node.input_type = 'ATTRIBUTE'
+        node.inputs[1].default_value = name
+        vec = ('x', 'y', 'z')
+        for i in range(3):
+            if components[i]:
+                node.inputs[3 + i].default_value = vec[i]
+        nodes.append(node)
+        return node
 
     def add_math_node(self, context, nodes, args, func_name):
         tree = context.space_data.edit_tree
@@ -487,10 +548,8 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         for i in range(l):
             if type(args[i]) == float and not(func_name == 'SCALE' and i == 1):
                 args[i] = [args[i] for _ in range(3)]
-        print(args)
         arg_types = ['VECTOR' if type(arg) == list else 'FLOAT'if type(
             arg) == float else'ATTRIBUTE' for arg in args]
-        print(arg_types)
         node.input_type_a = arg_types[0]
         if l >= 2:
             node.input_type_b = arg_types[1]
@@ -519,7 +578,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         stack = []
         # The nodes that we added
         nodes = []
-        result_of_last_node = ""
         # Parse the input string into a sequence of tokens
         parser = MFParser()
         tokens = parser.parse(formula)
@@ -542,14 +600,41 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 node.inputs["Result"].default_value = res_string
                 stack.append(res_string)
                 self.number_of_temp_attributes += 1
+            elif token.type == 'combine_xyz':
+                vec = token.value
+                node = self.add_combine_xyz_node(context, nodes, vec)
+                res_string = self.temp_attr_name + \
+                    (str(self.number_of_temp_attributes)
+                     if self.number_of_temp_attributes else "")
+                node.inputs["Result"].default_value = res_string
+                stack.append(res_string)
+                self.number_of_temp_attributes += 1
+            elif token.type == 'separate_xyz':
+                name = token.value
+                components = token.data
+                node = self.add_separate_xyz_node(
+                    context, nodes, name, components)
             elif token.type == 'result':
-                result_of_last_node = token.value_for_print()
-                # This is the final token
-                break
+                if nodes == []:
+                    continue
+                last_node = nodes[-1]
+                if last_node.bl_idname == "GeometryNodeAttributeSeparateXYZ":
+                    if type(token.value) != list:
+                        token.value = [token.value for _ in range(3)]
+                    ind = 0
+                    for input_name in ("Result X", "Result Y", "Result Z"):
+                        if last_node.inputs[input_name].default_value:
+                            last_node.inputs[input_name].default_value = token.value[ind]
+                            ind += 1
+                else:
+                    if type(token.value) == list:
+                        token.value = token.value[0]
+                    last_node.inputs["Result"].default_value = token.value
             else:
                 stack.append(token.value)
         if nodes == [] and stack != []:
             offset = 0
+            prefs = bpy.context.preferences.addons[__name__].preferences
             loc = space.cursor_location if self.use_mouse_location else (
                 0, 0)
             # Add the given attributes as attribute fill nodes
@@ -558,7 +643,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 node.location = (
                     loc[0] + offset, loc[1])
                 node.inputs["Attribute"].default_value = str(name)
-                offset += node.width + 20
+                offset += node.width + prefs.node_distance
         elif props.add_frame:
             # Add all nodes in a frame
             frame = tree.nodes.new(type='NodeFrame')
@@ -566,9 +651,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             for node in nodes:
                 node.parent = frame
             frame.update()
-        if nodes != []:
-            last_node = nodes[-1]
-            last_node.inputs["Result"].default_value = result_of_last_node
         # Force an update
         tree.nodes.update()
         tree.update_tag()
@@ -702,6 +784,14 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 self.formula[self.cursor_index+1:]
             # Prevent wrapping when cursor is at the front
             self.cursor_index = max(0, self.cursor_index - 1)
+            self.lock = True
+        elif not self.lock and event.ctrl and event.type == 'V':
+            # Paste from clipboard
+            clipboard = bpy.context.window_manager.clipboard
+            # Insert char at the index
+            self.formula = self.formula[:self.cursor_index] + \
+                clipboard + self.formula[self.cursor_index:]
+            self.cursor_index += len(clipboard)
             self.lock = True
         elif event.unicode != "" and event.unicode.isprintable():
             # Only allow printable characters
