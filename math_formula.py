@@ -7,7 +7,7 @@ import rna_keymap_ui
 bl_info = {
     "name": "Node Math Formula",
     "author": "Wannes Malfait",
-    "version": (0, 4, 0),
+    "version": (0, 4, 1),
     "location": "Node Editor Toolbar",
     "description": "Quickly add math nodes by typing in a formula",
     "category": "Node",
@@ -373,7 +373,13 @@ class MFParser:
         elif string == '->':
             self.is_res = True
             return Token('excess', '->', prefs.grouping_color)
+        elif self.is_float(string):
+            return Token('float', float(string),
+                         prefs.float_color, print_value=string)
+        elif string in builtin_attributes:
+            return Token('default', string, prefs.builtin_attr_color)
         elif (ind := string.find('.')) != -1:
+            # This is not a float because we checked first
             name = string[:ind]
             end = string[ind:]
             components = ('x' in end, 'y' in end, 'z' in end)
@@ -387,12 +393,8 @@ class MFParser:
                 if string in operation[0]:
                     return Token(
                         'vector_math_func', operation[1], prefs.vector_math_func_color, print_value=string, data=operation[2])
-            if self.is_float(string):
-                return Token('float', float(string),
-                             prefs.float_color, print_value=string)
-            elif string in builtin_attributes:
-                return Token('default', string, prefs.builtin_attr_color)
-            return Token('default', string, prefs.default_color)
+
+        return Token('default', string, prefs.default_color)
 
     def update_last_token(self, string):
         """
