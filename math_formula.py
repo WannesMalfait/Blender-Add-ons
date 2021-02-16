@@ -692,8 +692,8 @@ def draw_callback_px(self,):
     font_size = self.font_size
     blf.size(font_id, font_size, 72)
     # Set the initial positions of the text
-    posx = self.mouse_loc[0]
-    posy = self.mouse_loc[1]
+    posx = self.formula_loc[0]
+    posy = self.formula_loc[1]
     posz = 0
 
     # Get the dimensions so that we know where to place the next text
@@ -744,6 +744,9 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
 
     def modal(self, context, event):
         context.area.tag_redraw()
+
+        print(event.type)
+
         # Exit when they press enter
         if event.type == 'RET':
             bpy.types.SpaceNodeEditor.draw_handler_remove(
@@ -761,8 +764,21 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         elif event.value == 'RELEASE':
             # Lock is needed because of oversensitve keys
             self.lock = False
+            self.middle_mouse = False
 
         # NAVIGATION
+        elif event.type == 'MIDDLEMOUSE':
+            self.old_mouse_loc = (event.mouse_region_x, event.mouse_region_y)
+            self.old_formula_loc = self.formula_loc
+            self.middle_mouse = True
+        elif event.type in 'MOUSEMOVE' and self.middle_mouse:
+            self.formula_loc = (
+                self.old_formula_loc[0] +
+                event.mouse_region_x - self.old_mouse_loc[0],
+                self.old_formula_loc[1] +
+                event.mouse_region_y - self.old_mouse_loc[1])
+
+        # CURSOR NAVIGATION
         elif event.type == 'LEFT_ARROW':
             self.cursor_index = max(0, self.cursor_index - 1)
         elif event.type == 'RIGHT_ARROW':
@@ -809,9 +825,13 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         args = (self,)
         self._handle = bpy.types.SpaceNodeEditor.draw_handler_add(
             draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
-        self.mouse_loc = (event.mouse_region_x, event.mouse_region_y)
+        self.formula_loc = (event.mouse_region_x, event.mouse_region_y)
+        # Stores the location of the formula before dragging MMB
+        self.old_formula_loc = self.formula_loc
+        self.old_mouse_loc = (0, 0)
         self.cursor_index = 0
         self.lock = False
+        self.middle_mouse = False
         self.formula = ""
         self.font_size = context.preferences.addons[__name__].preferences.font_size
         context.window_manager.modal_handler_add(self)
