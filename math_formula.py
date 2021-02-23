@@ -594,7 +594,6 @@ class MFTreePositioner():
         for pnode in self.visited_nodes:
             pnode.set_x(pnode.get_x() + offset_x)
             pnode.set_y(pnode.get_y() + offset_y)
-        # print(self.max_x_loc, self.min_x_loc)
         if cursor_loc is not None:
             return (cursor_loc[0]+self.max_x_loc-self.min_x_loc, cursor_loc[1])
 
@@ -628,14 +627,8 @@ class MFTreePositioner():
             ancestor_neighbour = neighbour
 
             for _ in range(compare_depth):
-                # print("\ncompare_depth:", compare_depth, _)
-                # print("ancestor_leftmost:", ancestor_leftmost)
-                # print("ancestor_neighbour:", ancestor_neighbour)
                 ancestor_leftmost = ancestor_leftmost.parent
                 ancestor_neighbour = ancestor_neighbour.parent
-                # print("PARENTS: ")
-                # print("ancestor_leftmost:", ancestor_leftmost)
-                # print("ancestor_neighbour:", ancestor_neighbour)
                 right_mod_sum += ancestor_leftmost.modifier
 
                 left_mod_sum += ancestor_neighbour.modifier
@@ -647,7 +640,6 @@ class MFTreePositioner():
                 self.subtree_separation + \
                 neighbour.get_height() - \
                 (leftmost.prelim_y + right_mod_sum)
-            # print("\nMove distance:", move_distance)
             if move_distance > 0:
                 tmp = node
                 left_siblings = 0
@@ -656,9 +648,6 @@ class MFTreePositioner():
                     left_siblings += 1
                     tmp = tmp.left_sibling
                 if tmp is not None:
-                    # print("Not None tmp:", tmp)
-                    # print("Node:", node)
-                    # print("Left Siblings:", left_siblings)
                     # Apply posrtions to appropriate left sibling
                     # subtrees
                     portion = move_distance/left_siblings
@@ -669,7 +658,6 @@ class MFTreePositioner():
                         move_distance -= portion
                         tmp = tmp.left_sibling
                 else:
-                    # print("\nNot siblings\n")
                     # In this case ancestor_neighbour and ancestor_leftmost
                     # aren't siblings, so the job to move should be done by
                     # an ancestor instead
@@ -678,12 +666,10 @@ class MFTreePositioner():
             # Determine the leftmost descendant of Node at the next lower level
             # to compare its positioning against that of its neighbour.
             compare_depth += 1
-            # print("Leftmost before:", leftmost)
             if leftmost.is_leaf():
                 leftmost = self.get_leftmost(node, 0, compare_depth)
             else:
                 leftmost = leftmost.first_child
-            # print("Leftmost after:", leftmost)
             if leftmost is not None:
                 neighbour = leftmost.left_neighbour
             else:
@@ -968,7 +954,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             cursor_loc = space.cursor_location if self.use_mouse_location else (
                 0, 0)
             for root_node in root_nodes:
-                # print(cursor_loc)
                 node_positioner = MFTreePositioner(context)
                 cursor_loc = node_positioner.place_nodes(root_node, cursor_loc)
         # TODO: Figure out how to force an update
@@ -979,7 +964,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         # tree.interface_update(context)
         # context.view_layer.update()
         # for pnode in pnodes:
-        #     print(pnode.node.dimensions)
 
         # test string:
         # abs 0 sin / [{0 sin abs} {0 sin 0 tan * 0 abs +} + cos 0] [{0 sin tan cos abs} {0 abs} *] wrap 0 0 add compare
@@ -1361,13 +1345,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 return bpy.ops.node.mf_attribute_math_formula_add(
                     use_mouse_location=True)
             else:
-                res = bpy.ops.node.mf_math_formula_add(use_mouse_location=True)
-                for node in context.space_data.edit_tree.nodes:
-                    if 'Math' in node.bl_idname:
-                        print(node.bl_idname, node.operation, node.dimensions)
-                    else:
-                        print(node.bl_idname, node.dimensions)
-                return res
+                return bpy.ops.node.mf_math_formula_add(use_mouse_location=True)
         # Cancel when they press Esc or Rmb
         elif event.type in ('ESC', 'RIGHTMOUSE'):
             bpy.types.SpaceNodeEditor.draw_handler_remove(
