@@ -72,7 +72,7 @@ vector_math_operations = [
     (('vproject', 'project'), 'PROJECT', 2),
     (('vreflect', 'reflect'), 'REFLECT', 2),
     (('vsnap',), 'SNAP', 2),
-    (('v%', 'mod'), 'MODULO', 2),
+    (('v%', 'vmod'), 'MODULO', 2),
     (('vmin', 'vminimum'), 'MINIMUM', 2),
     (('vmax', 'vmaximum'), 'MAXIMUM', 2),
     (('vdot', 'dot', 'dot_product'), 'DOT_PRODUCT', 2),
