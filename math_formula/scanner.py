@@ -345,27 +345,12 @@ class Scanner():
         return self.error_token('Unrecognized token')
 
 
-class Parser():
-    def __init__(self, source: str) -> None:
-        self.tokens = []
-        self.source = source
-        self.scanner = Scanner(source)
-
-    def reset(self, source: str) -> None:
-        self.tokens = []
-        self.source = source
-        self.scanner.reset(source)
-
-    def get_tokens(self) -> list[Token]:
-        while(token := self.scanner.scan_token()).token_type != TokenType.EOL:
-            self.tokens.append(token)
-        return self.tokens
-
-
 def scanner_test(source: str, expected: list[Token]) -> None:
     print('Testing:', source)
-    parser = Parser(source)
-    results = parser.get_tokens()
+    scanner = Scanner(source)
+    results = []
+    while(token := scanner.scan_token()).token_type != TokenType.EOL:
+        results.append(token)
     if len(results) != len(expected):
         print('TEST FAILED: lengths do not match')
         print('Parse results:', results)
