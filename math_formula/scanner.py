@@ -123,7 +123,7 @@ vector_math_operations = {
 
 class TokenType(Enum):
     # Single-character tokens.
-    LEFT_PAREN = auto()
+    LEFT_PAREN = 0
     RIGHT_PAREN = auto()
     LEFT_BRACE = auto()
     RIGHT_BRACE = auto()
@@ -154,6 +154,7 @@ class TokenType(Enum):
     ATTRIBUTE = auto()
     MATH_FUNC = auto()
     VECTOR_MATH_FUNC = auto()
+    LET = auto()
 
     ERROR = auto()
     EOL = auto()
@@ -298,8 +299,12 @@ class Scanner():
                 return self.make_token(TokenType.VECTOR_PERCENT)
             else:
                 return self.identifier()
+        elif c == 'l':
+            if self.match('e') and self.match('t'):
+                return self.make_token(TokenType.LET)
+            return self.identifier()
 
-        if c.isalpha() or c == '_':
+        elif c.isalpha() or c == '_':
             return self.identifier()
         elif (c.isdigit()):
             return self.number()
@@ -317,8 +322,6 @@ class Scanner():
             return self.make_token(TokenType.SEMICOLON)
         elif c == ',':
             return self.make_token(TokenType.COMMA)
-        elif c == '-':
-            return self.make_token(TokenType.MINUS)
         elif c == '+':
             return self.make_token(TokenType.PLUS)
         elif c == '/':
@@ -340,6 +343,13 @@ class Scanner():
             if self.peek().isdigit():
                 return self.number(starting_dot=True)
             return self.make_token(TokenType.DOT)
+        elif c == '-':
+            # Check for negative numbers
+            if self.match('.'):
+                return self.number(starting_dot=True)
+            elif self.peek().isdigit():
+                return self.number()
+            return self.make_token(TokenType.MINUS)
         elif c == '!':
             return self.python()
         return self.error_token('Unrecognized token')
@@ -367,16 +377,19 @@ def scanner_test(source: str, expected: list[Token]) -> None:
 
 
 scanner_tests = [
-    ('4*.5+v **2.17', [
+    ('4*.5-v **2.17', [
         Token('4', TokenType.NUMBER),
         Token('*', TokenType.STAR),
         Token('.5', TokenType.NUMBER),
-        Token('+', TokenType.PLUS),
+        Token('-', TokenType.MINUS),
         Token('v', TokenType.ATTRIBUTE),
         Token('**', TokenType.STAR_STAR),
         Token('2.17', TokenType.NUMBER),
     ]),
-    ('sin(x*!(sqrt(pi)))', [
+    ('let z = sin(x*!(sqrt(pi)))', [
+        Token('let', TokenType.LET),
+        Token('z', TokenType.ATTRIBUTE),
+        Token('=', TokenType.EQUAL),
         Token('sin', TokenType.MATH_FUNC),
         Token('(', TokenType.LEFT_PAREN),
         Token('x', TokenType.ATTRIBUTE),
@@ -384,18 +397,18 @@ scanner_tests = [
         Token('!(sqrt(pi))', TokenType.PYTHON),
         Token(')', TokenType.RIGHT_PAREN),
     ]),
-    ('{1,1,.5}v/position', [
+    ('{-1,1,-.5}v/len', [
         Token('{', TokenType.LEFT_BRACE),
-        Token('1', TokenType.NUMBER),
+        Token('-1', TokenType.NUMBER),
         Token(',', TokenType.COMMA),
         Token('1', TokenType.NUMBER),
         Token(',', TokenType.COMMA),
-        Token('.5', TokenType.NUMBER),
+        Token('-.5', TokenType.NUMBER),
         Token('}', TokenType.RIGHT_BRACE),
         Token('v/', TokenType.VECTOR_SLASH),
-        Token('position', TokenType.ATTRIBUTE),
+        Token('len', TokenType.ATTRIBUTE),
     ])
 ]
-
-for source, expected in scanner_tests:
-    scanner_test(source, expected)
+if __name__ == '__main__':
+    for source, expected in scanner_tests:
+        scanner_test(source, expected)
