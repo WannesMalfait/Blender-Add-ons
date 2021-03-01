@@ -81,7 +81,7 @@ class Parser():
         self.had_error = True
 
     def consume(self, token_type: TokenType, message: str) -> None:
-        if self.current.token_type == token_type:
+        if self.check(token_type):
             self.advance()
             return
 
@@ -130,7 +130,9 @@ class Parser():
 
     def statement(self) -> None:
         self.expression()
-        self.consume(TokenType.SEMICOLON, 'Expect ";" after expression.')
+        # Get optional semicolon at end of expression
+        self.match(TokenType.SEMICOLON)
+        # self.consume(TokenType.SEMICOLON, 'Expect ";" after expression.')
         # A statement has no return value
         self.instructions.append(Instruction(InstructionType.POP, None))
 
@@ -166,8 +168,10 @@ class Parser():
         else:
             # Something like 'let x;' gets de-sugared to 'let x = 0;'
             self.instructions.append(Instruction(InstructionType.NUMBER, 0))
-        self.consume(TokenType.SEMICOLON,
-                     'Expect ";" after variable declaration')
+        # Get optional semicolon at end of expression
+        self.match(TokenType.SEMICOLON)
+        # self.consume(TokenType.SEMICOLON,
+        #              'Expect ";" after variable declaration')
         self.define_variable(var)
 
     def declaration(self) -> None:
@@ -338,7 +342,7 @@ rules: list[ParseRule] = [
     ParseRule(None, binary, Precedence.TERM),  # PLUS
     ParseRule(None, None, Precedence.NONE),  # SEMICOLON
     ParseRule(None, binary, Precedence.FACTOR),  # PERCENT
-    ParseRule(None, None, Precedence.FACTOR),  # SLASH
+    ParseRule(None, binary, Precedence.FACTOR),  # SLASH
     ParseRule(None, binary, Precedence.EXPONENT),  # HAT
     ParseRule(None, binary, Precedence.COMPARISON),  # GREATER
     ParseRule(None, binary, Precedence.COMPARISON),  # LESS
@@ -377,14 +381,15 @@ class Compiler():
 
 
 tests = [
-    'let x;',
-    'sin({0,0,2});',
+    'let x x=2',
+    'vsin({0,0,2});',
     'let y = !(sin(pi/4));',
-    'let x=4; x=2;',
+    'let x=4 x=2;',
     'let {a,b,c} = position;',
     'let x = 4<5*0.2**2;',
     'x = 2;',
     'coords; vsin(coords).xy;',
+    'a = 2 4*5/7 8+4'
 ]
 if __name__ == '__main__':
     compiler = Compiler()
