@@ -1,4 +1,4 @@
-from . import main, parser, scanner
+from . import main, parser, scanner, positioning
 import bpy
 import rna_keymap_ui
 
@@ -18,6 +18,7 @@ if "bpy" in locals():
     importlib.reload(main)
     importlib.reload(parser)
     importlib.reload(scanner)
+    importlib.reload(positioning)
 
 
 class MFMathFormula(bpy.types.AddonPreferences):
@@ -69,7 +70,7 @@ class MFMathFormula(bpy.types.AddonPreferences):
     )
     float_color: bpy.props.FloatVectorProperty(
         name="Number Color",
-        default=(0.7, 0.515, 0.462),
+        default=(0.7, 0.607, 0.58),
         subtype='COLOR',
     )
     default_color: bpy.props.FloatVectorProperty(
@@ -80,6 +81,11 @@ class MFMathFormula(bpy.types.AddonPreferences):
     keyword_color: bpy.props.FloatVectorProperty(
         name="Keyword Color",
         default=(0.103, 0.8, 0.492),
+        subtype='COLOR',
+    )
+    error_color: bpy.props.FloatVectorProperty(
+        name="Error Color",
+        default=(0.4, 0.2, 0.05),
         subtype='COLOR',
     )
 
@@ -101,6 +107,7 @@ class MFMathFormula(bpy.types.AddonPreferences):
             box.prop(self, 'float_color')
             box.prop(self, 'default_color')
             box.prop(self, 'keyword_color')
+            box.prop(self, 'error_color')
         col = layout.column()
         col.label(text="Keymaps:")
         kc = bpy.context.window_manager.keyconfigs.addon
