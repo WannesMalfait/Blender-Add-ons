@@ -1,4 +1,4 @@
-from . import main
+from . import main, parser, scanner
 import bpy
 import rna_keymap_ui
 
@@ -11,6 +11,13 @@ bl_info = {
     "category": "Node",
     "blender": (2, 93, 0),  # Required so the add-on will actually load
 }
+
+# Reload other modules as well
+if "bpy" in locals():
+    import importlib
+    importlib.reload(main)
+    importlib.reload(parser)
+    importlib.reload(scanner)
 
 
 class MFMathFormula(bpy.types.AddonPreferences):
@@ -45,11 +52,6 @@ class MFMathFormula(bpy.types.AddonPreferences):
         name="Show colors for syntax highlighting",
         default=False,
     )
-    builtin_attr_color: bpy.props.FloatVectorProperty(
-        name="Built-in Attribute Color",
-        default=(0.5, 0.3, 0.05),
-        subtype='COLOR',
-    )
     math_func_color: bpy.props.FloatVectorProperty(
         name="Math Function Color",
         default=(0.0, 0.8, 0.1),
@@ -60,14 +62,9 @@ class MFMathFormula(bpy.types.AddonPreferences):
         default=(0.142, 0.408, 0.8),
         subtype='COLOR',
     )
-    grouping_color: bpy.props.FloatVectorProperty(
-        name="Grouping Indicator Color",
+    python_color: bpy.props.FloatVectorProperty(
+        name="Python Color",
         default=(0.3, 0.1, 0.8),
-        subtype='COLOR',
-    )
-    separate_combine_color: bpy.props.FloatVectorProperty(
-        name="Combine Separate XYZ Color",
-        default=(0.76, 0.195, 0.071),
         subtype='COLOR',
     )
     float_color: bpy.props.FloatVectorProperty(
@@ -80,8 +77,8 @@ class MFMathFormula(bpy.types.AddonPreferences):
         default=(1.0, 1.0, 1.0),
         subtype='COLOR',
     )
-    result_color: bpy.props.FloatVectorProperty(
-        name="Result Color",
+    keyword_color: bpy.props.FloatVectorProperty(
+        name="Keyword Color",
         default=(0.103, 0.8, 0.492),
         subtype='COLOR',
     )
@@ -98,14 +95,12 @@ class MFMathFormula(bpy.types.AddonPreferences):
         if self.show_colors:
             box = layout.box()
             box.label(text="Syntax Highlighting")
-            box.prop(self, 'builtin_attr_color')
             box.prop(self, 'math_func_color')
             box.prop(self, 'vector_math_func_color')
-            box.prop(self, 'grouping_color')
-            box.prop(self, 'separate_combine_color')
+            box.prop(self, 'python_color')
             box.prop(self, 'float_color')
             box.prop(self, 'default_color')
-            box.prop(self, 'result_color')
+            box.prop(self, 'keyword_color')
         col = layout.column()
         col.label(text="Keymaps:")
         kc = bpy.context.window_manager.keyconfigs.addon

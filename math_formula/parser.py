@@ -1,9 +1,9 @@
 import math
 from math_formula.scanner import *
-from enum import Enum, auto
+from enum import IntEnum, auto
 
 
-class Precedence(Enum):
+class Precedence(IntEnum):
     NONE = 0
     ASSIGNMENT = auto()  # =
     COMPARISON = auto()  # < >
@@ -15,7 +15,7 @@ class Precedence(Enum):
     PRIMARY = auto()
 
 
-class InstructionType(Enum):
+class InstructionType(IntEnum):
     NUMBER = 0
     ATTRIBUTE = auto()
     VECTOR_VAR = auto()
@@ -367,17 +367,26 @@ rules: list[ParseRule] = [
 
 class Compiler():
     def __init__(self) -> None:
-        pass
+        self.instructions: list[Instruction] = []
 
     def compile(self, source: str) -> bool:
+        self.instructions = []
         parser = Parser(source)
         parser.advance()
         while not parser.match(TokenType.EOL):
             parser.declaration()
         parser.consume(TokenType.EOL, 'Expect end of expression.')
-        if parser.had_error:
-            print(parser.instructions)
+        self.instructions = parser.instructions
         return not parser.had_error
+
+    @staticmethod
+    def get_tokens(source: str) -> list[Token]:
+        tokens = []
+        parser = Parser(source)
+        scanner = parser.scanner
+        while(token := scanner.scan_token()).token_type != TokenType.EOL:
+            tokens.append(token)
+        return tokens
 
 
 if __name__ == '__main__':
