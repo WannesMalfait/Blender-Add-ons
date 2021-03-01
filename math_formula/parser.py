@@ -23,7 +23,7 @@ class InstructionType(Enum):
     SEPARATE = auto()
     MATH_FUNC = auto()
     VECTOR_MATH_FUNC = auto()
-    POP = auto()
+    END_OF_STATEMENT = auto()
     DEFINE = auto()
 
 
@@ -133,36 +133,37 @@ class Parser():
         # Get optional semicolon at end of expression
         self.match(TokenType.SEMICOLON)
         # self.consume(TokenType.SEMICOLON, 'Expect ";" after expression.')
-        # A statement has no return value
-        self.instructions.append(Instruction(InstructionType.POP, None))
+        # A statement has no return value, this tells the operator
+        # to remove remaining values from the stack.
+        self.instructions.append(Instruction(
+            InstructionType.END_OF_STATEMENT, None))
 
-    def parse_variable(self, message: str) -> None:
+    def get_vector_for_assignment(self) -> Instruction:
+        var1 = var2 = var3 = ''
+        if self.match(TokenType.ATTRIBUTE):
+            var1 = self.previous.lexeme
+        self.consume(TokenType.COMMA,
+                     'Expect "," in between variable names')
+        if self.match(TokenType.ATTRIBUTE):
+            var2 = self.previous.lexeme
+        self.consume(TokenType.COMMA,
+                     'Expect "," in between variable names')
+        if self.match(TokenType.ATTRIBUTE):
+            var3 = self.previous.lexeme
+        self.consume(TokenType.RIGHT_BRACE,
+                     'Expect "}" at end of variable names')
+        return Instruction(InstructionType.VECTOR_VAR, (var1, var2, var3))
+
+    def parse_variable(self, message: str) -> Instruction:
         # It's syntax like '{a,b,c} = position.xyz;'
         if self.match(TokenType.LEFT_BRACE):
-            var1 = var2 = var3 = ''
-            if self.match(TokenType.ATTRIBUTE):
-                var1 = self.previous.lexeme
-            self.consume(TokenType.COMMA,
-                         'Expect "," in between variable names')
-            if self.match(TokenType.ATTRIBUTE):
-                var2 = self.previous.lexeme
-            self.consume(TokenType.COMMA,
-                         'Expect "," in between variable names')
-            if self.match(TokenType.ATTRIBUTE):
-                var3 = self.previous.lexeme
-            self.consume(TokenType.RIGHT_BRACE,
-                         'Expect "}" at end of variable names')
-            return Instruction(InstructionType.VECTOR_VAR, (var1, var2, var3))
+            return self.get_vector_for_assignment()
         self.consume(TokenType.ATTRIBUTE, message)
         return Instruction(InstructionType.ATTRIBUTE, self.previous.lexeme)
 
-    def define_variable(self, var: Instruction) -> None:
-        self.instructions.append(var)
-        self.instructions.append(Instruction(
-            InstructionType.DEFINE, var.instruction))
-
     def variable_declaration(self) -> None:
         var = self.parse_variable('Expect variable name.')
+        self.instructions.append(var)
         if self.match(TokenType.EQUAL):
             self.expression()
         else:
@@ -172,7 +173,8 @@ class Parser():
         self.match(TokenType.SEMICOLON)
         # self.consume(TokenType.SEMICOLON,
         #              'Expect ";" after variable declaration')
-        self.define_variable(var)
+        self.instructions.append(Instruction(
+            InstructionType.DEFINE, var.instruction))
 
     def declaration(self) -> None:
         if self.match(TokenType.LET):
@@ -266,10 +268,8 @@ def call(self: Parser, can_assign: bool) -> None:
         instruction_type = InstructionType.MATH_FUNC
         name, expected_number_of_args = math_operations[func.lexeme]
     else:
-        name, expected_number_of_args = vector_math_operations[func.lexeme]
         instruction_type = InstructionType.VECTOR_MATH_FUNC
-        self.instructions.append(Instruction(
-            InstructionType.VECTOR_MATH_FUNC, (name, expected_number_of_args)))
+        name, expected_number_of_args = vector_math_operations[func.lexeme]
     if expected_number_of_args != arg_count:
         self.error_at(func,
                       f'{name} expects {expected_number_of_args} argument(s), got {arg_count} argument(s)')
@@ -357,8 +357,8 @@ rules: list[ParseRule] = [
     ParseRule(number, None, Precedence.NONE),  # NUMBER
     ParseRule(python, None, Precedence.NONE),  # PYTHON
     ParseRule(attribute, None, Precedence.NONE),  # ATTRIBUTE
-    ParseRule(call, None, Precedence.NONE),  # MATH_FUNC
-    ParseRule(call, None, Precedence.NONE),  # VECTOR_MATH_FUNC
+    ParseRule(call, None, Precedence.CALL),  # MATH_FUNC
+    ParseRule(call, None, Precedence.CALL),  # VECTOR_MATH_FUNC
     ParseRule(None, None, Precedence.NONE),  # LET
     ParseRule(None, None, Precedence.NONE),  # ERROR
     ParseRule(None, None, Precedence.NONE),  # EOL
@@ -383,6 +383,7 @@ class Compiler():
 tests = [
     'let x x=2',
     'vsin({0,0,2});',
+    'vfract(x=2).xyz',
     'let y = !(sin(pi/4));',
     'let x=4 x=2;',
     'let {a,b,c} = position;',
