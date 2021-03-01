@@ -1,90 +1,10 @@
+from math_formula.parser import Compiler
+from math_formula.scanner import TokenType
+import time
 import bpy
 import blf
 
-from .positioning import MFPositionNode, MFTreePositioner
-
-# Operations used by the math node
-math_operations = [
-    # First element contains aliases for the function name
-    # Second element is the actual function name
-    # Third element is the number of arguments
-    (('+', 'add'), 'ADD', 2),
-    (('-', 'sub'), 'SUBTRACT', 2),
-    (('*', 'mult'), 'MULTIPLY', 2),
-    (('/', 'div'), 'DIVIDE', 2),
-    (('*+', 'mult_add'), 'MULTIPLY_ADD', 3),
-    (('sin', 'sine'), 'SINE', 1),
-    (('cos', 'cosine'), 'COSINE', 1),
-    (('tan', 'tangent'), 'TANGENT', 1),
-    (('asin', 'arcsin', 'arcsine'), 'ARCSINE', 1),
-    (('acos', 'arccos', 'arccosine'), 'ARCCOSINE', 1),
-    (('atan', 'arctan', 'arctangent'), 'ARCTANGENT', 1),
-    (('atan2', 'arctan2'), 'ARCTAN2', 2),
-    (('sinh',), 'SINH', 1),
-    (('cosh',), 'COSH', 1),
-    (('tanh',), 'TANH', 1),
-    (('^', 'pow', 'power'), 'POWER', 2),
-    (('log', 'logarithm'), 'LOGARITHM', 2),
-    (('sqrt',), 'SQRT', 1),
-    (('1/sqrt', 'inv_sqrt'), 'INVERSE_SQRT', 1),
-    (('e^x', 'e^', 'exp'), 'EXPONENT', 1),
-    (('min', 'minimum'), 'MINIMUM', 2),
-    (('max', 'maximum'), 'MAXIMUM', 2),
-    (('<', 'less_than'), 'LESS_THAN', 2),
-    (('>', 'greater_than'), 'GREATER_THAN', 2),
-    (('sgn', 'sign'), 'SIGN', 1),
-    (('==', 'compare'), 'COMPARE', 3),
-    (('smin', 'smooth_min', 'smooth_minimum'), 'SMOOTH_MIN', 3),
-    (('smax', 'smooth_max', 'smooth_maximum'), 'SMOOTH_MAX', 3),
-    (('fract',), 'FRACT', 1),
-    (('%', 'mod'), 'MODULO', 2),
-    (('snap',), 'SNAP', 2),
-    (('wrap',), 'WRAP', 3),
-    (('pingpong', 'ping_pong'), 'PINGPONG', 2),
-    (('abs', 'absolute'), 'ABSOLUTE', 1),
-    (('round',), 'ROUND', 1),
-    (('floor',), 'FLOOR', 1),
-    (('ceil',), 'CEIL', 1),
-    (('trunc', 'truncate'), 'TRUNCATE', 1),
-    (('rad', 'to_rad', 'to_radians', 'radians'), 'RADIANS', 1),
-    (('deg', 'to_deg', 'to_degrees', 'degrees'), 'DEGREES', 1)
-]
-
-vector_math_operations = [
-    (('v+', 'vadd'), 'ADD', 2),
-    (('v-', 'vsub'), 'SUBTRACT', 2),
-    (('v*', 'vmult'), 'MULTIPLY', 2),
-    (('v/', 'vdiv'), 'DIVIDE', 2),
-    (('vcross', 'cross', 'cross_product'), 'CROSS_PRODUCT', 2),
-    (('vproject', 'project'), 'PROJECT', 2),
-    (('vreflect', 'reflect'), 'REFLECT', 2),
-    (('vsnap',), 'SNAP', 2),
-    (('v%', 'vmod'), 'MODULO', 2),
-    (('vmin', 'vminimum'), 'MINIMUM', 2),
-    (('vmax', 'vmaximum'), 'MAXIMUM', 2),
-    (('vdot', 'dot', 'dot_product'), 'DOT_PRODUCT', 2),
-    (('vdist', 'dist', 'distance'), 'DISTANCE', 2),
-    (('vlength', 'length',), 'LENGTH', 1),
-    # Don't use 'scale' because it's a common attribute name
-    (('vscale',), 'SCALE', 2),
-    (('vnormalize', 'normalize',), 'NORMALIZE', 1),
-    (('vfloor',), 'FLOOR', 1),
-    (('vceil',), 'CEIL', 1),
-    (('vfract',), 'FRACT', 1),
-    (('vabs', 'vabsolute'), 'ABSOLUTE', 1),
-    (('vsin', 'vsine'), 'SINE', 1),
-    (('vcos', 'vcosine'), 'COSINE', 1),
-    (('vtan', 'vtangent'), 'TANGENT', 1),
-    (('vwrap',), 'WRAP', 3),
-]
-
-builtin_attributes = [
-    'position',
-    'scale',
-    'rotation',
-    'radius',
-    'id',
-]
+from .positioning import PositionNode, TreePositioner
 
 formula_history = []
 
@@ -102,244 +22,13 @@ class MFBase:
         return mf_check(context)
 
 
-class Token():
-    """
-    Class used to store the possible types of tokens that
-    arise from parsing the formula
-    """
-
-    def __init__(self, token_type, value, color, print_value=None, data=None) -> None:
-        self.type = token_type
-        self.data = data
-        self.value = value
-        self.print_value = print_value
-        self.color = color
-
-    def highlight(self, font_id) -> None:
-        """
-        Set the color for text drawing to the color associated with the token
-        """
-        blf.color(font_id, self.color[0], self.color[1], self.color[2], 1.0)
-
-    def value_for_print(self) -> str:
-        """
-        Get the value where the token was constructed from
-        """
-        return self.print_value if self.print_value is not None else self.value
-
-    def __str__(self) -> str:
-        return f"{{Token {self.value_for_print()}: type: {self.type}, value: {self.value}, data: {self.data} }}"
-
-
-class MFParser:
-    """
-    Class to parse a formula into a list of tokens.
-    """
-
-    def __init__(self) -> None:
-        self.tokens = []
-        self.reset()
-
-    def reset(self):
-        self.current_text = ""
-        self.prev_char = " "
-        self.making_vector = False
-        self.is_res = False
-
-    @staticmethod
-    def is_float(input) -> bool:
-        """
-        Check if the argument can be converted to a `float`.
-        """
-        try:
-            float(input)
-            return True
-        except:
-            return False
-
-    def is_res_check(self, token, prefs):
-        if self.is_res and token.type != 'excess':
-            if token.type in ('vector', 'combine_xyz'):
-                for i in range(3):
-                    token.value[i] = str(token.value[i])
-            else:
-                token.value = token.value_for_print()
-            token.type = 'result'
-            token.color = prefs.result_color
-            self.is_res = False
-
-    def add_token_check(self, prefs, with_attributes) -> None:
-        """
-        After finishing a token check if it is empty. If not add
-        it to the tokens.
-        """
-        if self.current_text != "" or self.prev_char in "})]":
-            # Separate the entries of the vector with a space
-            if self.making_vector:
-                self.current_text += ' '
-            else:
-                token = self.get_token(self.current_text, with_attributes)
-                self.is_res_check(token, prefs)
-                self.tokens.append(token)
-                token = Token('excess', ' ', prefs.default_color)
-                self.tokens.append(token)
-                self.current_text = ""
-
-    def parse(self, string: str, cursor=None, with_attributes=False) -> list:
-        """
-        Parse the input string and return a list of tokens
-        """
-        prefs = bpy.context.preferences.addons[__name__].preferences
-        added_cursor = False
-        for index, char in enumerate(string):
-            if cursor is not None and index == cursor:
-                token = Token('cursor', '_', prefs.grouping_color,
-                              data=len(self.current_text))
-                self.tokens.append(token)
-                added_cursor = True
-            if char == ' ':
-                self.add_token_check(prefs, with_attributes)
-            elif char in '[]{}':
-                self.add_token_check(prefs, with_attributes)
-                token = Token('excess', char, prefs.grouping_color)
-                self.tokens.append(token)
-            elif char == '(':
-                self.add_token_check(prefs, with_attributes)
-                # Add it so the user can see what they typed
-                token = Token('excess', '(', prefs.default_color)
-                self.tokens.append(token)
-                self.making_vector = True
-            elif char == ')':
-                # Add it so the user can see what they typed
-                token = self.get_token(self.current_text, with_attributes)
-                self.is_res_check(token, prefs)
-                self.tokens.append(token)
-                token = Token('excess', ')', prefs.default_color)
-                self.tokens.append(token)
-                self.current_text = ""
-                self.making_vector = False
-            else:
-                self.current_text += char
-            self.prev_char = char
-        if self.current_text != "":
-            token = self.get_token(self.current_text, with_attributes)
-            self.is_res_check(token, prefs)
-            self.tokens.append(token)
-        if cursor is not None and not added_cursor:
-            token = Token('cursor', '_', prefs.grouping_color,
-                          data=0)
-            self.tokens.append(token)
-        self.reset()
-        return self.tokens
-
-    def get_token(self, string: str, with_attributes=False) -> Token:
-        """
-        Create a token from the string and return it
-        """
-        if with_attributes:
-            return self.get_token_with_attributes(string)
-        else:
-            return self.get_token_without_attributes(string)
-
-    def get_token_without_attributes(self, string: str) -> Token:
-        prefs = bpy.context.preferences.addons[__name__].preferences
-        if self.making_vector:
-            components = string.split(' ')
-            # In case of double spaces
-            components = [c for i, c in enumerate(
-                components) if c != '' and i < 3]
-            l = len(components)
-            # Fill in possibly missing components
-            components = [components[i] if i < l else 0 for i in range(3)]
-            for i in range(l):
-                if self.is_float(components[i]):
-                    components[i] = float(components[i])
-                else:
-                    components[i] = 0
-            return Token('vector', components,
-                         prefs.float_color, print_value=string)
-        elif string == "":
-            return Token('excess', '', prefs.default_color)
-        elif self.is_float(string):
-            return Token('float', float(string),
-                         prefs.float_color, print_value=string)
-        else:
-            for operation in math_operations:
-                if string in operation[0]:
-                    return Token(
-                        'math_func', operation[1], prefs.math_func_color, print_value=string, data=operation[2])
-            for operation in vector_math_operations:
-                if string in operation[0]:
-                    return Token(
-                        'vector_math_func', operation[1], prefs.vector_math_func_color, print_value=string, data=operation[2])
-
-        return Token('excess', string, prefs.default_color)
-
-    def get_token_with_attributes(self, string: str) -> Token:
-        prefs = bpy.context.preferences.addons[__name__].preferences
-        if self.making_vector:
-            components = string.split(' ')
-            # In case of double spaces
-            components = [c for i, c in enumerate(
-                components) if c != '' and i < 3]
-            l = len(components)
-            # Fill in possibly missing components
-            components = [components[i] if i < l else 0 for i in range(3)]
-            all_floats = True
-            for i in range(l):
-                if self.is_float(components[i]):
-                    components[i] = float(components[i])
-                else:
-                    all_floats = False
-            if all_floats:
-                return Token('vector', components,
-                             prefs.float_color, print_value=string)
-            else:
-                return Token('combine_xyz', components, prefs.separate_combine_color, print_value=string)
-        elif string == "":
-            return Token('excess', '', prefs.default_color)
-        elif string == '->':
-            self.is_res = True
-            return Token('excess', '->', prefs.grouping_color)
-        elif self.is_float(string):
-            return Token('float', float(string),
-                         prefs.float_color, print_value=string)
-        elif string in builtin_attributes:
-            return Token('default', string, prefs.builtin_attr_color)
-        elif (ind := string.find('.')) != -1:
-            # This is not a float because we checked first
-            name = string[:ind]
-            end = string[ind:]
-            components = ('x' in end, 'y' in end, 'z' in end)
-            return Token('separate_xyz', name, prefs.separate_combine_color, print_value=string, data=components)
-        else:
-            for operation in math_operations:
-                if string in operation[0]:
-                    return Token(
-                        'math_func', operation[1], prefs.math_func_color, print_value=string, data=operation[2])
-            for operation in vector_math_operations:
-                if string in operation[0]:
-                    return Token(
-                        'vector_math_func', operation[1], prefs.vector_math_func_color, print_value=string, data=operation[2])
-
-        return Token('default', string, prefs.default_color)
-
-    def update_last_token(self, string):
-        """
-        TODO: Implement this function
-
-        Try updating the last token with the new token from the string
-        """
-        pass
-
-
 class MF_OT_arrange_from_root(bpy.types.Operator, MFBase):
     """Arange the nodes in the tree with the active node as root"""
     bl_idname = "node.mf_arrange_from_root"
     bl_label = "Arrange nodes from root"
     bl_options = {'REGISTER', 'UNDO'}
 
-    def build_relations(self, node: bpy.types.Node, links: bpy.types.NodeLinks) -> MFPositionNode:
+    def build_relations(self, node: bpy.types.Node, links: bpy.types.NodeLinks) -> PositionNode:
         # Get all links connected to the input sockets of the node
         input_links = []
         for link in links:
@@ -351,10 +40,10 @@ class MF_OT_arrange_from_root(bpy.types.Operator, MFBase):
 
         if input_links == []:
             # It's a leaf node
-            return MFPositionNode(node, has_dimensions=True)
+            return PositionNode(node, has_dimensions=True)
 
         # Sort the links in order of the sockets
-        sorted_children: list[MFPositionNode] = []
+        sorted_children: list[PositionNode] = []
         for socket in node.inputs:
             for link in input_links:
                 if socket == link.to_socket:
@@ -364,7 +53,7 @@ class MF_OT_arrange_from_root(bpy.types.Operator, MFBase):
                     sorted_children.append(child)
         # In the recursive sense, this is now the root node. The parent of this
         # node is set during backtracking.
-        root_node = MFPositionNode(
+        root_node = PositionNode(
             node, children=sorted_children, has_dimensions=True)
         for i, child in enumerate(sorted_children):
             if i < len(sorted_children)-1:
@@ -384,7 +73,7 @@ class MF_OT_arrange_from_root(bpy.types.Operator, MFBase):
         # Figure out the parents, children, and siblings of nodes.
         # Needed for the node positioner
         root_node = self.build_relations(active_node, links)
-        node_positioner = MFTreePositioner(context)
+        node_positioner = TreePositioner(context)
         node_positioner.place_nodes(root_node)
         return {'FINISHED'}
 
@@ -430,20 +119,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         args.reverse()
         return args
 
-    def place_nodes(self, context, pnodes):
-        # TODO: Create a nice tree like structure instead of linear
-        prefs = context.preferences.addons[__name__].preferences
-        space = context.space_data
-        # First node
-        node = pnodes[-1].node
-        node.location = space.cursor_location if self.use_mouse_location else (
-            0, 0)
-        for i in range(len(pnodes)-1):
-            node = pnodes[-(i+2)].node
-            prev_node = pnodes[-(i+1)].node
-            node.location = (prev_node.location.x +
-                             prev_node.width + prefs.node_distance, prev_node.location.y)
-
     @ staticmethod
     def add_math_node(context, args, func_name):
         tree = context.space_data.edit_tree
@@ -460,7 +135,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 pnode, socket = arg
                 tree.links.new(socket, node.inputs[i])
                 children.append(pnode)
-        node = MFPositionNode(node, children=children)
+        node = PositionNode(node, children=children)
         for i, child in enumerate(children):
             if i < len(children)-1:
                 child.right_sibling = children[i+1]
@@ -497,7 +172,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                     node.inputs[3].default_value = arg
                 else:
                     node.inputs[i].default_value = [arg for _ in range(3)]
-        node = MFPositionNode(node, children=children)
+        node = PositionNode(node, children=children)
         for i, child in enumerate(children):
             if i < len(children)-1:
                 child.right_sibling = children[i+1]
@@ -517,9 +192,12 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         # The nodes that we added
         pnodes = []
         # Parse the input string into a sequence of tokens
-        parser = MFParser()
-        tokens = parser.parse(formula)
-        for token in tokens:
+        compiler = Compiler()
+        success = compiler.compile()
+        if not success:
+            return {'CANCELLED'}
+        instructions = compiler.instructions
+        for token in instructions:
             if token.type == 'excess':
                 continue
             elif token.type == 'math_func' or token.type == 'vector_math_func':
@@ -562,7 +240,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             cursor_loc = space.cursor_location if self.use_mouse_location else (
                 0, 0)
             for root_node in root_nodes:
-                node_positioner = MFTreePositioner(context)
+                node_positioner = TreePositioner(context)
                 cursor_loc = node_positioner.place_nodes(root_node, cursor_loc)
         # TODO: Figure out how to force an update
         # before calling `place_nodes()`
@@ -759,9 +437,12 @@ class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
         # The nodes that we added
         nodes = []
         # Parse the input string into a sequence of tokens
-        parser = MFParser()
-        tokens = parser.parse(formula, with_attributes=True)
-        for token in tokens:
+        compiler = Compiler()
+        success = compiler.compile()
+        if not success:
+            return {'CANCELLED'}
+        instructions = compiler.instructions
+        for token in instructions:
             if token.type == 'excess':
                 continue
             elif token.type == 'math_func' or token.type == 'vector_math_func':
@@ -841,10 +522,13 @@ class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
         return self.execute(context)
 
 
-def draw_callback_px(self,):
+def draw_callback_px(self, context):
+    prefs = context.preferences.addons['math_formula'].preferences
     font_id = 0
-    font_size = self.font_size
+    font_size = prefs.font_size
     blf.size(font_id, font_size, 72)
+    formula = self.formula
+    cursor_index = self.cursor_index
     # Set the initial positions of the text
     posx = self.formula_loc[0]
     posy = self.formula_loc[1]
@@ -863,38 +547,65 @@ def draw_callback_px(self,):
     blf.position(font_id, posx, posy, posz)
     blf.draw(font_id, "Formula: ")
     if len(formula_history) >= self.formula_history_loc > 0:
-        self.formula = formula_history[-self.formula_history_loc]
-        self.cursor_index = len(self.formula)
-    parser = MFParser()
-    tokens = parser.parse(self.formula, cursor=self.cursor_index,
-                          with_attributes=self.use_attributes)
-    self.formula = ''
-    cursor = None
-    cursor_pos = 0
-    for index, token in enumerate(tokens):
-        if token.type == 'cursor':
-            # Find the correct placement of the cursor
-            cursor = token
-            ind_offset = cursor.data
-            self.cursor_index = len(self.formula) + ind_offset
-            cursor_pos = width
-            if index + 1 < len(tokens):
-                next_text = tokens[index+1].value_for_print()
-                if next_text != "":
-                    cursor_pos += blf.dimensions(font_id,
-                                                 next_text[:ind_offset])[0]
-            # Draw location of the cursor
-            blf.position(font_id, posx + cursor_pos, posy-font_size/10, posz)
-            cursor.highlight(font_id)
-            blf.draw(font_id, cursor.value_for_print())
-            continue
-
+        formula = formula_history[-self.formula_history_loc]
+        cursor_index = len(formula)
+    tokens = Compiler.get_tokens(formula)
+    cursor_pos_set = False
+    cursor_pos = width
+    prev = 0
+    errors = 0
+    for token in tokens:
         blf.position(font_id, posx+width, posy, posz)
-        token.highlight(font_id)
-        text = token.value_for_print()
-        self.formula += text
+        text = token.lexeme
+        start = token.start
+        # Get cursor relative offset
+        if not cursor_pos_set and start >= cursor_index:
+            cursor_pos = width - blf.dimensions(
+                font_id, formula[cursor_index:start])[0]
+            cursor_pos_set = True
+        # Draw white space
+        white_space = formula[prev:start]
+        blf.draw(font_id, white_space)
+        width += blf.dimensions(font_id, white_space)[0]
+        if token.token_type == TokenType.LET:
+            color(font_id, prefs.keyword_color)
+        elif token.token_type == TokenType.VECTOR_MATH_FUNC:
+            color(font_id, prefs.vector_math_func_color)
+        elif token.token_type == TokenType.MATH_FUNC:
+            color(font_id, prefs.math_func_color)
+        elif token.token_type == TokenType.NUMBER:
+            color(font_id, prefs.float_color)
+        elif token.token_type == TokenType.PYTHON:
+            color(font_id, prefs.python_color)
+        elif token.token_type == TokenType.ERROR:
+            color(font_id, (1, 0.2, 0))
+            text, error = token.lexeme
+            errors += 1
+            blf.position(font_id, posx, posy-10-font_size*errors, posz)
+            blf.draw(font_id, error)
+        else:
+            color(font_id, prefs.default_color)
+        blf.position(font_id, posx+width, posy, posz)
         blf.draw(font_id, text)
         width += blf.dimensions(font_id, text)[0]
+        prev = start + len(text)
+
+    # Remaining white space at the end
+    width += blf.dimensions(font_id, formula[prev:])[0]
+
+    # Cursor is in the last token
+    if not cursor_pos_set and tokens != []:
+        print(formula[tokens[-1].start:cursor_index])
+        cursor_pos = width-blf.dimensions(font_id,
+                                          formula[cursor_index:])[0]
+    # Draw cursor
+    blf.color(font_id, 0.1, 0.4, 0.7, 1.0)
+    blf.position(font_id, posx+cursor_pos, posy-font_size/10, posz)
+    blf.draw(font_id, '_')
+
+
+def color(font_id, color):
+    blf.color(font_id, color[0], color[1], color[2], 1.0)
 
 
 class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
@@ -919,11 +630,12 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             formula_history.append(self.formula)
             # Deselect all the nodes before adding new ones
             bpy.ops.node.select_all(action='DESELECT')
-            if self.use_attributes:
-                return bpy.ops.node.mf_attribute_math_formula_add(
-                    use_mouse_location=True)
-            else:
-                return bpy.ops.node.mf_math_formula_add(use_mouse_location=True)
+            # if self.use_attributes:
+            #     return bpy.ops.node.mf_attribute_math_formula_add(
+            #         use_mouse_location=True)
+            # else:
+            #     return bpy.ops.node.mf_math_formula_add(use_mouse_location=True)
+            return {'CANCELLED'}
         # Cancel when they press Esc or Rmb
         elif event.type in ('ESC', 'RIGHTMOUSE'):
             bpy.types.SpaceNodeEditor.draw_handler_remove(
@@ -1011,13 +723,12 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             self.cursor_index += 1
             # We are now editing this one
             self.formula_history_loc = 0
-
         return {'RUNNING_MODAL'}
 
     def invoke(self, context, event):
         if context.space_data.tree_type == 'ShaderNodeTree':
             self.use_attributes = False
-        args = (self,)
+        args = (self, context)
         self._handle = bpy.types.SpaceNodeEditor.draw_handler_add(
             draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
         self.formula_loc = (event.mouse_region_x, event.mouse_region_y)
@@ -1029,7 +740,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         self.middle_mouse = False
         self.formula = ""
         self.formula_history_loc = 0
-        self.font_size = context.preferences.addons[__name__].preferences.font_size
+        self.last_action = time.time()
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 

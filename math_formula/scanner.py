@@ -1,4 +1,4 @@
-from enum import Enum, auto
+from enum import IntEnum, auto
 
 
 math_operations = {
@@ -121,7 +121,7 @@ vector_math_operations = {
 # See: https://craftinginterpreters.com/scanning-on-demand.html
 # For the original source of this code
 
-class TokenType(Enum):
+class TokenType(IntEnum):
     # Single-character tokens.
     LEFT_PAREN = 0
     RIGHT_PAREN = auto()
@@ -233,10 +233,12 @@ class Scanner():
         return Token(self.source[self.start: self.current], token_type, start=self.start)
 
     def error_token(self, message: str) -> Token:
-        return Token(message, TokenType.ERROR, start=self.start)
+        return Token((self.source[self.start: self.current], message), TokenType.ERROR, start=self.start)
 
     def identifier_type(self) -> TokenType:
         name = self.source[self.start: self.current]
+        if name == 'let':
+            return TokenType.LET
         if name in math_operations:
             return TokenType.MATH_FUNC
         if name in vector_math_operations:
@@ -299,11 +301,6 @@ class Scanner():
                 return self.make_token(TokenType.VECTOR_PERCENT)
             else:
                 return self.identifier()
-        elif c == 'l':
-            if self.match('e') and self.match('t'):
-                return self.make_token(TokenType.LET)
-            return self.identifier()
-
         elif c.isalpha() or c == '_':
             return self.identifier()
         elif (c.isdigit()):

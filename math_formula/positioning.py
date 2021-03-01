@@ -2,14 +2,14 @@ import math
 from bpy.types import Node
 
 
-class MFPositionNode():
+class PositionNode():
     def __init__(self, node: Node, parent=None, children=None, left_sibling=None, right_sibling=None, has_dimensions=False):
         self.node = node
-        self.parent: MFPositionNode = parent
-        self.children: list[MFPositionNode] = children
-        self.first_child: MFPositionNode = children[0] if children else None
-        self.left_sibling: MFPositionNode = left_sibling
-        self.right_sibling: MFPositionNode = right_sibling
+        self.parent: PositionNode = parent
+        self.children: list[PositionNode] = children
+        self.first_child: PositionNode = children[0] if children else None
+        self.left_sibling: PositionNode = left_sibling
+        self.right_sibling: PositionNode = right_sibling
         # TODO: make update work so this is correct and doesn't require such a hack
         if has_dimensions:
             self.width = self.node.dimensions.x
@@ -32,7 +32,7 @@ class MFPositionNode():
             self.width = 153.611
         self.prelim_y = 0
         self.modifier = 0
-        self.left_neighbour: MFPositionNode = None
+        self.left_neighbour: PositionNode = None
 
     def set_x(self, x):
         self.node.location.x = x
@@ -78,7 +78,7 @@ class MFPositionNode():
         return f"{self.node.operation}"
 
 
-class MFTreePositioner():
+class TreePositioner():
     """
     Class to position nodes in a node tree
     Algorithm: https://www.cs.unc.edu/techreports/89-034.pdf
@@ -97,9 +97,9 @@ class MFTreePositioner():
         self.max_x_loc = -math.inf
         self.min_y_loc = +math.inf
         self.max_y_loc = -math.inf
-        self.visited_nodes: list[MFPositionNode] = []
+        self.visited_nodes: list[PositionNode] = []
 
-    def place_nodes(self, root_node: MFPositionNode, cursor_loc: tuple[float] = None) -> tuple[float]:
+    def place_nodes(self, root_node: PositionNode, cursor_loc: tuple[float] = None) -> tuple[float]:
         """
         Aranges the nodes connected to `root_node` so that the top
         left corner lines up with `cursor_loc`. If `cursor_loc` is `None`,
@@ -128,7 +128,7 @@ class MFTreePositioner():
         if cursor_loc is not None:
             return (cursor_loc[0]+self.max_x_loc-self.min_x_loc, cursor_loc[1])
 
-    def get_leftmost(self, node: MFPositionNode, level: int, depth: int) -> MFPositionNode:
+    def get_leftmost(self, node: PositionNode, level: int, depth: int) -> PositionNode:
         if level >= depth:
             return node
         if node.is_leaf():
@@ -140,13 +140,13 @@ class MFTreePositioner():
             leftmost = self.get_leftmost(rightmost, level + 1, depth)
         return leftmost
 
-    def get_prev_node_at_level(self, level: int) -> MFPositionNode:
+    def get_prev_node_at_level(self, level: int) -> PositionNode:
         return self.prev_node_per_level[level]
 
-    def set_prev_node_at_level(self, level: int, node: MFPositionNode):
+    def set_prev_node_at_level(self, level: int, node: PositionNode):
         self.prev_node_per_level[level] = node
 
-    def apportion(self, node: MFPositionNode):
+    def apportion(self, node: PositionNode):
         leftmost = node.first_child
         neighbour = leftmost.left_neighbour
         compare_depth = 1
@@ -206,7 +206,7 @@ class MFTreePositioner():
             else:
                 return
 
-    def first_walk(self, node: MFPositionNode, level: int):
+    def first_walk(self, node: PositionNode, level: int):
         node.left_neighbour = self.get_prev_node_at_level(level)
         self.set_prev_node_at_level(level, node)
         node.modifier = 0
@@ -236,7 +236,7 @@ class MFTreePositioner():
         self.max_width_per_level[level] = max(
             node.width, self.max_width_per_level[level])
 
-    def second_walk(self, node: MFPositionNode, level: int, width_sum_x: float, mod_sum_y: float):
+    def second_walk(self, node: PositionNode, level: int, width_sum_x: float, mod_sum_y: float):
         x = self.x_top_adjustment - width_sum_x
         y = self.y_top_adjustment - node.prelim_y - mod_sum_y
         self.min_x_loc = min(x, self.min_x_loc)
