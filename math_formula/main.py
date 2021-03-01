@@ -1,4 +1,4 @@
-from math_formula.parser import Compiler
+from math_formula.parser import Compiler, Instruction, InstructionType
 from math_formula.scanner import TokenType
 import time
 import bpy
@@ -104,18 +104,11 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         else:
             space.cursor_location = tree.view_center
 
-    def get_args(self, stack, num_args, func_name):
+    def get_args(self, stack, num_args):
         args = []
-        for i in range(num_args):
-            if stack == []:
-                self.report(
-                    {'WARNING'}, f"Invalid number of arguments for {func_name.lower()}. Expected {num_args} arguments")
-                for _ in range(num_args-i):
-                    args.append(0)
-                break
-            else:
-                arg = stack.pop()
-                args.append(arg)
+        for _ in range(num_args):
+            arg = stack.pop()
+            args.append(arg)
         args.reverse()
         return args
 
@@ -129,9 +122,12 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         node.operation = func_name
         children = []
         for i, arg in enumerate(args):
-            if type(arg) == float:
+            if isinstance(arg, float):
                 node.inputs[i].default_value = arg
-            elif type(arg) == tuple:
+            elif isinstance(arg, list):
+                avg = (arg[0]+arg[1]+arg[2])/3
+                node.inputs[i].default_value = avg
+            else:
                 pnode, socket = arg
                 tree.links.new(socket, node.inputs[i])
                 children.append(pnode)
@@ -181,32 +177,76 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             child.parent = node
         return node
 
+    @staticmethod
+    def get_value_as_node_and_socket(value, name: str, tree) -> tuple:
+        if isinstance(value, float):
+            node = tree.nodes.new('ShaderNodeValue')
+            node.label = name
+            node.outputs[0].default_value = value
+            socket = node.outputs[0]
+            pnode = PositionNode(node)
+            return (pnode, socket)
+        elif isinstance(value, list):
+            node = tree.nodes.new('ShaderNodeCombineXYZ')
+            node.label = name
+            for i in range(3):
+                node.inputs[i].default_value = value[i]
+            socket = node.outputs[0]
+            pnode = PositionNode(node)
+            return (pnode, socket)
+        else:
+            return value
+
+    @staticmethod
+    def separate_xyz(value, names, stack, variables, tree) -> tuple:
+        input_node, input_socket = value
+        node = tree.nodes.new('ShaderNodeSeparateXYZ')
+        pnode = PositionNode(node, children=[input_node])
+        tree.links.new(node.inputs[0], input_socket)
+        input_node.parent = pnode
+        last_set = None
+        for i, component in enumerate(names):
+            if component == '':
+                continue
+            else:
+                socket = node.outputs[i]
+                variables[component] = (pnode, socket)
+                last_set = (pnode, socket)
+        if last_set is None:
+            stack.append(0)
+        else:
+            stack.append(last_set)
+
     def execute(self, context):
         space = context.space_data
         # Safe because of poll function
-        tree = space.edit_tree
+        tree: bpy.types.NodeTree = space.edit_tree
         props = context.scene.math_formula_add
         # The formula that we parse. Should be in Reverse Polish Notation
         formula = props.formula
         stack = []
         # The nodes that we added
         pnodes = []
+        root_nodes = []
+        # Variables in the form of output sockets
+        variables = {}
         # Parse the input string into a sequence of tokens
         compiler = Compiler()
-        success = compiler.compile()
+        success = compiler.compile(formula)
         if not success:
             return {'CANCELLED'}
         instructions = compiler.instructions
-        for token in instructions:
-            if token.type == 'excess':
-                continue
-            elif token.type == 'math_func' or token.type == 'vector_math_func':
-                num_args = token.data
-                func_name = token.value
-                args = self.get_args(stack, num_args, func_name)
+        for instruction in instructions:
+            instruction_type = instruction.instruction
+            data = instruction.data
+            if instruction_type == InstructionType.NUMBER:
+                stack.append(data)
+            elif instruction_type in (InstructionType.MATH_FUNC, InstructionType.VECTOR_MATH_FUNC):
+                func_name, num_args = data
+                args = self.get_args(stack, num_args)
                 pnode = None
                 out_socket = None
-                if token.type == 'math_func':
+                if instruction_type == InstructionType.MATH_FUNC:
                     pnode = self.add_math_node(
                         context, args, func_name)
                     out_socket = pnode.node.outputs[0]
@@ -220,8 +260,76 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 # Used for linking
                 stack.append((pnode, out_socket))
                 pnodes.append(pnode)
-            else:
-                stack.append(token.value)
+            elif instruction_type == InstructionType.END_OF_STATEMENT:
+                if stack == []:
+                    print('EMPTY STACK!!!!')
+                    continue
+                element = stack.pop()
+                if type(element) == tuple:
+                    pnode, socket = element
+                    root_nodes.append(pnode)
+            elif instruction_type == InstructionType.MAKE_VECTOR:
+                args = self.get_args(stack, 3)
+                all_float = True
+                for arg in args:
+                    if not isinstance(arg, float):
+                        all_float = False
+                        break
+                if all_float:
+                    stack.append(args)
+                    continue
+                node = tree.nodes.new('ShaderNodeCombineXYZ')
+                children = []
+                for i, arg in enumerate(args):
+                    if isinstance(arg, float):
+                        node.inputs[i].default_value = arg
+                    elif isinstance(arg, list):
+                        avg = (arg[0]+arg[1]+arg[2])/3
+                        node.inputs[i].default_value = avg
+                    else:
+                        pnode, socket = arg
+                        tree.links.new(socket, node.inputs[i])
+                        children.append(pnode)
+                pnode = PositionNode(node, children=children)
+                for i, child in enumerate(children):
+                    if i < len(children)-1:
+                        child.right_sibling = children[i+1]
+                    if i > 0:
+                        child.left_sibling = children[i-1]
+                    child.parent = pnode
+                stack.append((pnode, node.outputs[0]))
+
+            elif instruction_type == InstructionType.ATTRIBUTE:
+                value = variables.get(data)
+                if value is None:
+                    node = tree.nodes.new('ShaderNodeValue')
+                    node.label = data
+                    socket = node.outputs[0]
+                    pnode = PositionNode(node)
+                    stack.append((pnode, socket))
+                else:
+                    stack.append(value)
+            elif instruction_type == InstructionType.VAR:
+                stack.append(data)
+            elif instruction_type == InstructionType.VECTOR_VAR:
+                stack.append(data)
+            elif instruction_type == InstructionType.DEFINE:
+                var, value = self.get_args(stack, 2)
+                value = self.get_value_as_node_and_socket(
+                    value, str(var), tree)
+                if isinstance(var, str):
+                    variables[var] = value
+                    stack.append(value)
+                else:
+                    self.separate_xyz(value, var, stack, variables, tree)
+            elif instruction_type == InstructionType.SEPARATE:
+                node = tree.nodes.new('ShaderNodeSeparateXYZ')
+                value, components = self.get_args(stack, 2)
+                value = self.get_value_as_node_and_socket(
+                    value, 'Vector', tree)
+                components = [
+                    a if a in components else '' for a in ('x', 'y', 'z')]
+                self.separate_xyz(value, components, stack, variables, tree)
         if props.add_frame and pnodes != []:
             # Add all nodes in a frame
             frame = tree.nodes.new(type='NodeFrame')
@@ -229,14 +337,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             for pnode in pnodes:
                 pnode.node.parent = frame
             frame.update()
-        # hack = tree.nodes.new(type="NodeFrame")
-        # tree.nodes.remove(hack)
-        if stack != []:
-            root_nodes = []
-            for element in stack:
-                if type(element) == tuple:
-                    pnode, socket = element
-                    root_nodes.append(pnode)
+        if root_nodes != []:
             cursor_loc = space.cursor_location if self.use_mouse_location else (
                 0, 0)
             for root_node in root_nodes:
@@ -244,16 +345,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 cursor_loc = node_positioner.place_nodes(root_node, cursor_loc)
         # TODO: Figure out how to force an update
         # before calling `place_nodes()`
-        #
-        # tree.nodes.update()
-        # tree.update_tag()
-        # tree.interface_update(context)
-        # context.view_layer.update()
-        # for pnode in pnodes:
-
-        # test string:
-        # abs 0 sin / [{0 sin abs} {0 sin 0 tan * 0 abs +} + cos 0] [{0 sin tan cos abs} {0 abs} *] wrap 0 0 add compare
-
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -284,24 +375,19 @@ class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
         else:
             space.cursor_location = tree.view_center
 
-    def get_args(self, stack, num_args, func_name):
+    def get_args(self, stack, num_args):
         args = []
         for _ in range(num_args):
-            if stack == []:
-                self.report(
-                    {'WARNING'}, f"Invalid number of arguments for {func_name.lower()}. Expected {num_args} arguments, got args: {args}.")
-                args.append(self.no_arg)
-            else:
-                arg = stack.pop()
-                if type(arg) == str and arg.startswith(self.temp_attr_name):
-                    self.number_of_temp_attributes = max(
-                        0, self.number_of_temp_attributes-1)
-                args.append(arg)
+            arg = stack.pop()
+            if isinstance(arg, str) and self.temp_attr_name in arg:
+                self.number_of_temp_attributes = max(
+                    0, self.number_of_temp_attributes-1)
+            args.append(arg)
         args.reverse()
         return args
 
     def place_node(self, context, node, nodes):
-        prefs = bpy.context.preferences.addons[__name__].preferences
+        prefs = bpy.context.preferences.addons['math_formula'].preferences
         space = context.space_data
         tree = space.edit_tree
         # First node
@@ -438,20 +524,22 @@ class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
         nodes = []
         # Parse the input string into a sequence of tokens
         compiler = Compiler()
-        success = compiler.compile()
+        success = compiler.compile(formula)
         if not success:
             return {'CANCELLED'}
         instructions = compiler.instructions
-        for token in instructions:
-            if token.type == 'excess':
-                continue
-            elif token.type == 'math_func' or token.type == 'vector_math_func':
-                num_args = token.data
-                func_name = token.value
-                args = self.get_args(stack, num_args, func_name)
+        for instruction in instructions:
+            instruction_type = instruction.instruction
+            data = instruction.data
+            if instruction_type == InstructionType.NUMBER:
+                stack.append(data)
+            elif instruction_type in (InstructionType.MATH_FUNC, InstructionType.VECTOR_MATH_FUNC):
+                func_name, num_args = data
+                args = self.get_args(stack, num_args)
                 node = None
-                if token.type == 'math_func':
-                    node = self.add_math_node(context, nodes, args, func_name)
+                if instruction_type == InstructionType.MATH_FUNC:
+                    node = self.add_math_node(
+                        context, nodes, args, func_name)
                 else:
                     node = self.add_vector_math_node(
                         context, nodes, args, func_name)
@@ -461,51 +549,74 @@ class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
                 node.inputs["Result"].default_value = res_string
                 stack.append(res_string)
                 self.number_of_temp_attributes += 1
-            elif token.type == 'combine_xyz':
-                vec = token.value
-                node = self.add_combine_xyz_node(context, nodes, vec)
+            elif instruction_type == InstructionType.END_OF_STATEMENT:
+                if stack == []:
+                    print('EMPTY STACK!!!!')
+                    continue
+                stack.pop()
+            elif instruction_type == InstructionType.MAKE_VECTOR:
+                args = self.get_args(stack, 3)
+                node = self.add_combine_xyz_node(context, nodes, args)
                 res_string = self.temp_attr_name + \
                     (str(self.number_of_temp_attributes)
                      if self.number_of_temp_attributes else "")
                 node.inputs["Result"].default_value = res_string
                 stack.append(res_string)
                 self.number_of_temp_attributes += 1
-            elif token.type == 'separate_xyz':
-                name = token.value
-                components = token.data
+            elif instruction_type == InstructionType.ATTRIBUTE:
+                stack.append(data)
+            elif instruction_type == InstructionType.VAR:
+                stack.append(data)
+            elif instruction_type == InstructionType.VECTOR_VAR:
+                stack.append(data)
+            elif instruction_type == InstructionType.DEFINE:
+                name, result = self.get_args(stack, 2)
+                if isinstance(result, float):
+                    node = tree.nodes.new('GeometryNodeAttributeFill')
+                    self.place_node(context, node, nodes)
+                    node.inputs['Attribute'].default_value = str(name)
+                    stack.append(str(name))
+                    # Float socket
+                    node.inputs[3].default_value = result
+                    nodes.append(node)
+                elif isinstance(name, tuple):
+                    if nodes == []:
+                        self.add_separate_xyz_node(
+                            context, nodes, result, ('x', 'y', 'z'))
+                    # Separate XYZ
+                    last_node = nodes[-1]
+                    best_name = ''
+                    for comp in name:
+                        if comp != '':
+                            best_name = comp
+                    if last_node.bl_idname == 'GeometryNodeAttributeSeparateXYZ':
+                        for i, res_name in enumerate(('Result X', 'Result Y', 'Result Z')):
+                            last_node.inputs[res_name].default_value = name[i]
+                    elif last_node.bl_idname == 'GeometryNodeAttributeFill':
+                        last_node.inputs['Attribute'].default_value = best_name
+                    else:
+                        last_node.inputs['Result'].default_value = best_name
+                    stack.append(best_name)
+                elif nodes != []:
+                    last_node = nodes[-1]
+                    if last_node.bl_idname == 'GeometryNodeAttributeSeparateXYZ':
+                        for res_name in ('Result X', 'Result Y', 'Result Z'):
+                            last_node.inputs[res_name].default_value = name
+                    elif last_node.bl_idname == 'GeometryNodeAttributeFill':
+                        last_node.inputs['Attribute'].default_value = name
+                    else:
+                        last_node.inputs['Result'].default_value = name
+                    stack.append(name)
+                else:
+                    stack.append(name)
+            elif instruction_type == InstructionType.SEPARATE:
+                name, data = self.get_args(stack, 2)
+                components = [
+                    a if a in data else None for a in ('x', 'y', 'z')]
                 node = self.add_separate_xyz_node(
                     context, nodes, name, components)
-            elif token.type == 'result':
-                if nodes == []:
-                    continue
-                last_node = nodes[-1]
-                if last_node.bl_idname == "GeometryNodeAttributeSeparateXYZ":
-                    if type(token.value) != list:
-                        token.value = [token.value for _ in range(3)]
-                    ind = 0
-                    for input_name in ("Result X", "Result Y", "Result Z"):
-                        if last_node.inputs[input_name].default_value:
-                            last_node.inputs[input_name].default_value = token.value[ind]
-                            ind += 1
-                else:
-                    if type(token.value) == list:
-                        token.value = token.value[0]
-                    last_node.inputs["Result"].default_value = token.value
-            else:
-                stack.append(token.value)
-        if nodes == [] and stack != []:
-            offset = 0
-            prefs = bpy.context.preferences.addons[__name__].preferences
-            loc = space.cursor_location if self.use_mouse_location else (
-                0, 0)
-            # Add the given attributes as attribute fill nodes
-            for name in stack:
-                node = tree.nodes.new('GeometryNodeAttributeFill')
-                node.location = (
-                    loc[0] + offset, loc[1])
-                node.inputs["Attribute"].default_value = str(name)
-                offset += node.width + prefs.node_distance
-        elif props.add_frame:
+                stack.append('x')
+        if props.add_frame and nodes != []:
             # Add all nodes in a frame
             frame = tree.nodes.new(type='NodeFrame')
             frame.label = formula
@@ -527,8 +638,8 @@ def draw_callback_px(self, context):
     font_id = 0
     font_size = prefs.font_size
     blf.size(font_id, font_size, 72)
-    formula = self.formula
-    cursor_index = self.cursor_index
+    # show_errors = time.time()-self.last_action > 2
+    # show_errors = False
     # Set the initial positions of the text
     posx = self.formula_loc[0]
     posy = self.formula_loc[1]
@@ -547,13 +658,14 @@ def draw_callback_px(self, context):
     blf.position(font_id, posx, posy, posz)
     blf.draw(font_id, "Formula: ")
     if len(formula_history) >= self.formula_history_loc > 0:
-        formula = formula_history[-self.formula_history_loc]
-        cursor_index = len(formula)
+        self.formula = formula_history[-self.formula_history_loc]
+        self.cursor_index = len(self.formula)
+    formula = self.formula
     tokens = Compiler.get_tokens(formula)
+    cursor_index = self.cursor_index
     cursor_pos_set = False
     cursor_pos = width
     prev = 0
-    errors = 0
     for token in tokens:
         blf.position(font_id, posx+width, posy, posz)
         text = token.lexeme
@@ -578,11 +690,11 @@ def draw_callback_px(self, context):
         elif token.token_type == TokenType.PYTHON:
             color(font_id, prefs.python_color)
         elif token.token_type == TokenType.ERROR:
-            color(font_id, (1, 0.2, 0))
             text, error = token.lexeme
-            errors += 1
-            blf.position(font_id, posx, posy-10-font_size*errors, posz)
-            blf.draw(font_id, error)
+            if self.errors != []:
+                color(font_id, (1, 0.2, 0))
+            else:
+                color(font_id, prefs.default_color)
         else:
             color(font_id, prefs.default_color)
         blf.position(font_id, posx+width, posy, posz)
@@ -593,9 +705,13 @@ def draw_callback_px(self, context):
     # Remaining white space at the end
     width += blf.dimensions(font_id, formula[prev:])[0]
 
+    # Errors
+    color(font_id, prefs.error_color)
+    for n, error in enumerate(self.errors):
+        blf.position(font_id, posx, posy-10-font_size*(n+1), posz)
+        blf.draw(font_id, error)
     # Cursor is in the last token
     if not cursor_pos_set and tokens != []:
-        print(formula[tokens[-1].start:cursor_index])
         cursor_pos = width-blf.dimensions(font_id,
                                           formula[cursor_index:])[0]
     # Draw cursor
@@ -621,21 +737,28 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
 
     def modal(self, context, event):
         context.area.tag_redraw()
-
+        action = False
         # Exit when they press enter
         if event.type == 'RET':
+            compiler = Compiler()
+            res = compiler.compile(self.formula)
+            if not res:
+                self.errors = []
+                for error in compiler.errors:
+                    self.report({'WARNING'}, error)
+                    self.errors.append(error)
+                return {'RUNNING_MODAL'}
             bpy.types.SpaceNodeEditor.draw_handler_remove(
                 self._handle, 'WINDOW')
             context.scene.math_formula_add.formula = self.formula
             formula_history.append(self.formula)
             # Deselect all the nodes before adding new ones
             bpy.ops.node.select_all(action='DESELECT')
-            # if self.use_attributes:
-            #     return bpy.ops.node.mf_attribute_math_formula_add(
-            #         use_mouse_location=True)
-            # else:
-            #     return bpy.ops.node.mf_math_formula_add(use_mouse_location=True)
-            return {'CANCELLED'}
+            if self.use_attributes:
+                return bpy.ops.node.mf_attribute_math_formula_add(
+                    use_mouse_location=True)
+            else:
+                return bpy.ops.node.mf_math_formula_add(use_mouse_location=True)
         # Cancel when they press Esc or Rmb
         elif event.type in ('ESC', 'RIGHTMOUSE'):
             bpy.types.SpaceNodeEditor.draw_handler_remove(
@@ -665,25 +788,31 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             self.cursor_index = max(0, self.cursor_index - 1)
             # We are now editing this one
             self.formula_history_loc = 0
+            action = True
         elif event.type == 'RIGHT_ARROW':
             self.cursor_index = min(len(self.formula), self.cursor_index + 1)
             # We are now editing this one
             self.formula_history_loc = 0
+            action = True
         elif event.type == 'HOME':
             self.cursor_index = 0
             # We are now editing this one
             self.formula_history_loc = 0
+            action = True
         elif event.type == 'END':
             self.cursor_index = len(self.formula)
             # We are now editing this one
             self.formula_history_loc = 0
+            action = True
 
         # FORMULA HISTORY
         elif event.type == 'UP_ARROW':
             self.formula_history_loc = min(
                 len(formula_history), self.formula_history_loc + 1)
+            action = True
         elif event.type == 'DOWN_ARROW':
             self.formula_history_loc = max(0, self.formula_history_loc - 1)
+            action = True
 
         # INSERTION + DELETING
         elif (not self.lock or event.is_repeat) and event.type == 'BACK_SPACE' and self.cursor_index != 0:
@@ -695,6 +824,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             self.lock = True
             # We are now editing this one
             self.formula_history_loc = 0
+            action = True
         elif (not self.lock or event.is_repeat) and event.type == 'DEL' and self.cursor_index != len(self.formula):
             # Remove the char at the index + 1
             self.formula = self.formula[:self.cursor_index] + \
@@ -704,6 +834,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             self.lock = True
             # We are now editing this one
             self.formula_history_loc = 0
+            action = True
         elif not self.lock and event.ctrl and event.type == 'V':
             # Paste from clipboard
             clipboard = bpy.context.window_manager.clipboard
@@ -714,6 +845,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             self.lock = True
             # We are now editing this one
             self.formula_history_loc = 0
+            action = True
         elif event.unicode != "" and event.unicode.isprintable():
             # Only allow printable characters
 
@@ -723,6 +855,10 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             self.cursor_index += 1
             # We are now editing this one
             self.formula_history_loc = 0
+            action = True
+
+        if action:
+            self.last_action = time.time()
         return {'RUNNING_MODAL'}
 
     def invoke(self, context, event):
@@ -740,6 +876,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         self.middle_mouse = False
         self.formula = ""
         self.formula_history_loc = 0
+        self.errors = []
         self.last_action = time.time()
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}

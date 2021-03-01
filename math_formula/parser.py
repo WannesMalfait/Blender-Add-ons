@@ -18,6 +18,7 @@ class Precedence(IntEnum):
 class InstructionType(IntEnum):
     NUMBER = 0
     ATTRIBUTE = auto()
+    VAR = auto()
     VECTOR_VAR = auto()
     MAKE_VECTOR = auto()
     SEPARATE = auto()
@@ -58,6 +59,7 @@ class Parser():
         self.had_error: bool = False
         self.panic_mode: bool = False
         self.instructions: list[Instruction] = []
+        self.errors: list[str] = []
 
     def error_at_current(self, message: str) -> None:
         self.error_at(self.current, message)
@@ -77,7 +79,7 @@ class Parser():
         else:
             error += f' at "{token.lexeme}":'
         # TODO: Better handling of errors
-        print(error, message)
+        self.errors.append(f'{error} {message}')
         self.had_error = True
 
     def consume(self, token_type: TokenType, message: str) -> None:
@@ -95,7 +97,8 @@ class Parser():
             self.current = self.scanner.scan_token()
             if self.current.token_type != TokenType.ERROR:
                 break
-            self.error_at_current(self.current.start)
+            token, message = self.current.lexeme
+            self.error_at_current(f': {message}: {token}')
 
     def get_rule(self, token_type: TokenType) -> ParseRule:
         return rules[token_type.value]
@@ -159,7 +162,7 @@ class Parser():
         if self.match(TokenType.LEFT_BRACE):
             return self.get_vector_for_assignment()
         self.consume(TokenType.ATTRIBUTE, message)
-        return Instruction(InstructionType.ATTRIBUTE, self.previous.lexeme)
+        return Instruction(InstructionType.VAR, self.previous.lexeme)
 
     def variable_declaration(self) -> None:
         var = self.parse_variable('Expect variable name.')
@@ -168,13 +171,15 @@ class Parser():
             self.expression()
         else:
             # Something like 'let x;' gets de-sugared to 'let x = 0;'
-            self.instructions.append(Instruction(InstructionType.NUMBER, 0))
+            self.instructions.append(Instruction(InstructionType.NUMBER, 0.))
         # Get optional semicolon at end of expression
         self.match(TokenType.SEMICOLON)
         # self.consume(TokenType.SEMICOLON,
         #              'Expect ";" after variable declaration')
         self.instructions.append(Instruction(
             InstructionType.DEFINE, var.instruction))
+        self.instructions.append(Instruction(
+            InstructionType.END_OF_STATEMENT, None))
 
     def declaration(self) -> None:
         if self.match(TokenType.LET):
@@ -224,11 +229,13 @@ def python(self: Parser, can_assign: bool) -> None:
 
 def attribute(self: Parser, can_assign: bool) -> None:
     value = self.previous.lexeme
-    self.instructions.append(Instruction(InstructionType.ATTRIBUTE, value))
     if can_assign and self.match(TokenType.EQUAL):
+        self.instructions.append(Instruction(InstructionType.VAR, value))
         self.expression()
         self.instructions.append(Instruction(
-            InstructionType.DEFINE, InstructionType.ATTRIBUTE))
+            InstructionType.DEFINE, InstructionType.VAR))
+    else:
+        self.instructions.append(Instruction(InstructionType.ATTRIBUTE, value))
 
 
 def grouping(self: Parser, can_assign: bool) -> None:
@@ -277,6 +284,13 @@ def call(self: Parser, can_assign: bool) -> None:
         instruction_type, (name, expected_number_of_args)))
 
 
+def separate(self: Parser, can_assign: bool) -> None:
+    self.consume(TokenType.ATTRIBUTE, 'Expect "xyz" after ".".')
+    self.instructions.append(Instruction(
+        InstructionType.VAR, self.previous.lexeme))
+    self.instructions.append(Instruction(InstructionType.SEPARATE, None))
+
+
 def binary(self: Parser, can_assign: bool) -> None:
     operator_type = self.previous.token_type
     rule = self.get_rule(operator_type)
@@ -323,9 +337,6 @@ def binary(self: Parser, can_assign: bool) -> None:
     elif operator_type == TokenType.VECTOR_PERCENT:
         self.instructions.append(Instruction(
             InstructionType.VECTOR_MATH_FUNC, ('MODULO', 2)))
-    # Dot
-    elif operator_type == TokenType.DOT:
-        self.instructions.append(Instruction(InstructionType.SEPARATE, None))
     else:
         # Shouldn't happen
         return
@@ -337,7 +348,7 @@ rules: list[ParseRule] = [
     ParseRule(make_vector, None, Precedence.NONE),  # LEFT_BRACE
     ParseRule(None, None, Precedence.NONE),  # RIGHT_BRACE
     ParseRule(None, None, Precedence.NONE),  # COMMA
-    ParseRule(None, binary, Precedence.CALL),  # DOT
+    ParseRule(None, separate, Precedence.CALL),  # DOT
     ParseRule(unary, binary, Precedence.TERM),  # MINUS
     ParseRule(None, binary, Precedence.TERM),  # PLUS
     ParseRule(None, None, Precedence.NONE),  # SEMICOLON
@@ -368,6 +379,7 @@ rules: list[ParseRule] = [
 class Compiler():
     def __init__(self) -> None:
         self.instructions: list[Instruction] = []
+        self.errors: list[str] = []
 
     def compile(self, source: str) -> bool:
         self.instructions = []
@@ -377,6 +389,7 @@ class Compiler():
             parser.declaration()
         parser.consume(TokenType.EOL, 'Expect end of expression.')
         self.instructions = parser.instructions
+        self.errors = parser.errors
         return not parser.had_error
 
     @staticmethod

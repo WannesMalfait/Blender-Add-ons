@@ -29,6 +29,12 @@ class PositionNode():
                 self.height = 96
                 self.height += inputs*88
                 self.height -= linked_sockets*66
+            elif 'NodeValue' in node.bl_idname:
+                self.height = 80
+            elif 'SeparateXYZ' in node.bl_idname:
+                self.height = 90 + linked_sockets*20
+            elif 'CombineXYZ' in node.bl_idname:
+                self.height = 90
             self.width = 153.611
         self.prelim_y = 0
         self.modifier = 0
@@ -61,13 +67,21 @@ class PositionNode():
     def has_left(self) -> bool:
         return self.left_sibling is not None
 
+    def good_name(self, node) -> str:
+        if node is None:
+            return ''
+        if 'Math' in node.node.bl_idname:
+            return node.node.operation
+        else:
+            return node.node.label
+
     def __str__(self) -> str:
-        parent = self.parent.node.operation if self.parent else ""
-        # first_child = self.first_child.node.operation if self.first_child else ""
-        left = self.left_sibling.node.operation if self.left_sibling else ""
-        right = self.right_sibling.node.operation if self.right_sibling else ""
-        neighbour = self.left_neighbour.node.operation if self.left_neighbour else ""
-        return f"{self.node.operation}:\n \
+        parent = self.good_name(self.parent)
+        # first_child = self.good_name(self.first_child.node) if self.first_child else ""
+        left = self.good_name(self.left_sibling)
+        right = self.good_name(self.right_sibling)
+        neighbour = self.good_name(self.left_neighbour)
+        return f"{self.good_name(self)}:\n \
         parent: {parent}, \n \
         children: {self.children}, \n \
         left sibling: {left}, \n \
@@ -75,7 +89,7 @@ class PositionNode():
         left neighbour: {neighbour}"
 
     def __repr__(self) -> str:
-        return f"{self.node.operation}"
+        return f"{self.good_name(self)}"
 
 
 class TreePositioner():
@@ -85,7 +99,7 @@ class TreePositioner():
     """
 
     def __init__(self, context):
-        prefs = context.preferences.addons[__name__].preferences
+        prefs = context.preferences.addons['math_formula'].preferences
         self.level_separation: int = prefs.node_distance
         self.sibling_separation: int = prefs.sibling_distance
         self.subtree_separation: int = prefs.subtree_distance
