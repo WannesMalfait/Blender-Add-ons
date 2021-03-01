@@ -355,60 +355,59 @@ class Scanner():
         return self.error_token('Unrecognized token')
 
 
-def scanner_test(source: str, expected: list[Token]) -> None:
-    print('Testing:', source)
-    scanner = Scanner(source)
-    results = []
-    while(token := scanner.scan_token()).token_type != TokenType.EOL:
-        results.append(token)
-    if len(results) != len(expected):
-        print('TEST FAILED: lengths do not match')
-        print('Parse results:', results)
-        print('Expected:', expected)
-        return
-    for i, token in enumerate(expected):
-        if results[i] == token:
-            continue
-        print('TEST FAILED: token mismatch')
-        print('Parsed token:', results[i])
-        print('Expected:', token)
-        return
-    print('Test passed!')
-
-
-scanner_tests = [
-    ('4*.5-v **2.17', [
-        Token('4', TokenType.NUMBER),
-        Token('*', TokenType.STAR),
-        Token('.5', TokenType.NUMBER),
-        Token('-', TokenType.MINUS),
-        Token('v', TokenType.ATTRIBUTE),
-        Token('**', TokenType.STAR_STAR),
-        Token('2.17', TokenType.NUMBER),
-    ]),
-    ('let z = sin(x*!(sqrt(pi)))', [
-        Token('let', TokenType.LET),
-        Token('z', TokenType.ATTRIBUTE),
-        Token('=', TokenType.EQUAL),
-        Token('sin', TokenType.MATH_FUNC),
-        Token('(', TokenType.LEFT_PAREN),
-        Token('x', TokenType.ATTRIBUTE),
-        Token('*', TokenType.STAR),
-        Token('!(sqrt(pi))', TokenType.PYTHON),
-        Token(')', TokenType.RIGHT_PAREN),
-    ]),
-    ('{-1,1,-.5}v/len', [
-        Token('{', TokenType.LEFT_BRACE),
-        Token('-1', TokenType.NUMBER),
-        Token(',', TokenType.COMMA),
-        Token('1', TokenType.NUMBER),
-        Token(',', TokenType.COMMA),
-        Token('-.5', TokenType.NUMBER),
-        Token('}', TokenType.RIGHT_BRACE),
-        Token('v/', TokenType.VECTOR_SLASH),
-        Token('len', TokenType.ATTRIBUTE),
-    ])
-]
 if __name__ == '__main__':
+    def scanner_test(source: str, expected: list[Token]) -> None:
+        print('Testing:', source)
+        scanner = Scanner(source)
+        results = []
+        while(token := scanner.scan_token()).token_type != TokenType.EOL:
+            results.append(token)
+        if len(results) != len(expected):
+            print('TEST FAILED: lengths do not match')
+            print('Parse results:', results)
+            print('Expected:', expected)
+            return
+        for i, token in enumerate(expected):
+            if results[i] == token:
+                continue
+            print('TEST FAILED: token mismatch')
+            print('Parsed token:', results[i])
+            print('Expected:', token)
+            return
+        print('Test passed!')
+
+    scanner_tests = [
+        ('4*.5-v **2.17', [
+            Token('4', TokenType.NUMBER),
+            Token('*', TokenType.STAR),
+            Token('.5', TokenType.NUMBER),
+            Token('-', TokenType.MINUS),
+            Token('v', TokenType.ATTRIBUTE),
+            Token('**', TokenType.STAR_STAR),
+            Token('2.17', TokenType.NUMBER),
+        ]),
+        ('let z = sin(x*!(sqrt(pi)))', [
+            Token('let', TokenType.LET),
+            Token('z', TokenType.ATTRIBUTE),
+            Token('=', TokenType.EQUAL),
+            Token('sin', TokenType.MATH_FUNC),
+            Token('(', TokenType.LEFT_PAREN),
+            Token('x', TokenType.ATTRIBUTE),
+            Token('*', TokenType.STAR),
+            Token('!(sqrt(pi))', TokenType.PYTHON),
+            Token(')', TokenType.RIGHT_PAREN),
+        ]),
+        ('{-1,1,-.5}v/len', [
+            Token('{', TokenType.LEFT_BRACE),
+            Token('-1', TokenType.NUMBER),
+            Token(',', TokenType.COMMA),
+            Token('1', TokenType.NUMBER),
+            Token(',', TokenType.COMMA),
+            Token('-.5', TokenType.NUMBER),
+            Token('}', TokenType.RIGHT_BRACE),
+            Token('v/', TokenType.VECTOR_SLASH),
+            Token('len', TokenType.ATTRIBUTE),
+        ])
+    ]
     for source, expected in scanner_tests:
         scanner_test(source, expected)

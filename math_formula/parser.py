@@ -380,19 +380,19 @@ class Compiler():
         return not parser.had_error
 
 
-tests = [
-    'let x x=2',
-    'vsin({0,0,2});',
-    'vfract(x=2).xyz',
-    'let y = !(sin(pi/4));',
-    'let x=4 x=2;',
-    'let {a,b,c} = position;',
-    'let x = 4<5*0.2**2;',
-    'x = 2;',
-    'coords; vsin(coords).xy;',
-    'a = 2 4*5/7 8+4'
-]
 if __name__ == '__main__':
+    tests = [
+        'let x x=2',
+        'vsin({0,0,2});',
+        'vfract(x=2).xyz',
+        'let y = !(sin(pi/4));',
+        'let x=4 x=2;',
+        'let {a,b,c} = position;',
+        'let x = 4<5*0.2**2;',
+        'x = 2;',
+        'coords; vsin(coords).xy;',
+        'a = 2 4*5/7 8+4'
+    ]
     compiler = Compiler()
     for test in tests:
         print('TESTING:', test)
