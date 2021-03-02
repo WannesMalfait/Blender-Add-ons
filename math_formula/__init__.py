@@ -85,7 +85,7 @@ class MFMathFormula(bpy.types.AddonPreferences):
     )
     error_color: bpy.props.FloatVectorProperty(
         name="Error Color",
-        default=(0.4, 0.2, 0.05),
+        default=(0.8, 0.1, 0.05),
         subtype='COLOR',
     )
 

@@ -246,7 +246,7 @@ class Scanner():
         return TokenType.ATTRIBUTE
 
     def identifier(self) -> Token:
-        while self.peek().isalpha() or self.peek().isdigit() or self.peek() == '_':
+        while self.peek().isalpha() or self.peek().isdecimal() or self.peek() == '_':
             self.advance()
         return self.make_token(self.identifier_type())
 
@@ -255,18 +255,18 @@ class Scanner():
         Find a floating point number from the current position.
         If the number starts with a '.' then `starting_dot` should be `True`
         """
-        while self.peek().isdigit():
+        while self.peek().isdecimal():
             self.advance()
-        if not starting_dot and self.peek() == '.' and self.peek_next().isdigit():
+        if not starting_dot and self.peek() == '.' and self.peek_next().isdecimal():
             self.advance()
-            while self.peek().isdigit():
+            while self.peek().isdecimal():
                 self.advance()
         return self.make_token(TokenType.NUMBER)
 
     def python(self) -> Token:
         """ Get the string in between () """
         if self.peek() != '(':
-            return self.error_token('Python input must start with an opening parenthesis')
+            return self.error_token('Python input must start with a parenthesis after')
         self.advance()
         open_parentheses = 1
         while not self.is_at_end() and open_parentheses != 0:
@@ -287,6 +287,8 @@ class Scanner():
             return self.make_token(TokenType.EOL)
 
         c = self.advance()
+        if not c.isascii():
+            return self.error_token('Unrecognized token')
 
         if c == 'v':
             if self.match('*'):
@@ -303,7 +305,7 @@ class Scanner():
                 return self.identifier()
         elif c.isalpha() or c == '_':
             return self.identifier()
-        elif (c.isdigit()):
+        elif (c.isdecimal()):
             return self.number()
 
         # Check for single character tokens:
@@ -337,14 +339,14 @@ class Scanner():
                 TokenType.STAR_STAR if self.match('*') else TokenType.STAR)
         elif c == '.':
             # Check for floating point numbers like '.314'
-            if self.peek().isdigit():
+            if self.peek().isdecimal():
                 return self.number(starting_dot=True)
             return self.make_token(TokenType.DOT)
         elif c == '-':
             # Check for negative numbers
             if self.match('.'):
                 return self.number(starting_dot=True)
-            elif self.peek().isdigit():
+            elif self.peek().isdecimal():
                 return self.number()
             return self.make_token(TokenType.MINUS)
         elif c == '!':

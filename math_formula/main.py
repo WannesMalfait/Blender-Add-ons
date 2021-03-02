@@ -1,10 +1,10 @@
-from math_formula.parser import Compiler, Instruction, InstructionType
-from math_formula.scanner import TokenType
+from .parser import Compiler, Error, InstructionType
+from .scanner import TokenType
+from .positioning import PositionNode, TreePositioner
 import time
 import bpy
 import blf
 
-from .positioning import PositionNode, TreePositioner
 
 formula_history = []
 
@@ -28,53 +28,16 @@ class MF_OT_arrange_from_root(bpy.types.Operator, MFBase):
     bl_label = "Arrange nodes from root"
     bl_options = {'REGISTER', 'UNDO'}
 
-    def build_relations(self, node: bpy.types.Node, links: bpy.types.NodeLinks) -> PositionNode:
-        # Get all links connected to the input sockets of the node
-        input_links = []
-        for link in links:
-            # It's possible that nodes have multiple parents. In that case the
-            # algorithm doesn't work, so we only allow one parent per node.
-            if link.to_node == node and not (link.from_node in self.visited_nodes):
-                self.visited_nodes.append(link.from_node)
-                input_links.append(link)
-
-        if input_links == []:
-            # It's a leaf node
-            return PositionNode(node, has_dimensions=True)
-
-        # Sort the links in order of the sockets
-        sorted_children: list[PositionNode] = []
-        for socket in node.inputs:
-            for link in input_links:
-                if socket == link.to_socket:
-                    new_node = link.from_node
-                    new_node.select = True
-                    child = self.build_relations(new_node, links)
-                    sorted_children.append(child)
-        # In the recursive sense, this is now the root node. The parent of this
-        # node is set during backtracking.
-        root_node = PositionNode(
-            node, children=sorted_children, has_dimensions=True)
-        for i, child in enumerate(sorted_children):
-            if i < len(sorted_children)-1:
-                child.right_sibling = sorted_children[i+1]
-            if i > 0:
-                child.left_sibling = sorted_children[i-1]
-            child.parent = root_node
-        return root_node
-
     def execute(self, context: bpy.types.Context):
         space = context.space_data
         links = space.edit_tree.links
         active_node = context.active_node
         bpy.ops.node.select_all(action='DESELECT')
         active_node.select = True
-        self.visited_nodes = [active_node]
         # Figure out the parents, children, and siblings of nodes.
         # Needed for the node positioner
-        root_node = self.build_relations(active_node, links)
         node_positioner = TreePositioner(context)
-        node_positioner.place_nodes(root_node)
+        node_positioner.place_nodes(active_node, links)
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -120,7 +83,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         else:
             node = tree.nodes.new(type="ShaderNodeMath")
         node.operation = func_name
-        children = []
         for i, arg in enumerate(args):
             if isinstance(arg, float):
                 node.inputs[i].default_value = arg
@@ -128,16 +90,8 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 avg = (arg[0]+arg[1]+arg[2])/3
                 node.inputs[i].default_value = avg
             else:
-                pnode, socket = arg
+                socket = arg
                 tree.links.new(socket, node.inputs[i])
-                children.append(pnode)
-        node = PositionNode(node, children=children)
-        for i, child in enumerate(children):
-            if i < len(children)-1:
-                child.right_sibling = children[i+1]
-            if i > 0:
-                child.left_sibling = children[i-1]
-            child.parent = node
         return node
 
     @ staticmethod
@@ -155,63 +109,51 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         {SOCK_VECTOR, N_("Vector"), 0.0f, 0.0f, 0.0f, 1.0f, -10000.0f, 10000.0f, PROP_NONE},
         {SOCK_FLOAT, N_("Scale"), 1.0f, 1.0f, 1.0f, 1.0f, -10000.0f, 10000.0f, PROP_NONE},
         """
-        children = []
         for i, arg in enumerate(args):
-            if type(arg) == list:
+            if isinstance(arg, list):
                 node.inputs[i].default_value = arg
-            elif type(arg) == tuple:
-                pnode, socket = arg
-                tree.links.new(socket, node.inputs[i])
-                children.append(pnode)
-            elif type(arg) == float:
+            elif isinstance(arg, float):
                 if func_name == 'SCALE' and i == 1:
                     node.inputs[3].default_value = arg
                 else:
                     node.inputs[i].default_value = [arg for _ in range(3)]
-        node = PositionNode(node, children=children)
-        for i, child in enumerate(children):
-            if i < len(children)-1:
-                child.right_sibling = children[i+1]
-            if i > 0:
-                child.left_sibling = children[i-1]
-            child.parent = node
-        return node
+            else:
+                socket = arg
+                tree.links.new(socket, node.inputs[i])
+            return node
 
     @staticmethod
-    def get_value_as_node_and_socket(value, name: str, tree) -> tuple:
+    def get_value_as_socket(value, name: str, tree) -> tuple:
         if isinstance(value, float):
             node = tree.nodes.new('ShaderNodeValue')
             node.label = name
             node.outputs[0].default_value = value
             socket = node.outputs[0]
-            pnode = PositionNode(node)
-            return (pnode, socket)
+            return socket
         elif isinstance(value, list):
             node = tree.nodes.new('ShaderNodeCombineXYZ')
             node.label = name
             for i in range(3):
                 node.inputs[i].default_value = value[i]
             socket = node.outputs[0]
-            pnode = PositionNode(node)
-            return (pnode, socket)
+            return socket
         else:
             return value
 
     @staticmethod
     def separate_xyz(value, names, stack, variables, tree) -> tuple:
-        input_node, input_socket = value
+        # position.xyz; theta = atan2(y,x); r = length({x,y,0}); {r,theta,z}
+        out_socket = value
         node = tree.nodes.new('ShaderNodeSeparateXYZ')
-        pnode = PositionNode(node, children=[input_node])
-        tree.links.new(node.inputs[0], input_socket)
-        input_node.parent = pnode
+        tree.links.new(node.inputs[0], out_socket)
         last_set = None
         for i, component in enumerate(names):
             if component == '':
                 continue
             else:
                 socket = node.outputs[i]
-                variables[component] = (pnode, socket)
-                last_set = (pnode, socket)
+                variables[component] = socket
+                last_set = socket
         if last_set is None:
             stack.append(0)
         else:
@@ -226,7 +168,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         formula = props.formula
         stack = []
         # The nodes that we added
-        pnodes = []
+        nodes = []
         root_nodes = []
         # Variables in the form of output sockets
         variables = {}
@@ -244,30 +186,28 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             elif instruction_type in (InstructionType.MATH_FUNC, InstructionType.VECTOR_MATH_FUNC):
                 func_name, num_args = data
                 args = self.get_args(stack, num_args)
-                pnode = None
                 out_socket = None
                 if instruction_type == InstructionType.MATH_FUNC:
-                    pnode = self.add_math_node(
+                    node = self.add_math_node(
                         context, args, func_name)
-                    out_socket = pnode.node.outputs[0]
+                    out_socket = node.outputs[0]
                 else:
-                    pnode = self.add_vector_math_node(
+                    node = self.add_vector_math_node(
                         context, args, func_name)
                     # If the returned value is a float
                     ind = 1 if func_name in (
                         'DOT_PRODUCT', 'DISTANCE', 'LENGTH') else 0
-                    out_socket = pnode.node.outputs[ind]
+                    out_socket = node.outputs[ind]
                 # Used for linking
-                stack.append((pnode, out_socket))
-                pnodes.append(pnode)
+                stack.append(out_socket)
+                nodes.append(node)
             elif instruction_type == InstructionType.END_OF_STATEMENT:
                 if stack == []:
                     print('EMPTY STACK!!!!')
                     continue
                 element = stack.pop()
-                if type(element) == tuple:
-                    pnode, socket = element
-                    root_nodes.append(pnode)
+                if isinstance(element, bpy.types.NodeSocket):
+                    root_nodes.append(element.node)
             elif instruction_type == InstructionType.MAKE_VECTOR:
                 args = self.get_args(stack, 3)
                 all_float = True
@@ -279,7 +219,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                     stack.append(args)
                     continue
                 node = tree.nodes.new('ShaderNodeCombineXYZ')
-                children = []
                 for i, arg in enumerate(args):
                     if isinstance(arg, float):
                         node.inputs[i].default_value = arg
@@ -287,26 +226,16 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                         avg = (arg[0]+arg[1]+arg[2])/3
                         node.inputs[i].default_value = avg
                     else:
-                        pnode, socket = arg
+                        socket = arg
                         tree.links.new(socket, node.inputs[i])
-                        children.append(pnode)
-                pnode = PositionNode(node, children=children)
-                for i, child in enumerate(children):
-                    if i < len(children)-1:
-                        child.right_sibling = children[i+1]
-                    if i > 0:
-                        child.left_sibling = children[i-1]
-                    child.parent = pnode
-                stack.append((pnode, node.outputs[0]))
-
+                stack.append(node.outputs[0])
             elif instruction_type == InstructionType.ATTRIBUTE:
                 value = variables.get(data)
                 if value is None:
                     node = tree.nodes.new('ShaderNodeValue')
                     node.label = data
                     socket = node.outputs[0]
-                    pnode = PositionNode(node)
-                    stack.append((pnode, socket))
+                    stack.append(socket)
                 else:
                     stack.append(value)
             elif instruction_type == InstructionType.VAR:
@@ -315,7 +244,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 stack.append(data)
             elif instruction_type == InstructionType.DEFINE:
                 var, value = self.get_args(stack, 2)
-                value = self.get_value_as_node_and_socket(
+                value = self.get_value_as_socket(
                     value, str(var), tree)
                 if isinstance(var, str):
                     variables[var] = value
@@ -323,33 +252,59 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 else:
                     self.separate_xyz(value, var, stack, variables, tree)
             elif instruction_type == InstructionType.SEPARATE:
-                node = tree.nodes.new('ShaderNodeSeparateXYZ')
                 value, components = self.get_args(stack, 2)
-                value = self.get_value_as_node_and_socket(
+                value = self.get_value_as_socket(
                     value, 'Vector', tree)
                 components = [
                     a if a in components else '' for a in ('x', 'y', 'z')]
                 self.separate_xyz(value, components, stack, variables, tree)
-        if props.add_frame and pnodes != []:
+        if props.add_frame and nodes != []:
             # Add all nodes in a frame
             frame = tree.nodes.new(type='NodeFrame')
             frame.label = formula
-            for pnode in pnodes:
-                pnode.node.parent = frame
+            for node in nodes:
+                node.parent = frame
             frame.update()
+        self.root_nodes = []
         if root_nodes != []:
-            cursor_loc = space.cursor_location if self.use_mouse_location else (
-                0, 0)
             for root_node in root_nodes:
-                node_positioner = TreePositioner(context)
-                cursor_loc = node_positioner.place_nodes(root_node, cursor_loc)
-        # TODO: Figure out how to force an update
-        # before calling `place_nodes()`
+                invalid = False
+                for socket in root_node.outputs:
+                    # It was connected later on, and is not a root node anymore
+                    if socket.is_linked:
+                        invalid = True
+                        break
+                if invalid:
+                    continue
+                else:
+                    self.root_nodes.append(root_node)
+        return {'FINISHED'}
+
+    def modal(self, context, event):
+        if self.root_nodes[0].dimensions.x == 0:
+            return {'RUNNING_MODAL'}
+        space = context.space_data
+        links = space.edit_tree.links
+        cursor_loc = space.cursor_location if self.use_mouse_location else (
+            0, 0)
+        for root_node in self.root_nodes:
+            node_positioner = TreePositioner(context)
+            root_node.select = True
+            cursor_loc = node_positioner.place_nodes(
+                root_node, links, cursor_loc=cursor_loc)
+
         return {'FINISHED'}
 
     def invoke(self, context, event):
         self.store_mouse_cursor(context, event)
-        return self.execute(context)
+        self.execute(context)
+        if self.root_nodes == []:
+            return {'FINISHED'}
+        else:
+            # Hacky way to force an update such that node dimensions are correct
+            context.window_manager.modal_handler_add(self)
+            context.area.tag_redraw()
+            return {'RUNNING_MODAL'}
 
 
 class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
@@ -679,24 +634,31 @@ def draw_callback_px(self, context):
         white_space = formula[prev:start]
         blf.draw(font_id, white_space)
         width += blf.dimensions(font_id, white_space)[0]
-        if token.token_type == TokenType.LET:
-            color(font_id, prefs.keyword_color)
-        elif token.token_type == TokenType.VECTOR_MATH_FUNC:
-            color(font_id, prefs.vector_math_func_color)
-        elif token.token_type == TokenType.MATH_FUNC:
-            color(font_id, prefs.math_func_color)
-        elif token.token_type == TokenType.NUMBER:
-            color(font_id, prefs.float_color)
-        elif token.token_type == TokenType.PYTHON:
-            color(font_id, prefs.python_color)
-        elif token.token_type == TokenType.ERROR:
-            text, error = token.lexeme
-            if self.errors != []:
-                color(font_id, (1, 0.2, 0))
+        is_error = False
+        for error in self.errors:
+            if error.token.start == start and error.token == token:
+                color(font_id, prefs.error_color)
+                is_error = True
+                # Error token stores a tuple
+                if token.token_type == TokenType.ERROR:
+                    text, error = token.lexeme
+                break
+        if not is_error:
+            if token.token_type == TokenType.LET:
+                color(font_id, prefs.keyword_color)
+            elif token.token_type == TokenType.VECTOR_MATH_FUNC:
+                color(font_id, prefs.vector_math_func_color)
+            elif token.token_type == TokenType.MATH_FUNC:
+                color(font_id, prefs.math_func_color)
+            elif token.token_type == TokenType.NUMBER:
+                color(font_id, prefs.float_color)
+            elif token.token_type == TokenType.PYTHON:
+                color(font_id, prefs.python_color)
+            elif token.token_type == TokenType.ERROR:
+                text, error = token.lexeme
+                color(font_id, prefs.default_color)
             else:
                 color(font_id, prefs.default_color)
-        else:
-            color(font_id, prefs.default_color)
         blf.position(font_id, posx+width, posy, posz)
         blf.draw(font_id, text)
         width += blf.dimensions(font_id, text)[0]
@@ -709,7 +671,7 @@ def draw_callback_px(self, context):
     color(font_id, prefs.error_color)
     for n, error in enumerate(self.errors):
         blf.position(font_id, posx, posy-10-font_size*(n+1), posz)
-        blf.draw(font_id, error)
+        blf.draw(font_id, error.message)
     # Cursor is in the last token
     if not cursor_pos_set and tokens != []:
         cursor_pos = width-blf.dimensions(font_id,
@@ -743,11 +705,11 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             compiler = Compiler()
             res = compiler.compile(self.formula)
             if not res:
-                self.errors = []
-                for error in compiler.errors:
-                    self.report({'WARNING'}, error)
-                    self.errors.append(error)
+                self.errors = compiler.errors
+                self.report(
+                    {'WARNING'}, 'Compile errors, could not create node tree')
                 return {'RUNNING_MODAL'}
+
             bpy.types.SpaceNodeEditor.draw_handler_remove(
                 self._handle, 'WINDOW')
             context.scene.math_formula_add.formula = self.formula
@@ -758,7 +720,9 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 return bpy.ops.node.mf_attribute_math_formula_add(
                     use_mouse_location=True)
             else:
-                return bpy.ops.node.mf_math_formula_add(use_mouse_location=True)
+                bpy.ops.node.mf_math_formula_add(
+                    'INVOKE_DEFAULT', use_mouse_location=True)
+                return {'FINISHED'}
         # Cancel when they press Esc or Rmb
         elif event.type in ('ESC', 'RIGHTMOUSE'):
             bpy.types.SpaceNodeEditor.draw_handler_remove(
@@ -770,6 +734,16 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             # Lock is needed because of oversensitve keys
             self.lock = False
             self.middle_mouse = False
+
+        # Compile and check for errors
+        elif not self.lock and event.alt and event.type == 'C':
+            compiler = Compiler()
+            res = compiler.compile(self.formula)
+            self.errors = compiler.errors
+            if res:
+                self.report({'INFO'}, 'No errors detected')
+            else:
+                self.report({'WARNING'}, 'Compilation failed')
 
         # NAVIGATION
         elif event.type == 'MIDDLEMOUSE':
@@ -856,7 +830,6 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             # We are now editing this one
             self.formula_history_loc = 0
             action = True
-
         if action:
             self.last_action = time.time()
         return {'RUNNING_MODAL'}
@@ -876,7 +849,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         self.middle_mouse = False
         self.formula = ""
         self.formula_history_loc = 0
-        self.errors = []
+        self.errors: list[Error] = []
         self.last_action = time.time()
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}

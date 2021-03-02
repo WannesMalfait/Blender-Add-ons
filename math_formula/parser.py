@@ -28,6 +28,12 @@ class InstructionType(IntEnum):
     DEFINE = auto()
 
 
+class Error():
+    def __init__(self, token: Token, message: str) -> None:
+        self.token = token
+        self.message = message
+
+
 class Instruction():
     def __init__(self, instruction: InstructionType, data) -> None:
         """ Create an instruction of the given type. `data` should
@@ -59,7 +65,7 @@ class Parser():
         self.had_error: bool = False
         self.panic_mode: bool = False
         self.instructions: list[Instruction] = []
-        self.errors: list[str] = []
+        self.errors: list[Error] = []
 
     def error_at_current(self, message: str) -> None:
         self.error_at(self.current, message)
@@ -79,7 +85,7 @@ class Parser():
         else:
             error += f' at "{token.lexeme}":'
         # TODO: Better handling of errors
-        self.errors.append(f'{error} {message}')
+        self.errors.append(Error(token, f'{error} {message}'))
         self.had_error = True
 
     def consume(self, token_type: TokenType, message: str) -> None:
@@ -379,7 +385,7 @@ rules: list[ParseRule] = [
 class Compiler():
     def __init__(self) -> None:
         self.instructions: list[Instruction] = []
-        self.errors: list[str] = []
+        self.errors: list[Error] = []
 
     def compile(self, source: str) -> bool:
         self.instructions = []
