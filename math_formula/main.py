@@ -120,7 +120,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             else:
                 socket = arg
                 tree.links.new(socket, node.inputs[i])
-            return node
+        return node
 
     @staticmethod
     def get_value_as_socket(value, name: str, tree) -> tuple:
