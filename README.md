@@ -8,7 +8,7 @@ Feel free to report issues or to make pull requests.
 Generate a fractal structure based on Lindenmayer systems. See https://en.wikipedia.org/wiki/L-system for some examples.
 
 ## Supershape
-Generate a 3D model based on the "Superformula", usefull to create some abstract objects.
+Generate a 3D model based on the "Superformula", useful to create some abstract objects.
 
 ## Times Table
 Generate a nice pattern. Adapted from Mathologer's video: https://www.youtube.com/watch?v=qhbuKbxJsk8.
@@ -49,8 +49,8 @@ This is the syntax with which you can build your formulas:
 ### Examples:
 - `position.xy; position = {x, y, x**2+y**2};`
 - `position.xy; z = x^2+y^2; position = {x, y, z};`
-- `vfract(scale(coords, 10)) v- 0.5;`
-- `abs(coords v- 0.5).xy; smax(x,y,0.2)`
+- `vfract(vscale(coords, 10)) v- 0.5;`
+- `vabs(coords v- 0.5).xy; smax(x,y,0.2) < 0.2`
 - `coords.xyz; r = length({x,y,0}); theta = atan2(y,x); {r,theta,z};`
 
 
