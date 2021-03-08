@@ -235,6 +235,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                     node = tree.nodes.new('ShaderNodeValue')
                     node.label = data
                     socket = node.outputs[0]
+                    variables[data] = socket
                     stack.append(socket)
                 else:
                     stack.append(value)
@@ -511,6 +512,15 @@ class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
                 stack.pop()
             elif instruction_type == InstructionType.MAKE_VECTOR:
                 args = self.get_args(stack, 3)
+                all_float = True
+                for arg in args:
+                    if not isinstance(arg, float):
+                        all_float = False
+                        break
+                if all_float:
+                    stack.append(args)
+                    continue
+                # It contains attributes, so we need a Combine XYZ
                 node = self.add_combine_xyz_node(context, nodes, args)
                 res_string = self.temp_attr_name + \
                     (str(self.number_of_temp_attributes)
@@ -526,13 +536,17 @@ class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
                 stack.append(data)
             elif instruction_type == InstructionType.DEFINE:
                 name, result = self.get_args(stack, 2)
-                if isinstance(result, float):
+                if isinstance(result, float) or isinstance(result, list):
                     node = tree.nodes.new('GeometryNodeAttributeFill')
                     self.place_node(context, node, nodes)
                     node.inputs['Attribute'].default_value = str(name)
                     stack.append(str(name))
-                    # Float socket
-                    node.inputs[3].default_value = result
+                    if isinstance(result, float):
+                        # Float is default data type
+                        node.inputs[3].default_value = result
+                    else:
+                        node.data_type = 'FLOAT_VECTOR'
+                        node.inputs[2].default_value = result
                     nodes.append(node)
                 elif isinstance(name, tuple):
                     if nodes == []:
