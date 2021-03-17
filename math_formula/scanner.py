@@ -266,7 +266,10 @@ class Scanner():
     def python(self) -> Token:
         """ Get the string in between () """
         if self.peek() != '(':
-            return self.error_token('Python input must start with a parenthesis after')
+            # It's a single value like '!pi'.
+            while self.peek().isalpha() or self.peek().isdecimal() or self.peek() == '_':
+                self.advance()
+            return self.make_token(TokenType.PYTHON)
         self.advance()
         open_parentheses = 1
         while not self.is_at_end() and open_parentheses != 0:
