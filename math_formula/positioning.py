@@ -3,7 +3,7 @@ from bpy.types import Node, NodeLinks
 
 
 class PositionNode():
-    def __init__(self, node: Node, parent=None, children=None, left_sibling=None, right_sibling=None):
+    def __init__(self, node: Node, parent=None, children=None, left_sibling=None, right_sibling=None, depth: int = 0):
         self.node = node
         self.parent: PositionNode = parent
         self.children: list[PositionNode] = children
@@ -14,7 +14,33 @@ class PositionNode():
         self.height = self.node.dimensions.y
         self.prelim_y = 0
         self.modifier = 0
+        self.depth = depth
         self.left_neighbour: PositionNode = None
+
+    def set_children(self, children: list) -> None:
+        self.children = children
+        if children != []:
+            self.first_child = children[0]
+
+    def update_parent(self, new_parent) -> None:
+        """Update relations so that the this node
+        is not a child of the old parent, or a sibling of
+        its old siblings. Does not take into account
+        possible new siblings from the new parent."""
+        prev_parent = self.parent
+        if prev_parent is not None and prev_parent.children is not None:
+            prev_parent.set_children([
+                child for child in prev_parent.children if child is not self])
+        self.parent = new_parent
+        ls = self.left_sibling
+        rs = self.right_sibling
+        if ls:
+            ls.right_sibling = rs
+        if rs:
+            rs.left_sibling = ls
+        self.left_sibling = None
+        self.right_sibling = None
+        self.depth = new_parent.depth + 1
 
     def set_x(self, x):
         self.node.location.x = x
@@ -45,11 +71,13 @@ class PositionNode():
 
     def good_name(self, node) -> str:
         if node is None:
-            return ''
+            return None
         if 'Math' in node.node.bl_idname:
             return node.node.operation
-        else:
+        elif node.node.label != "":
             return node.node.label
+        else:
+            return node.node.bl_idname
 
     def __str__(self) -> str:
         parent = self.good_name(self.parent)
@@ -89,40 +117,68 @@ class TreePositioner():
         self.max_y_loc = -math.inf
         self.visited_nodes: list[PositionNode] = []
 
-    def build_relations(self, node: Node, links: NodeLinks) -> PositionNode:
+    # Test formula:
+    # coords.xyz; r = length({x,y,0}); theta = atan2(y,x); {r,theta,z}
+    def build_relations(self, pnode: PositionNode, links: NodeLinks, depth: int = 0) -> None:
         # Get all links connected to the input sockets of the node
         input_links = []
         for link in links:
             # It's possible that nodes have multiple parents. In that case the
             # algorithm doesn't work, so we only allow one parent per node.
-            if link.to_node == node and not (link.from_node in self.visited_nodes):
-                self.visited_nodes.append(link.from_node)
-                input_links.append(link)
+            if link.to_node == pnode.node:
+                add_link = True
+                child = None
+                from_node = link.from_node
+                for ilink, _ in input_links:
+                    if ilink.from_node == from_node:
+                        add_link = False
+                        break
+                if not add_link:
+                    continue
+                for vnode in self.visited_nodes:
+                    if from_node == vnode.node:
+                        if depth > vnode.depth:
+                            vnode.update_parent(pnode)
+                            add_link = True
+                            child = vnode
+                            break
+                        add_link = False
+                        break
+                if add_link:
+                    input_links.append((link, child))
 
         if input_links == []:
             # It's a leaf node
-            return PositionNode(node)
+            return None
 
         # Sort the links in order of the sockets
-        sorted_children: list[PositionNode] = []
-        for socket in node.inputs:
-            for link in input_links:
+        sorted_children: list[tuple[PositionNode, bool]] = []
+        for socket in pnode.node.inputs:
+            for link, node in input_links:
                 if socket == link.to_socket:
+                    if node is not None:
+                        sorted_children.append((node, False))
+                        continue
                     new_node = link.from_node
                     new_node.select = True
-                    child = self.build_relations(new_node, links)
-                    sorted_children.append(child)
+                    child = PositionNode(new_node, depth=depth+1)
+                    self.visited_nodes.append(child)
+                    sorted_children.append((child, True))
+
         # In the recursive sense, this is now the root node. The parent of this
         # node is set during backtracking.
-        root_node = PositionNode(
-            node, children=sorted_children)
-        for i, child in enumerate(sorted_children):
-            if i < len(sorted_children)-1:
-                child.right_sibling = sorted_children[i+1]
+        children_only = [child for child, _ in sorted_children]
+        pnode.set_children(children_only)
+        root_node = pnode
+        for i, child in enumerate(children_only):
+            if i < len(children_only)-1:
+                child.right_sibling = children_only[i+1]
             if i > 0:
-                child.left_sibling = sorted_children[i-1]
+                child.left_sibling = children_only[i-1]
             child.parent = root_node
-        return root_node
+        for child, needs_building in sorted_children:
+            if needs_building:
+                self.build_relations(child, links, depth=depth+1)
 
     def place_nodes(self, root_node: PositionNode, links: NodeLinks, cursor_loc: tuple[float] = None) -> tuple[float]:
         """
@@ -130,12 +186,13 @@ class TreePositioner():
         left corner lines up with `cursor_loc`. If `cursor_loc` is `None`,
         the tree is aligned such that `root_node` stays in the same place.
 
-        The returned value is the top right corner, i.e the place where
+        The returned value is the bottom right corner, i.e the place where
         you would want to place the next nodes, if `cursor_loc` is not `None`.
         Otherwise `None` is returned.
         """
+        root_node = PositionNode(root_node, depth=0)
         self.visited_nodes = [root_node]
-        root_node = self.build_relations(root_node, links)
+        self.build_relations(root_node, links)
         self.visited_nodes = []
         old_root_node_pos_x, old_root_node_pos_y = root_node.node.location
         self.first_walk(root_node, 0)
@@ -246,7 +303,7 @@ class TreePositioner():
             else:
                 node.prelim_y = 0
         else:
-            # It's not a leaf, so recursivly call for children
+            # It's not a leaf, so recursively call for children
             leftmost = rightmost = node.first_child
             self.first_walk(leftmost, level+1)
             while rightmost.has_right():

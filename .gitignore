@@ -1,1 +1,3 @@
 .vscode
+copy_code.bat
+__pycache__

@@ -5,7 +5,7 @@ import rna_keymap_ui
 bl_info = {
     "name": "Node Math Formula",
     "author": "Wannes Malfait",
-    "version": (1, 0, 0),
+    "version": (1, 0, 1),
     "location": "Node Editor Toolbar",
     "description": "Quickly add math nodes by typing in a formula",
     "category": "Node",
@@ -29,7 +29,6 @@ class MFMathFormula(bpy.types.AddonPreferences):
         description="Font size used for displaying text",
         default=15,
         min=8,
-        soft_max=20,
     )
     node_distance: bpy.props.IntProperty(
         name="Distance between nodes",

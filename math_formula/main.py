@@ -288,6 +288,9 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         links = space.edit_tree.links
         cursor_loc = space.cursor_location if self.use_mouse_location else (
             0, 0)
+        # TODO: Add a node at the end that connects all root_nodes
+        # and use that as a root node. Then delete it at the end
+        # this will give better positioning.
         for root_node in self.root_nodes:
             node_positioner = TreePositioner(context)
             root_node.select = True
