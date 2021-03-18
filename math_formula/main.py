@@ -611,6 +611,7 @@ class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
 
 def draw_callback_px(self, context):
     prefs = context.preferences.addons['math_formula'].preferences
+    # Default font
     font_id = 0
     font_size = prefs.font_size
     blf.size(font_id, font_size, 72)
@@ -678,6 +679,10 @@ def draw_callback_px(self, context):
             elif token.token_type == TokenType.ERROR:
                 text, error = token.lexeme
                 color(font_id, prefs.default_color)
+            elif TokenType.MINUS.value <= token.token_type.value <= TokenType.STAR_STAR.value:
+                color(font_id, prefs.math_func_color)
+            elif TokenType.VECTOR_STAR.value <= token.token_type.value <= TokenType.VECTOR_SLASH.value:
+                color(font_id, prefs.vector_math_func_color)
             else:
                 color(font_id, prefs.default_color)
         blf.position(font_id, posx+width, posy, posz)

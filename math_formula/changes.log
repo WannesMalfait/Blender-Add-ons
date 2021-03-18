@@ -6,3 +6,5 @@ v1.1.0
   means that 'max(x,y,z)' is now valid. In addition to this, missing arguments are replaced with
   0 for math functions and with the string in the missing argument name property in the side panel
   for attribute math functions. 
+- Font size can now be changed while editing the formula by using the scroll wheel.
+- Syntax coloring now works for operators as well. 

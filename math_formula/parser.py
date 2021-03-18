@@ -366,15 +366,15 @@ rules: list[ParseRule] = [
     ParseRule(None, None, Precedence.NONE),  # RIGHT_BRACE
     ParseRule(None, None, Precedence.NONE),  # COMMA
     ParseRule(None, separate, Precedence.CALL),  # DOT
+    ParseRule(None, None, Precedence.NONE),  # SEMICOLON
+    ParseRule(None, None, Precedence.NONE),  # EQUAL
     ParseRule(unary, binary, Precedence.TERM),  # MINUS
     ParseRule(None, binary, Precedence.TERM),  # PLUS
-    ParseRule(None, None, Precedence.NONE),  # SEMICOLON
     ParseRule(None, binary, Precedence.FACTOR),  # PERCENT
     ParseRule(None, binary, Precedence.FACTOR),  # SLASH
     ParseRule(None, binary, Precedence.EXPONENT),  # HAT
     ParseRule(None, binary, Precedence.COMPARISON),  # GREATER
     ParseRule(None, binary, Precedence.COMPARISON),  # LESS
-    ParseRule(None, None, Precedence.NONE),  # EQUAL
     ParseRule(None, binary, Precedence.FACTOR),  # STAR
     ParseRule(None, binary, Precedence.EXPONENT),  # STAR_STAR
     ParseRule(None, binary, Precedence.FACTOR),  # VECTOR_STAR

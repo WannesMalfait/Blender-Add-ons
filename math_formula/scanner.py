@@ -129,15 +129,15 @@ class TokenType(IntEnum):
     RIGHT_BRACE = auto()
     COMMA = auto()
     DOT = auto()
+    SEMICOLON = auto()
+    EQUAL = auto()
     MINUS = auto()
     PLUS = auto()
-    SEMICOLON = auto()
     PERCENT = auto()
     SLASH = auto()
     HAT = auto()
     GREATER = auto()
     LESS = auto()
-    EQUAL = auto()
 
     # One or two character tokens.
     STAR = auto()
