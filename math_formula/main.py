@@ -771,12 +771,18 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             self.old_mouse_loc = (event.mouse_region_x, event.mouse_region_y)
             self.old_formula_loc = self.formula_loc
             self.middle_mouse = True
-        elif event.type in 'MOUSEMOVE' and self.middle_mouse:
+        elif event.type == 'MOUSEMOVE' and self.middle_mouse:
             self.formula_loc = (
                 self.old_formula_loc[0] +
                 event.mouse_region_x - self.old_mouse_loc[0],
                 self.old_formula_loc[1] +
                 event.mouse_region_y - self.old_mouse_loc[1])
+        elif event.type == 'WHEELUPMOUSE':
+            prefs = context.preferences.addons['math_formula'].preferences
+            prefs.font_size += 1
+        elif event.type == 'WHEELDOWNMOUSE':
+            prefs = context.preferences.addons['math_formula'].preferences
+            prefs.font_size = max(8, prefs.font_size-1)
 
         # CURSOR NAVIGATION
         elif event.type == 'LEFT_ARROW':
