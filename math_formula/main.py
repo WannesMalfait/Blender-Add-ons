@@ -183,6 +183,8 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             data = instruction.data
             if instruction_type == InstructionType.NUMBER:
                 stack.append(float(data))
+            if instruction_type == InstructionType.MISSING_ARG:
+                stack.append(0.0)
             elif instruction_type in (InstructionType.MATH_FUNC, InstructionType.VECTOR_MATH_FUNC):
                 func_name, num_args = data
                 args = self.get_args(stack, num_args)
@@ -492,6 +494,8 @@ class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
             data = instruction.data
             if instruction_type == InstructionType.NUMBER:
                 stack.append(float(data))
+            elif instruction_type == InstructionType.MISSING_ARG:
+                stack.append(self.no_arg)
             elif instruction_type in (InstructionType.MATH_FUNC, InstructionType.VECTOR_MATH_FUNC):
                 func_name, num_args = data
                 args = self.get_args(stack, num_args)

@@ -1,0 +1,8 @@
+v1.1.0
+- Python constants can now be called without parentheses. This means that '!pi' is now valid.
+  To indicate what is part of the python expression, parentheses should still be used. If you
+  want the value pi/4, you should do '!(pi/4)' instead of '!pi/4', which would add a divide node.
+- Calling functions with multiple values is now valid for binary functions (2 arguments). This 
+  means that 'max(x,y,z)' is now valid. In addition to this, missing arguments are replaced with
+  0 for math functions and with the string in the missing argument name property in the side panel
+  for attribute math functions. 

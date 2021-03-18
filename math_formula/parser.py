@@ -20,6 +20,7 @@ class InstructionType(IntEnum):
     ATTRIBUTE = auto()
     VAR = auto()
     VECTOR_VAR = auto()
+    MISSING_ARG = auto()
     MAKE_VECTOR = auto()
     SEPARATE = auto()
     MATH_FUNC = auto()
@@ -113,11 +114,10 @@ class Parser():
         self.advance()
         prefix_rule = self.get_rule(self.previous.token_type).prefix
         if prefix_rule is None:
-            self.error('Expect expression')
+            self.error('Expect expression.')
             return
         can_assign = precedence.value <= Precedence.ASSIGNMENT.value
         prefix_rule(self, can_assign)
-
         while precedence.value <= self.get_rule(self.current.token_type).precedence.value:
             self.advance()
             infix_rule = self.get_rule(self.previous.token_type).infix
@@ -180,8 +180,7 @@ class Parser():
             self.instructions.append(Instruction(InstructionType.NUMBER, 0.))
         # Get optional semicolon at end of expression
         self.match(TokenType.SEMICOLON)
-        # self.consume(TokenType.SEMICOLON,
-        #              'Expect ";" after variable declaration')
+
         self.instructions.append(Instruction(
             InstructionType.DEFINE, var.instruction))
         self.instructions.append(Instruction(
@@ -284,8 +283,20 @@ def call(self: Parser, can_assign: bool) -> None:
         instruction_type = InstructionType.VECTOR_MATH_FUNC
         name, expected_number_of_args = vector_math_operations[func.lexeme]
     if expected_number_of_args != arg_count:
-        self.error_at(func,
-                      f'{name} expects {expected_number_of_args} argument(s), got {arg_count} argument(s)')
+        # If it is a binary function, we can deal with more arguments,
+        # i.e. add(4,5,6) = add(add(4,5),6). If there are missing arguments
+        # we detect those. Otherwise we give an error.
+        if arg_count > expected_number_of_args and expected_number_of_args == 2:
+            for _ in range(arg_count-expected_number_of_args):
+                self.instructions.append(Instruction(
+                    instruction_type, (name, expected_number_of_args)))
+        elif arg_count < expected_number_of_args:
+            for _ in range(expected_number_of_args-arg_count):
+                self.instructions.append(
+                    Instruction(InstructionType.MISSING_ARG, None))
+        else:
+            self.error_at(func,
+                          f'{name} expects {expected_number_of_args} argument(s), got {arg_count} argument(s)')
     self.instructions.append(Instruction(
         instruction_type, (name, expected_number_of_args)))
 
