@@ -2,6 +2,18 @@ import math
 from bpy.types import Node, NodeLinks
 
 
+class DummyVec2():
+    def __init__(self) -> None:
+        self.x = 0
+        self.y = 0
+
+
+class DummyNode():
+    def __init__(self) -> None:
+        self.dimensions = DummyVec2()
+        self.location = DummyVec2()
+
+
 class PositionNode():
     def __init__(self, node: Node, parent=None, children=None, left_sibling=None, right_sibling=None, depth: int = 0):
         self.node = node
@@ -18,9 +30,12 @@ class PositionNode():
         self.left_neighbour: PositionNode = None
 
     def set_children(self, children: list) -> None:
-        self.children = children
         if children != []:
+            self.children = children
             self.first_child = children[0]
+        else:
+            self.children = None
+            self.first_child = None
 
     def update_parent(self, new_parent) -> None:
         """Update relations so that the this node
@@ -40,7 +55,13 @@ class PositionNode():
             rs.left_sibling = ls
         self.left_sibling = None
         self.right_sibling = None
-        self.depth = new_parent.depth + 1
+        self.update_depth(new_parent.depth + 1)
+
+    def update_depth(self, new_depth):
+        self.depth = new_depth
+        if self.children is not None:
+            for child in self.children:
+                child.update_depth(new_depth+1)
 
     def set_x(self, x):
         self.node.location.x = x
@@ -85,7 +106,7 @@ class PositionNode():
         left = self.good_name(self.left_sibling)
         right = self.good_name(self.right_sibling)
         neighbour = self.good_name(self.left_neighbour)
-        return f"{self.good_name(self)}:\n \
+        return f"{self.good_name(self)} (depth= {self.depth}):\n \
         parent: {parent}, \n \
         children: {self.children}, \n \
         left sibling: {left}, \n \
@@ -118,7 +139,7 @@ class TreePositioner():
         self.visited_nodes: list[PositionNode] = []
 
     # Test formula:
-    # coords.xyz; r = length({x,y,0}); theta = atan2(y,x); {r,theta,z}
+    # p.xyz; r = length(p); theta = acos(z/r); phi = atan2(y,x); {r, theta, phi}
     def build_relations(self, pnode: PositionNode, links: NodeLinks, depth: int = 0) -> None:
         # Get all links connected to the input sockets of the node
         input_links = []
@@ -137,7 +158,13 @@ class TreePositioner():
                     continue
                 for vnode in self.visited_nodes:
                     if from_node == vnode.node:
-                        if depth > vnode.depth:
+                        # TODO: make sure this is correct.
+                        # Due to the DFS it's possible that a node's depth is
+                        # increased after checking if it should update the parent.
+                        # When this happens a parent update might be missed. This
+                        # is not a drastic problem but should be tackled in the
+                        # future.
+                        if depth >= vnode.depth:
                             vnode.update_parent(pnode)
                             add_link = True
                             child = vnode
@@ -180,21 +207,42 @@ class TreePositioner():
             if needs_building:
                 self.build_relations(child, links, depth=depth+1)
 
-    def place_nodes(self, root_node: PositionNode, links: NodeLinks, cursor_loc: tuple[float] = None) -> tuple[float]:
+    def place_nodes(self, root_nodes: list[Node], links: NodeLinks, cursor_loc: tuple[float] = None) -> tuple[float]:
         """
         Aranges the nodes connected to `root_node` so that the top
         left corner lines up with `cursor_loc`. If `cursor_loc` is `None`,
         the tree is aligned such that `root_node` stays in the same place.
+        If a list of root_nodes are supplied, a fake parent is created for
+        these nodes to improve positioning.
 
         The returned value is the bottom right corner, i.e the place where
         you would want to place the next nodes, if `cursor_loc` is not `None`.
         Otherwise `None` is returned.
         """
-        root_node = PositionNode(root_node, depth=0)
-        self.visited_nodes = [root_node]
-        self.build_relations(root_node, links)
+        root_node = None
+        if isinstance(root_nodes, list):
+            # Use a dummy node as the parent of all the root nodes
+            dummy = DummyNode()
+            root_node = PositionNode(dummy, depth=0)
+            for root in root_nodes:
+                root_pnode = PositionNode(root, depth=1)
+                self.visited_nodes.append(root_pnode)
+            r_nodes = self.visited_nodes.copy()
+            root_node.set_children(r_nodes)
+            for i, child in enumerate(r_nodes):
+                if i < len(r_nodes)-1:
+                    child.right_sibling = r_nodes[i+1]
+                if i > 0:
+                    child.left_sibling = r_nodes[i-1]
+                child.parent = root_node
+            for pnode in r_nodes:
+                self.build_relations(pnode, links, depth=1)
+        else:
+            root_node = PositionNode(root_nodes)
+            self.build_relations(root_node, links, depth=0)
         self.visited_nodes = []
-        old_root_node_pos_x, old_root_node_pos_y = root_node.node.location
+        old_root_node_pos_x = root_node.node.location.x
+        old_root_node_pos_y = root_node.node.location.y
         self.first_walk(root_node, 0)
         self.x_top_adjustment = root_node.get_x()
         self.y_top_adjustment = root_node.get_y() - root_node.prelim_y
@@ -208,8 +256,13 @@ class TreePositioner():
             offset_x = old_root_node_pos_x-root_node.get_x()
             offset_y = old_root_node_pos_y-root_node.get_y()
         for pnode in self.visited_nodes:
+
             pnode.set_x(pnode.get_x() + offset_x)
             pnode.set_y(pnode.get_y() + offset_y)
+            if 'NodeReroute' in pnode.node.bl_idname:
+                # It looks weird if it is placed at the top. This makes it a bit
+                # more centrally placed, near the sockets.
+                pnode.set_y(pnode.get_y()-30)
         if cursor_loc is not None:
             return (cursor_loc[0]+self.max_x_loc-self.min_x_loc, cursor_loc[1])
 
