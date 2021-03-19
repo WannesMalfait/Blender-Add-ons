@@ -1,3 +1,6 @@
+v1.2.0
+- Update positioning algorithm to work better with multiple outputs.
+
 v1.1.0
 - Python constants can now be called without parentheses. This means that '!pi' is now valid.
   To indicate what is part of the python expression, parentheses should still be used. If you
