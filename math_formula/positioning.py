@@ -12,6 +12,7 @@ class DummyNode():
     def __init__(self) -> None:
         self.dimensions = DummyVec2()
         self.location = DummyVec2()
+        self.bl_idname = "DummyNode"
 
 
 class PositionNode():

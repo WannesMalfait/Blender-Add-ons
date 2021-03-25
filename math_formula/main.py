@@ -115,6 +115,8 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             elif isinstance(arg, float):
                 if func_name == 'SCALE' and i == 1:
                     node.inputs[3].default_value = arg
+                elif func_name == 'REFRACT' and i == 2:
+                    node.inputs[3].default_value = arg
                 else:
                     node.inputs[i].default_value = [arg for _ in range(3)]
             else:
@@ -446,7 +448,7 @@ class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
 
         # If it's a float we convert it to a vec3
         for i in range(l):
-            if type(args[i]) == float and not(func_name == 'SCALE' and i == 1):
+            if type(args[i]) == float and not ((func_name == 'SCALE' and i == 1) or (func_name == 'REFRACT' and i == 2)):
                 args[i] = [args[i] for _ in range(3)]
         arg_types = ['VECTOR' if type(arg) == list else 'FLOAT'if type(
             arg) == float else'ATTRIBUTE' for arg in args]
