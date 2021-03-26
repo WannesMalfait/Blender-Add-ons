@@ -105,6 +105,7 @@ vector_math_operations = {
     'vlength': ('LENGTH', 1),
     'length': ('LENGTH', 1),
     'vscale': ('SCALE', 2),
+    'scale': ('SCALE', 2),
     'vnormalize': ('NORMALIZE', 1),
     'normalize': ('NORMALIZE', 1),
     'vfloor': ('FLOOR', 1),
@@ -243,6 +244,8 @@ class Scanner():
         name = self.source[self.start: self.current]
         if name == 'let':
             return TokenType.LET
+        if not self.peek() == '(':
+            return TokenType.ATTRIBUTE
         if name in math_operations:
             return TokenType.MATH_FUNC
         if name in vector_math_operations:

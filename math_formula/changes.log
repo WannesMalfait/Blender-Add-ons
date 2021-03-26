@@ -1,6 +1,8 @@
 v1.2.0
 - Update positioning algorithm to work better with multiple outputs.
 - Add support for the new vector math functions: 'Refract' and 'Faceforward'.
+- Only check if it's a function if the next char is a '('. This allows attributes and functions
+  with the same name.
 
 v1.1.0
 - Python constants can now be called without parentheses. This means that '!pi' is now valid.
