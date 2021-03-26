@@ -22,11 +22,74 @@ class MFBase:
         return mf_check(context)
 
 
-class MF_OT_arrange_from_root(bpy.types.Operator, MFBase):
+class MF_OT_select_from_root(bpy.types.Operator):
+    """Select nodes linked to the active node """
+    bl_idname = "node.mf_select_from_root"
+    bl_label = "Select nodes from active"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(self, context) -> bool:
+        return mf_check(context) and context.active_node is not None
+
+    select_parents: bpy.props.BoolProperty(
+        name="Select Parents",
+        default=False,
+    )
+    select_children: bpy.props.BoolProperty(
+        name="Select Parents",
+        default=False,
+    )
+
+    def select_parents_of(self, node: bpy.types.Node, links: list[bpy.types.NodeLink], visited: list[bpy.types.Node]) -> None:
+        # Prevent loops
+        if node in visited:
+            return
+        node.select = True
+        visited.append(node)
+        if not node.outputs:
+            return
+        for link in links:
+            if link.from_node == node:
+                self.select_parents_of(link.to_node, links, visited)
+
+    def select_children_of(self, node: bpy.types.Node, links: list[bpy.types.NodeLink], visited: list[bpy.types.Node]) -> None:
+        # Prevent loops
+        if node in visited:
+            return
+        node.select = True
+        visited.append(node)
+        if not node.inputs:
+            return
+        for link in links:
+            if link.to_node == node:
+                self.select_children_of(link.from_node, links, visited)
+
+    def execute(self, context: bpy.types.Context):
+        space = context.space_data
+        links = space.edit_tree.links
+        active_node = context.active_node
+        bpy.ops.node.select_all(action='DESELECT')
+        active_node.select = True
+        if self.select_children:
+            self.select_children_of(active_node, links, [])
+        if self.select_parents:
+            self.select_parents_of(active_node, links, [])
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return self.execute(context)
+
+
+class MF_OT_arrange_from_root(bpy.types.Operator):
     """Arange the nodes in the tree with the active node as root"""
     bl_idname = "node.mf_arrange_from_root"
     bl_label = "Arrange nodes from root"
     bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(self, context) -> bool:
+        return mf_check(context) and context.active_node is not None
 
     def execute(self, context: bpy.types.Context):
         space = context.space_data
@@ -89,7 +152,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             elif isinstance(arg, list):
                 avg = (arg[0]+arg[1]+arg[2])/3
                 node.inputs[i].default_value = avg
-            else:
+            elif isinstance(arg, bpy.types.NodeSocket):
                 socket = arg
                 tree.links.new(socket, node.inputs[i])
         return node
@@ -119,7 +182,32 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                     node.inputs[3].default_value = arg
                 else:
                     node.inputs[i].default_value = [arg for _ in range(3)]
-            else:
+            elif isinstance(arg, bpy.types.NodeSocket):
+                socket = arg
+                if func_name == 'SCALE' and i == 1:
+                    tree.links.new(socket, node.inputs[3])
+                elif func_name == 'REFRACT' and i == 2:
+                    tree.links.new(socket, node.inputs[3])
+                else:
+                    tree.links.new(socket, node.inputs[i])
+        return node
+
+    @staticmethod
+    def add_other_func(context, args, func_name, prop):
+        tree = context.space_data.edit_tree
+        if tree.type == 'GeometryNodeTree':
+            node = tree.nodes.new(type="GeometryNode" + func_name)
+        else:
+            node = tree.nodes.new(type="ShaderNode" + func_name)
+        prop_name, prop_value = prop
+        setattr(node, prop_name, prop_value)
+        for i, arg in enumerate(args):
+            if isinstance(arg, float):
+                node.inputs[i].default_value = arg
+            elif isinstance(arg, list):
+                avg = (arg[0]+arg[1]+arg[2])/3
+                node.inputs[i].default_value = avg
+            elif isinstance(arg, bpy.types.NodeSocket):
                 socket = arg
                 tree.links.new(socket, node.inputs[i])
         return node
@@ -185,8 +273,9 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             data = instruction.data
             if instruction_type == InstructionType.NUMBER:
                 stack.append(float(data))
-            if instruction_type == InstructionType.MISSING_ARG:
-                stack.append(0.0)
+            elif instruction_type == InstructionType.MISSING_ARG:
+                stack.append(False)
+                continue
             elif instruction_type in (InstructionType.MATH_FUNC, InstructionType.VECTOR_MATH_FUNC):
                 func_name, num_args = data
                 args = self.get_args(stack, num_args)
@@ -204,6 +293,12 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                     out_socket = node.outputs[ind]
                 # Used for linking
                 stack.append(out_socket)
+                nodes.append(node)
+            elif instruction_type == InstructionType.OTHER_FUNC:
+                name, prop, num_args = data
+                args = self.get_args(stack, num_args)
+                node = self.add_other_func(context, args, name, prop)
+                stack.append(node.outputs[0])
                 nodes.append(node)
             elif instruction_type == InstructionType.END_OF_STATEMENT:
                 if stack == []:
@@ -635,7 +730,7 @@ def draw_callback_px(self, context):
         self.formula = formula_history[-self.formula_history_loc]
         self.cursor_index = len(self.formula)
     formula = self.formula
-    tokens = Compiler.get_tokens(formula)
+    tokens = Compiler.get_tokens(formula, self.use_attributes)
     cursor_index = self.cursor_index
     cursor_pos_set = False
     cursor_pos = width
@@ -663,7 +758,7 @@ def draw_callback_px(self, context):
                     text, error = token.lexeme
                 break
         if not is_error:
-            if token.token_type == TokenType.LET:
+            if TokenType.LET.value <= token.token_type.value <= TokenType.OTHER_FUNC.value:
                 color(font_id, prefs.keyword_color)
             elif token.token_type == TokenType.VECTOR_MATH_FUNC:
                 color(font_id, prefs.vector_math_func_color)
@@ -886,6 +981,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
 
 classes = (
     MF_OT_arrange_from_root,
+    MF_OT_select_from_root,
     MF_OT_attribute_math_formula_add,
     MF_OT_math_formula_add,
     MF_OT_type_formula_then_add_nodes,

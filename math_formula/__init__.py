@@ -175,10 +175,16 @@ kmi_defs = [
     # props entry: (property name, property value)
     (main.MF_OT_arrange_from_root.bl_idname,
      'E', 'PRESS', False, False, True, None),
+    (main.MF_OT_select_from_root.bl_idname,
+     'E', 'PRESS', True, True, False, (('select_children', True), ('select_parents', True))),
+    (main.MF_OT_select_from_root.bl_idname,
+     'E', 'PRESS', True, False, False, (('select_children', True), ('select_parents', False))),
+    (main.MF_OT_select_from_root.bl_idname,
+     'E', 'PRESS', False, True, False, (('select_children', False), ('select_parents', True))),
     (main.MF_OT_type_formula_then_add_nodes.bl_idname,
      'F', 'PRESS', False, True, False, (('use_attributes', True),)),
     (main.MF_OT_type_formula_then_add_nodes.bl_idname,
-     'F', 'PRESS', False, False, True, (('use_attributes', False),))
+     'F', 'PRESS', False, False, True, (('use_attributes', False),)),
 ]
 
 classes = (

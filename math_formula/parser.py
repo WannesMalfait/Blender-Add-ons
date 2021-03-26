@@ -25,6 +25,7 @@ class InstructionType(IntEnum):
     SEPARATE = auto()
     MATH_FUNC = auto()
     VECTOR_MATH_FUNC = auto()
+    OTHER_FUNC = auto()
     END_OF_STATEMENT = auto()
     DEFINE = auto()
 
@@ -279,9 +280,12 @@ def call(self: Parser, can_assign: bool) -> None:
     if func.token_type == TokenType.MATH_FUNC:
         instruction_type = InstructionType.MATH_FUNC
         name, expected_number_of_args = math_operations[func.lexeme]
-    else:
+    elif func.token_type == TokenType.VECTOR_MATH_FUNC:
         instruction_type = InstructionType.VECTOR_MATH_FUNC
         name, expected_number_of_args = vector_math_operations[func.lexeme]
+    else:
+        instruction_type = InstructionType.OTHER_FUNC
+        name, prop, expected_number_of_args = other_functions[func.lexeme]
     if expected_number_of_args != arg_count:
         # If it is a binary function, we can deal with more arguments,
         # i.e. add(4,5,6) = add(add(4,5),6). If there are missing arguments
@@ -297,8 +301,12 @@ def call(self: Parser, can_assign: bool) -> None:
         else:
             self.error_at(func,
                           f'{name} expects {expected_number_of_args} argument(s), got {arg_count} argument(s)')
-    self.instructions.append(Instruction(
-        instruction_type, (name, expected_number_of_args)))
+    if func.token_type == TokenType.OTHER_FUNC:
+        self.instructions.append(Instruction(
+            instruction_type, (name, prop, expected_number_of_args)))
+    else:
+        self.instructions.append(Instruction(
+            instruction_type, (name, expected_number_of_args)))
 
 
 def separate(self: Parser, can_assign: bool) -> None:
@@ -388,6 +396,7 @@ rules: list[ParseRule] = [
     ParseRule(call, None, Precedence.CALL),  # MATH_FUNC
     ParseRule(call, None, Precedence.CALL),  # VECTOR_MATH_FUNC
     ParseRule(None, None, Precedence.NONE),  # LET
+    ParseRule(call, None, Precedence.CALL),  # OTHER_FUNC
     ParseRule(None, None, Precedence.NONE),  # ERROR
     ParseRule(None, None, Precedence.NONE),  # EOL
 ]
@@ -410,10 +419,11 @@ class Compiler():
         return not parser.had_error
 
     @staticmethod
-    def get_tokens(source: str) -> list[Token]:
+    def get_tokens(source: str, for_attribute_nodes: bool = False) -> list[Token]:
         tokens = []
         parser = Parser(source)
         scanner = parser.scanner
+        scanner.for_attribute_nodes = for_attribute_nodes
         while(token := scanner.scan_token()).token_type != TokenType.EOL:
             tokens.append(token)
         return tokens

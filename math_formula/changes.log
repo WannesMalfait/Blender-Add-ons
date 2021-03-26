@@ -3,6 +3,13 @@ v1.2.0
 - Add support for the new vector math functions: 'Refract' and 'Faceforward'.
 - Only check if it's a function if the next char is a '('. This allows attributes and functions
   with the same name.
+- Add functions to select nodes connected to a root.
+    - 'CTRL+E': Select children
+    - 'SHIFT+E': Select parents 
+    - 'CTRL+SHIFT+E': Select children and parents
+- Missing arguments for non attribute nodes are just replaced with the default value of that node
+  socket now, instead of 0.
+- Clamp, Map Range Smoothstep and Smootherstep can now be used for normal math nodes (so not the attribute math versions)
 
 v1.1.0
 - Python constants can now be called without parentheses. This means that '!pi' is now valid.

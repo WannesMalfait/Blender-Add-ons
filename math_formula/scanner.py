@@ -122,6 +122,21 @@ vector_math_operations = {
     'vwrap': ('WRAP', 3),
 }
 
+other_functions = {
+    # alias:
+    # (bl_idname without 'ShaderNode' or 'GeometryNode',
+    # props: (prop_name, value)
+    # num_args
+    'map': ('MapRange', ('interpolation_type', 'LINEAR'), 5),
+    'smoothstep': ('MapRange', ('interpolation_type', 'SMOOTHSTEP'), 5),
+    'sstep': ('MapRange', ('interpolation_type', 'SMOOTHSTEP'), 5),
+    'smootherstep': ('MapRange', ('interpolation_type', 'SMOOTHERSTEP'), 5),
+    'ssstep': ('MapRange', ('interpolation_type', 'SMOOTHERSTEP'), 5),
+    'clamp': ('Clamp', ('clamp_type', 'MINMAX'), 3),
+    'minmax': ('Clamp', ('clamp_type', 'MINMAX'), 3),
+    'clamprange': ('Clamp', ('clamp_type', 'RANGE'), 3),
+}
+
 
 # See: https://craftinginterpreters.com/scanning-on-demand.html
 # For the original source of this code
@@ -160,6 +175,7 @@ class TokenType(IntEnum):
     MATH_FUNC = auto()
     VECTOR_MATH_FUNC = auto()
     LET = auto()
+    OTHER_FUNC = auto()
 
     ERROR = auto()
     EOL = auto()
@@ -193,9 +209,10 @@ class Token():
 
 
 class Scanner():
-    def __init__(self, source: str) -> None:
+    def __init__(self, source: str, for_attribute_nodes: bool = False) -> None:
         """ Initialize the scanner with source code to scan """
         self.reset(source)
+        self.for_attribute_nodes = for_attribute_nodes
 
     def reset(self, source: str) -> None:
         # Place a sentinel at the end of the string
@@ -245,17 +262,19 @@ class Scanner():
         if name == 'let':
             return TokenType.LET
         if not self.peek() == '(':
-            return TokenType.ATTRIBUTE
+            return self.make_token(TokenType.ATTRIBUTE)
         if name in math_operations:
-            return TokenType.MATH_FUNC
+            return self.make_token(TokenType.MATH_FUNC)
         if name in vector_math_operations:
-            return TokenType.VECTOR_MATH_FUNC
-        return TokenType.ATTRIBUTE
+            return self.make_token(TokenType.VECTOR_MATH_FUNC)
+        if name in other_functions and not self.for_attribute_nodes:
+            return self.make_token(TokenType.OTHER_FUNC)
+        return self.error_token('Unknown function')
 
     def identifier(self) -> Token:
         while self.peek().isalpha() or self.peek().isdecimal() or self.peek() == '_':
             self.advance()
-        return self.make_token(self.identifier_type())
+        return self.identifier_type()
 
     def number(self, starting_dot=False) -> Token:
         """ 
