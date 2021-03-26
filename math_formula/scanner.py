@@ -260,7 +260,7 @@ class Scanner():
     def identifier_type(self) -> TokenType:
         name = self.source[self.start: self.current]
         if name == 'let':
-            return TokenType.LET
+            return self.make_token(TokenType.LET)
         if not self.peek() == '(':
             return self.make_token(TokenType.ATTRIBUTE)
         if name in math_operations:

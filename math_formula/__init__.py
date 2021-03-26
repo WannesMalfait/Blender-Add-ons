@@ -6,7 +6,7 @@ bl_info = {
     "name": "Node Math Formula",
     "author": "Wannes Malfait",
     "version": (1, 2, 0),
-    "location": "Node Editor Toolbar",
+    "location": "Node Editor Toolbar and SHIFT+F or ALT+F",
     "description": "Quickly add math nodes by typing in a formula",
     "category": "Node",
     "blender": (2, 93, 0),  # Required so the add-on will actually load
@@ -119,8 +119,8 @@ class MFMathFormula(bpy.types.AddonPreferences):
 class MF_Settings(bpy.types.PropertyGroup):
     formula: bpy.props.StringProperty(
         name="Formula",
-        description="Formula written in Reverse Polish Notation",
-        default="4 5 *",
+        description="Formula from which nodes are added",
+        default="abs(sin(5*x))",
     )
     temp_attr_name: bpy.props.StringProperty(
         name="Temporary Attribute",
@@ -166,7 +166,7 @@ class MF_PT_panel(bpy.types.Panel, main.MFBase):
         if context.active_node is not None:
             col.operator(main.MF_OT_arrange_from_root.bl_idname)
         else:
-            col.label(text="No active node")
+            col.label(text="--no active node--")
 
 
 addon_keymaps = []

@@ -1,6 +1,6 @@
 from .parser import Compiler, Error, InstructionType
 from .scanner import TokenType
-from .positioning import PositionNode, TreePositioner
+from .positioning import TreePositioner
 import time
 import bpy
 import blf
@@ -34,10 +34,12 @@ class MF_OT_select_from_root(bpy.types.Operator):
 
     select_parents: bpy.props.BoolProperty(
         name="Select Parents",
+        description="Select all the parents of this node recursively",
         default=False,
     )
     select_children: bpy.props.BoolProperty(
-        name="Select Parents",
+        name="Select Children",
+        description="Select all the children of this node recursively",
         default=False,
     )
 
