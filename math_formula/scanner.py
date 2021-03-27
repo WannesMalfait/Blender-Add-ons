@@ -110,7 +110,7 @@ vector_math_operations = {
     'normalize': ('NORMALIZE', 1),
     'vfloor': ('FLOOR', 1),
     'vceil': ('CEIL', 1),
-    'vfract': ('FRACT', 1),
+    'vfract': ('FRACTION', 1),
     'vabs': ('ABSOLUTE', 1),
     'vabsolute': ('ABSOLUTE', 1),
     'vsin': ('SINE', 1),

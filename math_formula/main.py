@@ -685,7 +685,11 @@ class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
                     a if a in data else None for a in ('x', 'y', 'z')]
                 node = self.add_separate_xyz_node(
                     context, nodes, name, components)
-                stack.append('x')
+                best_name = 'x'
+                for comp in components:
+                    if comp is not None:
+                        best_name = comp
+                stack.append(best_name)
         if props.add_frame and nodes != []:
             # Add all nodes in a frame
             frame = tree.nodes.new(type='NodeFrame')
