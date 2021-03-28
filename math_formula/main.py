@@ -650,22 +650,17 @@ class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
                         node.inputs[2].default_value = result
                     nodes.append(node)
                 elif isinstance(name, tuple):
-                    if nodes == []:
-                        self.add_separate_xyz_node(
-                            context, nodes, result, ('x', 'y', 'z'))
+                    self.add_separate_xyz_node(
+                        context, nodes, result, ('x', 'y', 'z'))
                     # Separate XYZ
                     last_node = nodes[-1]
+                    if last_node.bl_idname == 'GeometryNodeAttributeSeparateXYZ':
+                        for i, res_name in enumerate(('Result X', 'Result Y', 'Result Z')):
+                            last_node.inputs[res_name].default_value = name[i]
                     best_name = ''
                     for comp in name:
                         if comp != '':
                             best_name = comp
-                    if last_node.bl_idname == 'GeometryNodeAttributeSeparateXYZ':
-                        for i, res_name in enumerate(('Result X', 'Result Y', 'Result Z')):
-                            last_node.inputs[res_name].default_value = name[i]
-                    elif last_node.bl_idname == 'GeometryNodeAttributeFill':
-                        last_node.inputs['Attribute'].default_value = best_name
-                    else:
-                        last_node.inputs['Result'].default_value = best_name
                     stack.append(best_name)
                 elif nodes != []:
                     last_node = nodes[-1]

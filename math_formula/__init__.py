@@ -5,7 +5,7 @@ import rna_keymap_ui
 bl_info = {
     "name": "Node Math Formula",
     "author": "Wannes Malfait",
-    "version": (1, 2, 1),
+    "version": (1, 2, 2),
     "location": "Node Editor Toolbar and SHIFT+F or ALT+F",
     "description": "Quickly add math nodes by typing in a formula",
     "category": "Node",

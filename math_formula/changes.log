@@ -1,3 +1,5 @@
+v1.2.2
+- Fix a bug with attribute separate XYZ.
 v1.2.1
 - Fix vector math `fract` not working.
 - Fix separate xyz with one component always returning `x`.
