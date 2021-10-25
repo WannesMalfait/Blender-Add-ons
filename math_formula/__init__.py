@@ -5,11 +5,11 @@ import rna_keymap_ui
 bl_info = {
     "name": "Node Math Formula",
     "author": "Wannes Malfait",
-    "version": (1, 2, 2),
+    "version": (2, 0, 0),
     "location": "Node Editor Toolbar and SHIFT+F or ALT+F",
     "description": "Quickly add math nodes by typing in a formula",
     "category": "Node",
-    "blender": (2, 93, 0),  # Required so the add-on will actually load
+    "blender": (3, 0, 0),  # Required so the add-on will actually load
 }
 
 # Reload other modules as well
