@@ -1,6 +1,8 @@
 import math
-from math_formula.scanner import *
+from typing import Tuple
+from scanner import *
 from enum import IntEnum, auto
+from bpy.types import NodeSocket
 
 
 class Precedence(IntEnum):
@@ -15,19 +17,81 @@ class Precedence(IntEnum):
     PRIMARY = auto()
 
 
+class DataType(IntEnum):
+    UNKNOWN = 0
+    BOOL = auto()
+    INT = auto()
+    FLOAT = auto()
+    RGBA = auto()
+    VEC3 = auto()
+    GEOMETRY = auto()
+    STRING = auto()
+
+
+string_to_data_type = {
+    '_': DataType.UNKNOWN,
+    'bool': DataType.BOOL,
+    'int': DataType.INT,
+    'float': DataType.FLOAT,
+    'rgba': DataType.RGBA,
+    'vec3': DataType.VEC3,
+    'geometry': DataType.GEOMETRY,
+    'string': DataType.STRING,
+}
+
+data_type_to_string = {value: key for key,
+                       value in string_to_data_type.items()}
+
+
 class InstructionType(IntEnum):
-    NUMBER = 0
-    ATTRIBUTE = auto()
+    VALUE = 0
+    STRUCT = auto()
     VAR = auto()
-    VECTOR_VAR = auto()
-    MISSING_ARG = auto()
+    GET_VARIABLE = auto()
+    DEFAULT = auto()
+    DEFINE = auto()
     MAKE_VECTOR = auto()
     SEPARATE = auto()
     MATH_FUNC = auto()
     VECTOR_MATH_FUNC = auto()
     OTHER_FUNC = auto()
     END_OF_STATEMENT = auto()
-    DEFINE = auto()
+    ASSIGNMENT = auto()
+    IGNORE = auto()
+
+
+ValueType = Union[None, bool, str, int, float,
+                  tuple[float], NodeSocket]
+
+
+class Value():
+    def __init__(self,
+                 data_type: DataType,
+                 value: ValueType) -> None:
+        self.data_type = data_type
+        self.value = value
+
+    def __str__(self) -> str:
+        return f"{self.value} ({data_type_to_string[self.data_type]})"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
+Struct = Tuple[Value]
+
+
+class Variable():
+    def __init__(self, name: str,
+                 value: Value) -> None:
+        self.name = name
+        self.value = value
+
+    def __str__(self) -> str:
+        return f"{self.name}: {self.value}"
+
+    def __repr__(self) -> str:
+        return self.__str__()
 
 
 class Error():
@@ -164,26 +228,60 @@ class Parser():
                      'Expect "}" at end of variable names')
         return Instruction(InstructionType.VECTOR_VAR, (var1, var2, var3))
 
+    def parse_type(self) -> DataType:
+        if self.match(TokenType.COLON):
+            if self.match(TokenType.IDENTIFIER):
+                if self.previous.lexeme in string_to_data_type:
+                    return string_to_data_type[self.previous.lexeme]
+                else:
+                    self.error(f'Invalid data type: {self.previous.lexeme}.')
+            else:
+                self.error('Expected a data type')
+        return DataType.UNKNOWN
+
+    def parse_variable_and_type(self) -> Instruction:
+        name = self.previous.lexeme
+        var_type = DataType.UNKNOWN
+
+        return Instruction(InstructionType.VAR, Variable(name, Value(var_type, None)))
+
     def parse_variable(self, message: str) -> Instruction:
-        # It's syntax like '{a,b,c} = position.xyz;'
-        if self.match(TokenType.LEFT_BRACE):
-            return self.get_vector_for_assignment()
-        self.consume(TokenType.ATTRIBUTE, message)
-        return Instruction(InstructionType.VAR, self.previous.lexeme)
+        # Possible options after let:
+        # - let x = ...;
+        # - let a, b, c = ...;
+        # - let a, _, b = ...;
+        # Then after each variable there can be a colon (:)
+        # followed by a type. So something like
+        # let x: float = 3;
+        num_vars = 0
+        while not self.check(TokenType.EQUAL) or self.check(TokenType.SEMICOLON):
+            if self.match(TokenType.IDENTIFIER):
+                self.instructions.append(self.parse_variable_and_type())
+                num_vars += 1
+            elif self.match(TokenType.UNDERSCORE):
+                self.instructions.append(
+                    Instruction(InstructionType.IGNORE, None))
+                num_vars += 1
+            else:
+                self.error_at_current(message)
+            if not self.match(TokenType.COMMA):
+                break
+        if num_vars == 0:
+            self.error(message)
+        return Instruction(InstructionType.ASSIGNMENT, num_vars)
 
     def variable_declaration(self) -> None:
-        var = self.parse_variable('Expect variable name.')
-        self.instructions.append(var)
+        assignment_instruction = self.parse_variable(
+            'Expect variable name or "_" after "let".')
         if self.match(TokenType.EQUAL):
             self.expression()
         else:
-            # Something like 'let x;' gets de-sugared to 'let x = 0;'
-            self.instructions.append(Instruction(InstructionType.NUMBER, 0.))
+            # Something like 'let x: float;' gets de-sugared to 'let x = 0.0;'
+            self.instructions.append(
+                Instruction(InstructionType.DEFAULT, None))
+        self.instructions.append(assignment_instruction)
         # Get optional semicolon at end of expression
         self.match(TokenType.SEMICOLON)
-
-        self.instructions.append(Instruction(
-            InstructionType.DEFINE, var.instruction))
         self.instructions.append(Instruction(
             InstructionType.END_OF_STATEMENT, None))
 
@@ -218,9 +316,16 @@ class Parser():
             self.advance()
 
 
-def number(self: Parser, can_assign: bool) -> None:
+def make_int(self: Parser, can_assign: bool) -> None:
+    value = int(self.previous.lexeme)
+    self.instructions.append(Instruction(
+        InstructionType.VALUE, Value(DataType.INT, value)))
+
+
+def make_float(self: Parser, can_assign: bool) -> None:
     value = float(self.previous.lexeme)
-    self.instructions.append(Instruction(InstructionType.NUMBER, value))
+    self.instructions.append(Instruction(
+        InstructionType.VALUE, Value(DataType.FLOAT, value)))
 
 
 def python(self: Parser, can_assign: bool) -> None:
@@ -231,6 +336,24 @@ def python(self: Parser, can_assign: bool) -> None:
     except (SyntaxError, NameError, TypeError, ZeroDivisionError) as err:
         self.error(f'Invalid python syntax: {err}.')
     self.instructions.append(Instruction(InstructionType.NUMBER, value))
+
+
+def identifier(self: Parser, can_assign: bool) -> None:
+    self.instructions.append(Instruction(
+        InstructionType.GET_VARIABLE, self.previous.lexeme)
+    )
+
+
+def string(self: Parser, can_assign: bool) -> None:
+    self.instructions.append(Instruction(
+        InstructionType.VALUE, Value(DataType.STRING, self.previous.lexeme)
+    ))
+
+
+def boolean(self: Parser, can_assign: bool) -> None:
+    self.instructions.append(Instruction(
+        InstructionType.VALUE, Value(DataType.BOOL, bool(self.previous.lexeme))
+    ))
 
 
 def attribute(self: Parser, can_assign: bool) -> None:
@@ -257,11 +380,13 @@ def unary(self: Parser, can_assign: bool) -> None:
     if operator_type == TokenType.MINUS:
         # unary minus (-x) in shader nodes is x * -1
         # postfix: x -1 *
-        self.instructions.append(Instruction(InstructionType.NUMBER, -1))
+        self.instructions.append(Instruction(
+            InstructionType.VALUE, Value(DataType.INT, -1)))
         self.instructions.append(Instruction(
             InstructionType.MATH_FUNC, ('MULTIPLY', 2)))
     else:
         # Shouldn't happen
+        assert False, "Unreachable code"
         return
 
 
@@ -368,8 +493,10 @@ def binary(self: Parser, can_assign: bool) -> None:
 
 
 rules: list[ParseRule] = [
-    ParseRule(grouping, None, Precedence.NONE),  # LEFT_PAREN
+    ParseRule(grouping, call, Precedence.NONE),  # LEFT_PAREN
     ParseRule(None, None, Precedence.NONE),  # RIGHT_PAREN
+    ParseRule(None, None, Precedence.NONE),  # LEFT_SQUARE_BRACKET
+    ParseRule(None, None, Precedence.NONE),  # RIGHT_SQUARE_BRACKET
     ParseRule(make_vector, None, Precedence.NONE),  # LEFT_BRACE
     ParseRule(None, None, Precedence.NONE),  # RIGHT_BRACE
     ParseRule(None, None, Precedence.NONE),  # COMMA
@@ -383,23 +510,33 @@ rules: list[ParseRule] = [
     ParseRule(None, binary, Precedence.EXPONENT),  # HAT
     ParseRule(None, binary, Precedence.COMPARISON),  # GREATER
     ParseRule(None, binary, Precedence.COMPARISON),  # LESS
+    ParseRule(None, None, Precedence.NONE),  # DOLLAR
+    ParseRule(None, None, Precedence.NONE),  # COLON
+    ParseRule(None, None, Precedence.NONE),  # UNDERSCORE
+
     ParseRule(None, binary, Precedence.FACTOR),  # STAR
     ParseRule(None, binary, Precedence.EXPONENT),  # STAR_STAR
-    ParseRule(None, binary, Precedence.FACTOR),  # VECTOR_STAR
-    ParseRule(None, binary, Precedence.TERM),  # VECTOR_PLUS
-    ParseRule(None, binary, Precedence.TERM),  # VECTOR_MINUS
-    ParseRule(None, binary, Precedence.FACTOR),  # VECTOR_PERCENT
-    ParseRule(None, binary, Precedence.FACTOR),  # VECTOR_SLASH
-    ParseRule(number, None, Precedence.NONE),  # NUMBER
+    ParseRule(None, None, Precedence.NONE),  # ARROW
+
+    ParseRule(identifier, None, Precedence.NONE),  # IDENTIFIER
+    ParseRule(make_int, None, Precedence.NONE),  # INT
+    ParseRule(make_float, None, Precedence.NONE),  # FLOAT
     ParseRule(python, None, Precedence.NONE),  # PYTHON
-    ParseRule(attribute, None, Precedence.NONE),  # ATTRIBUTE
-    ParseRule(call, None, Precedence.CALL),  # MATH_FUNC
-    ParseRule(call, None, Precedence.CALL),  # VECTOR_MATH_FUNC
+    ParseRule(string, None, Precedence.NONE),  # STRING
+
     ParseRule(None, None, Precedence.NONE),  # LET
-    ParseRule(call, None, Precedence.CALL),  # OTHER_FUNC
+    ParseRule(None, None, Precedence.NONE),  # FUNCTION
+    ParseRule(None, None, Precedence.NONE),  # NODEGROUP
+    ParseRule(None, None, Precedence.NONE),  # MACRO
+    ParseRule(None, None, Precedence.NONE),  # SELF
+    ParseRule(boolean, None, Precedence.NONE),  # TRUE
+    ParseRule(boolean, None, Precedence.NONE),  # FALSE
+
     ParseRule(None, None, Precedence.NONE),  # ERROR
     ParseRule(None, None, Precedence.NONE),  # EOL
 ]
+
+assert len(rules) == TokenType.EOL.value + 1, "Didn't handle all tokens!"
 
 
 class Compiler():
@@ -419,11 +556,10 @@ class Compiler():
         return not parser.had_error
 
     @staticmethod
-    def get_tokens(source: str, for_attribute_nodes: bool = False) -> list[Token]:
+    def get_tokens(source: str) -> list[Token]:
         tokens = []
         parser = Parser(source)
         scanner = parser.scanner
-        scanner.for_attribute_nodes = for_attribute_nodes
         while(token := scanner.scan_token()).token_type != TokenType.EOL:
             tokens.append(token)
         return tokens
@@ -431,19 +567,16 @@ class Compiler():
 
 if __name__ == '__main__':
     tests = [
-        'let x x=2',
-        'vsin({0,0,2});',
-        'vfract(x=2).xyz',
-        'let y = !(sin(pi/4));',
-        'let x=4 x=2;',
-        'let {a,b,c} = position;',
-        'let x = 4<5*0.2**2;',
-        'x = 2;',
-        'coords; vsin(coords).xy;',
-        'a = 2 4*5/7 8+4'
+        'let x;let y=2+5**-.5; let z = -y*x;',
+        'let a,_,c = "HEY";',
     ]
     compiler = Compiler()
     for test in tests:
-        print('TESTING:', test)
+        print('\nTESTING:', test)
         success = compiler.compile(test)
         print(f'Compilation {"success" if success else "failed"}\n')
+        if not success:
+            for error in compiler.errors:
+                print(error.message)
+        for token in compiler.instructions:
+            print(token)

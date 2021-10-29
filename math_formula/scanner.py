@@ -1,4 +1,5 @@
 from enum import IntEnum, auto
+from typing import Union
 
 
 math_operations = {
@@ -145,6 +146,8 @@ class TokenType(IntEnum):
     # Single-character tokens.
     LEFT_PAREN = 0
     RIGHT_PAREN = auto()
+    LEFT_SQUARE_BRACKET = auto()
+    RIGHT_SQUARE_BRACKET = auto()
     LEFT_BRACE = auto()
     RIGHT_BRACE = auto()
     COMMA = auto()
@@ -158,24 +161,30 @@ class TokenType(IntEnum):
     HAT = auto()
     GREATER = auto()
     LESS = auto()
+    DOLLAR = auto()
+    COLON = auto()
+    UNDERSCORE = auto()
 
     # One or two character tokens.
     STAR = auto()
     STAR_STAR = auto()
-    VECTOR_STAR = auto()
-    VECTOR_PLUS = auto()
-    VECTOR_MINUS = auto()
-    VECTOR_PERCENT = auto()
-    VECTOR_SLASH = auto()
+    ARROW = auto()
 
     # Literals.
-    NUMBER = auto()
+    IDENTIFIER = auto()
+    INT = auto()
+    FLOAT = auto()
     PYTHON = auto()
-    ATTRIBUTE = auto()
-    MATH_FUNC = auto()
-    VECTOR_MATH_FUNC = auto()
+    STRING = auto()
+
+    # Keywords
     LET = auto()
-    OTHER_FUNC = auto()
+    FUNCTION = auto()
+    NODEGROUP = auto()
+    MACRO = auto()
+    SELF = auto()
+    TRUE = auto()
+    FALSE = auto()
 
     ERROR = auto()
     EOL = auto()
@@ -209,10 +218,9 @@ class Token():
 
 
 class Scanner():
-    def __init__(self, source: str, for_attribute_nodes: bool = False) -> None:
+    def __init__(self, source: str) -> None:
         """ Initialize the scanner with source code to scan """
         self.reset(source)
-        self.for_attribute_nodes = for_attribute_nodes
 
     def reset(self, source: str) -> None:
         # Place a sentinel at the end of the string
@@ -257,37 +265,45 @@ class Scanner():
     def error_token(self, message: str) -> Token:
         return Token((self.source[self.start: self.current], message), TokenType.ERROR, start=self.start)
 
-    def identifier_type(self) -> TokenType:
+    def keyword(self) -> Union[TokenType, None]:
+        """ Checks if it's a keyword, otherwise it's treated as an identifier."""
         name = self.source[self.start: self.current]
         if name == 'let':
             return self.make_token(TokenType.LET)
-        if not self.peek() == '(':
-            return self.make_token(TokenType.ATTRIBUTE)
-        if name in math_operations:
-            return self.make_token(TokenType.MATH_FUNC)
-        if name in vector_math_operations:
-            return self.make_token(TokenType.VECTOR_MATH_FUNC)
-        if name in other_functions and not self.for_attribute_nodes:
-            return self.make_token(TokenType.OTHER_FUNC)
-        return self.error_token('Unknown function')
+        if name == 'fn':
+            return self.make_token(TokenType.FUNCTION)
+        if name == 'ng':
+            return self.make_token(TokenType.NODEGROUP)
+        if name == 'MACRO':
+            return self.make_token(TokenType.MACRO)
+        if name == 'self':
+            return self.make_token(TokenType.SELF)
+        if name == 'true':
+            return self.make_token(TokenType.TRUE)
+        if name == 'false':
+            return self.make_token(TokenType.FALSE)
+        return self.make_token(TokenType.IDENTIFIER)
 
     def identifier(self) -> Token:
         while self.peek().isalpha() or self.peek().isdecimal() or self.peek() == '_':
             self.advance()
-        return self.identifier_type()
+        return self.keyword()
 
-    def number(self, starting_dot=False) -> Token:
+    def number(self) -> Token:
+        while self.peek().isdecimal():
+            self.advance()
+        if self.match('.'):
+            return self.float()
+        return self.make_token(TokenType.INT)
+
+    def float(self) -> Token:
         """ 
         Find a floating point number from the current position.
-        If the number starts with a '.' then `starting_dot` should be `True`
+        Everything until the '.' should have been handled already.
         """
         while self.peek().isdecimal():
             self.advance()
-        if not starting_dot and self.peek() == '.' and self.peek_next().isdecimal():
-            self.advance()
-            while self.peek().isdecimal():
-                self.advance()
-        return self.make_token(TokenType.NUMBER)
+        return self.make_token(TokenType.FLOAT)
 
     def python(self) -> Token:
         """ Get the string in between () """
@@ -307,6 +323,15 @@ class Scanner():
             self.advance()
         return self.make_token(TokenType.PYTHON)
 
+    def string(self, closing: str) -> Token:
+        """ Get the string in between \' or \"."""
+        self.advance()
+        while not self.is_at_end():
+            if self.match(closing):
+                return self.make_token(TokenType.STRING)
+            self.advance()
+        return self.error_token('Expected string to be closed.')
+
     def scan_token(self) -> Token:
         self.skip_whitespace()
         self.start = self.current
@@ -319,20 +344,7 @@ class Scanner():
         if not c.isascii():
             return self.error_token('Unrecognized token')
 
-        if c == 'v':
-            if self.match('*'):
-                return self.make_token(TokenType.VECTOR_STAR)
-            elif self.match('+'):
-                return self.make_token(TokenType.VECTOR_PLUS)
-            elif self.match('-'):
-                return self.make_token(TokenType.VECTOR_MINUS)
-            elif self.match('/'):
-                return self.make_token(TokenType.VECTOR_SLASH)
-            elif self.match('%'):
-                return self.make_token(TokenType.VECTOR_PERCENT)
-            else:
-                return self.identifier()
-        elif c.isalpha() or c == '_':
+        if c.isalpha() or c == '_':
             return self.identifier()
         elif (c.isdecimal()):
             return self.number()
@@ -346,6 +358,10 @@ class Scanner():
             return self.make_token(TokenType.LEFT_BRACE)
         elif c == '}':
             return self.make_token(TokenType.RIGHT_BRACE)
+        elif c == '[':
+            return self.make_token(TokenType.RIGHT_SQUARE_BRACKET)
+        elif c == ']':
+            return self.make_token(TokenType.LEFT_SQUARE_BRACKET)
         elif c == ';':
             return self.make_token(TokenType.SEMICOLON)
         elif c == ',':
@@ -362,6 +378,12 @@ class Scanner():
             return self.make_token(TokenType.LESS)
         elif c == '=':
             return self.make_token(TokenType.EQUAL)
+        elif c == '$':
+            return self.make_token(TokenType.DOLLAR)
+        elif c == ':':
+            return self.make_token(TokenType.COLON)
+        elif c == '_':
+            return self.make_token(TokenType.UNDERSCORE)
         # Check for two-character tokens
         elif c == '*':
             return self.make_token(
@@ -369,17 +391,21 @@ class Scanner():
         elif c == '.':
             # Check for floating point numbers like '.314'
             if self.peek().isdecimal():
-                return self.number(starting_dot=True)
+                return self.float()
             return self.make_token(TokenType.DOT)
         elif c == '-':
             # Check for negative numbers
             if self.match('.'):
-                return self.number(starting_dot=True)
+                return self.float()
+            if self.match('>'):
+                return self.make_token(TokenType.ARROW)
             elif self.peek().isdecimal():
                 return self.number()
             return self.make_token(TokenType.MINUS)
-        elif c == '!':
+        elif c == '#':
             return self.python()
+        elif c == "'" or c == '"':
+            return self.string(closing=c)
         return self.error_token('Unrecognized token')
 
 
@@ -410,31 +436,53 @@ if __name__ == '__main__':
             Token('*', TokenType.STAR),
             Token('.5', TokenType.NUMBER),
             Token('-', TokenType.MINUS),
-            Token('v', TokenType.ATTRIBUTE),
+            Token('v', TokenType.IDENTIFIER),
             Token('**', TokenType.STAR_STAR),
             Token('2.17', TokenType.NUMBER),
         ]),
-        ('let z = sin(x*!(sqrt(pi)))', [
+        ('let z = sin(x*#(sqrt(pi)))', [
             Token('let', TokenType.LET),
-            Token('z', TokenType.ATTRIBUTE),
+            Token('z', TokenType.IDENTIFIER),
             Token('=', TokenType.EQUAL),
-            Token('sin', TokenType.MATH_FUNC),
+            Token('sin', TokenType.IDENTIFIER),
             Token('(', TokenType.LEFT_PAREN),
-            Token('x', TokenType.ATTRIBUTE),
+            Token('x', TokenType.IDENTIFIER),
             Token('*', TokenType.STAR),
-            Token('!(sqrt(pi))', TokenType.PYTHON),
+            Token('#(sqrt(pi))', TokenType.PYTHON),
             Token(')', TokenType.RIGHT_PAREN),
         ]),
-        ('{-1,1,-.5}v/len', [
+        ('let string = "TESKJH49220P2%£¨2";', [
+            Token('let', TokenType.LET),
+            Token('string', TokenType.IDENTIFIER),
+            Token('=', TokenType.EQUAL),
+            Token('"TESKJH49220P2%£¨2"', TokenType.STRING),
+            Token(';', TokenType.SEMICOLON),
+        ]),
+        ('fn test(x: float) -> y: float {self.y = sin(x) * x;}', [
+            Token('fn', TokenType.FUNCTION),
+            Token('test', TokenType.IDENTIFIER),
+            Token('(', TokenType.LEFT_PAREN),
+            Token('x', TokenType.IDENTIFIER),
+            Token(':', TokenType.COLON),
+            Token('float', TokenType.IDENTIFIER),
+            Token(')', TokenType.RIGHT_PAREN),
+            Token('->', TokenType.ARROW),
+            Token('y', TokenType.IDENTIFIER),
+            Token(':', TokenType.COLON),
+            Token('float', TokenType.IDENTIFIER),
             Token('{', TokenType.LEFT_BRACE),
-            Token('-1', TokenType.NUMBER),
-            Token(',', TokenType.COMMA),
-            Token('1', TokenType.NUMBER),
-            Token(',', TokenType.COMMA),
-            Token('-.5', TokenType.NUMBER),
-            Token('}', TokenType.RIGHT_BRACE),
-            Token('v/', TokenType.VECTOR_SLASH),
-            Token('len', TokenType.ATTRIBUTE),
+            Token('self', TokenType. SELF),
+            Token('.', TokenType.DOT),
+            Token('y', TokenType.IDENTIFIER),
+            Token('=', TokenType.EQUAL),
+            Token('sin', TokenType.IDENTIFIER),
+            Token('(', TokenType.LEFT_PAREN),
+            Token('x', TokenType.IDENTIFIER),
+            Token(')', TokenType.RIGHT_PAREN),
+            Token('*', TokenType.STAR),
+            Token('x', TokenType.IDENTIFIER),
+            Token(';', TokenType.SEMICOLON),
+            Token('}', TokenType.RIGHT_BRACE)
         ])
     ]
     for source, expected in scanner_tests:
