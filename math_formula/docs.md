@@ -24,7 +24,7 @@ let uv_sphere = uv_sphere(18,20);
 // Here g1 and g2 are both of the type `Geometry`. The `separate_geometry` node has
 // a mode to choose from. By default this is 'POINTS', but other modes can be set by
 // specifying: 
-// `separate_geometry(mode='FACES',uv_sphere, selection);`
+// `separate_geometry['FACES'](uv_sphere, selection);`
 // Modes, or other options on the node that don't have a socket, are skipped in
 // the positional argument list, i.e. you should always specify them with a keyword.
 let g1, g2 = separate_geometry(uv_sphere, selection);
@@ -52,15 +52,14 @@ You can define your own functions, node groups, and macros. Functions are exactl
 
 Example use of macros:
 ```js
-// A macro definition always starts with `MACRO`. The `$` is used to indicate that
-// args "captures" everything in the parentheses, instead of referring to a normal
-// variable.
-MACRO separate_faces($args) = separate_geometry(mode='FACES', $args);
+// A macro definition always starts with `MACRO`. Here we define a macro
+// which will replace `separate_faces` with `separate_geometry['FACES']`.
+MACRO separate_faces = separate_geometry['FACES'];
 
 // Now we can do the following:
 let geo, _ = separate_faces(uv_sphere(), position().x > 0.2);
 // Which is the same as:
-let geo, _ = separate_geometry(mode='FACES', uv_sphere(), position().x > 0.2);
+let geo, _ = separate_geometry['FACES'](uv_sphere(), position().x > 0.2);
 
 // In this case the arguments are just individual arguments.
 MACRO lerp(a, b, fac) = map_range(fac, _,_, a, b);
@@ -77,7 +76,7 @@ As a convention you use "snake_case" for function names, and "PascalCase" for no
 fn lin_space(a: float, b: float, num_points: int) -> points: Geometry {
     let start = {a, 0,0};
     let end = {b, 0, 0};
-    self.points = mesh_line(mode='ENDPOINTS', count, start, end);
+    self.points = mesh_line['ENDPOINTS'](count, start, end);
 }
 
 // For node groups you can specify the name of the node group, right after the 

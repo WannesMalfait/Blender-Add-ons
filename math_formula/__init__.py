@@ -1,4 +1,4 @@
-from . import main, parser, scanner, positioning
+from . import main, parser, scanner, positioning, nodes
 import bpy
 import rna_keymap_ui
 
@@ -6,8 +6,8 @@ bl_info = {
     "name": "Node Math Formula",
     "author": "Wannes Malfait",
     "version": (2, 0, 0),
-    "location": "Node Editor Toolbar and SHIFT+F or ALT+F",
-    "description": "Quickly add math nodes by typing in a formula",
+    "location": "Node Editor Toolbar and SHIFT+F",
+    "description": "Quickly add nodes by typing in a formula",
     "category": "Node",
     "blender": (3, 0, 0),  # Required so the add-on will actually load
 }
@@ -19,6 +19,7 @@ if "bpy" in locals():
     importlib.reload(parser)
     importlib.reload(scanner)
     importlib.reload(positioning)
+    importlib.reload(nodes)
 
 
 class MFMathFormula(bpy.types.AddonPreferences):
@@ -52,24 +53,21 @@ class MFMathFormula(bpy.types.AddonPreferences):
         name="Show colors for syntax highlighting",
         default=False,
     )
-    math_func_color: bpy.props.FloatVectorProperty(
-        name="Math Function Color",
-        default=(0.0, 0.8, 0.1),
-        subtype='COLOR',
-    )
-    vector_math_func_color: bpy.props.FloatVectorProperty(
-        name="Vector Math Function Color",
-        default=(0.142, 0.408, 0.8),
-        subtype='COLOR',
-    )
     python_color: bpy.props.FloatVectorProperty(
         name="Python Color",
         default=(0.3, 0.1, 0.8),
         subtype='COLOR',
     )
-    float_color: bpy.props.FloatVectorProperty(
+    number_color: bpy.props.FloatVectorProperty(
+        # B5CEA8
         name="Number Color",
-        default=(0.7, 0.607, 0.58),
+        default=(0.71, 0.808, 0.659),
+        subtype='COLOR',
+    )
+    string_color: bpy.props.FloatVectorProperty(
+        # CE9178
+        name='String Color',
+        default=(0.808, 0.569, 0.471),
         subtype='COLOR',
     )
     default_color: bpy.props.FloatVectorProperty(
@@ -78,17 +76,25 @@ class MFMathFormula(bpy.types.AddonPreferences):
         subtype='COLOR',
     )
     keyword_color: bpy.props.FloatVectorProperty(
+        # 569CD6
         name="Keyword Color",
-        default=(0.103, 0.8, 0.492),
+        default=(0.337, 0.612, 0.839),
+        subtype='COLOR',
+    )
+    type_color: bpy.props.FloatVectorProperty(
+        # 4EC9B0
+        name="Type Color",
+        default=(0.306, 0.788, 0.69),
         subtype='COLOR',
     )
     error_color: bpy.props.FloatVectorProperty(
+        # F44747
         name="Error Color",
-        default=(0.8, 0.1, 0.05),
+        default=(0.957, 0.278, 0.278),
         subtype='COLOR',
     )
 
-    def draw(self, context):
+    def draw(self: bpy.types.Operator, context):
         layout = self.layout
         col = layout.column()
         col.prop(self, 'font_size')
@@ -122,16 +128,6 @@ class MF_Settings(bpy.types.PropertyGroup):
         description="Formula from which nodes are added",
         default="abs(sin(5*x))",
     )
-    temp_attr_name: bpy.props.StringProperty(
-        name="Temporary Attribute",
-        description="Name of the temporary attribute used to store in between results",
-        default="tmp",
-    )
-    no_arg: bpy.props.StringProperty(
-        name="Missing Argument Name",
-        default="",
-        description="The name of the attribute used to fill in missing arguments"
-    )
     add_frame: bpy.props.BoolProperty(
         name="Add Frame",
         description='Put all the nodes in a frame',
@@ -146,7 +142,7 @@ class MF_PT_panel(bpy.types.Panel, main.MFBase):
     bl_region_type = "UI"
     bl_category = "Math Formula"
 
-    def draw(self, context):
+    def draw(self, context: bpy.context):
 
         # Helper variables
         layout = self.layout
@@ -158,10 +154,6 @@ class MF_PT_panel(bpy.types.Panel, main.MFBase):
         col.prop(props, 'formula')
         col.prop(props, 'add_frame')
         col.separator()
-        if context.space_data.tree_type == 'GeometryNodeTree':
-            col.prop(props, 'temp_attr_name')
-            col.prop(props, 'no_arg')
-            col.operator(main.MF_OT_attribute_math_formula_add.bl_idname)
         col.operator(main.MF_OT_math_formula_add.bl_idname)
         if context.active_node is not None:
             col.operator(main.MF_OT_arrange_from_root.bl_idname)
@@ -182,9 +174,7 @@ kmi_defs = [
     (main.MF_OT_select_from_root.bl_idname,
      'E', 'PRESS', False, True, False, (('select_children', False), ('select_parents', True))),
     (main.MF_OT_type_formula_then_add_nodes.bl_idname,
-     'F', 'PRESS', False, True, False, (('use_attributes', True),)),
-    (main.MF_OT_type_formula_then_add_nodes.bl_idname,
-     'F', 'PRESS', False, False, True, (('use_attributes', False),)),
+     'F', 'PRESS', False, False, True, None),
 ]
 
 classes = (

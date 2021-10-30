@@ -1,12 +1,25 @@
-from .parser import Compiler, Error, InstructionType
+from bpy.types import NodeSocket
+from .parser import Compiler, Error, InstructionType, string_to_data_type
 from .scanner import TokenType
 from .positioning import TreePositioner
+from .nodes.base import DataType, NodeFunction, Value
 import time
 import bpy
 import blf
+import os
 
 
 formula_history = []
+
+font_directory = os.path.join(os.path.dirname(
+    os.path.realpath(__file__)), 'fonts')
+fonts = {
+    'bfont': 0,
+    'regular': blf.load(os.path.join(font_directory, 'Anonymous_Pro.ttf')),
+    'italic': blf.load(os.path.join(font_directory, 'Anonymous_Pro_I.ttf')),
+    'bold': blf.load(os.path.join(font_directory, 'Anonymous_Pro_0.ttf')),
+    'bold_italic': blf.load(os.path.join(font_directory, 'Anonymous_Pro_BI.ttf')),
+}
 
 
 def mf_check(context) -> bool:
@@ -132,7 +145,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         else:
             space.cursor_location = tree.view_center
 
-    def get_args(self, stack, num_args):
+    def get_args(self, stack: list, num_args: int) -> list[Value]:
         args = []
         for _ in range(num_args):
             arg = stack.pop()
@@ -140,78 +153,21 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         args.reverse()
         return args
 
-    @ staticmethod
-    def add_math_node(context, args, func_name):
-        tree = context.space_data.edit_tree
-        if tree.type == 'GeometryNodeTree':
-            node = tree.nodes.new(type="GeometryNodeMath")
-        else:
-            node = tree.nodes.new(type="ShaderNodeMath")
-        node.operation = func_name
-        for i, arg in enumerate(args):
-            if isinstance(arg, float):
-                node.inputs[i].default_value = arg
-            elif isinstance(arg, list):
-                avg = (arg[0]+arg[1]+arg[2])/3
-                node.inputs[i].default_value = avg
-            elif isinstance(arg, bpy.types.NodeSocket):
-                socket = arg
-                tree.links.new(socket, node.inputs[i])
-        return node
-
-    @ staticmethod
-    def add_vector_math_node(context, args, func_name):
-        tree = context.space_data.edit_tree
-        if tree.type == 'GeometryNodeTree':
-            node = tree.nodes.new(type="GeometryNodeVectorMath")
-        else:
-            node = tree.nodes.new(type="ShaderNodeVectorMath")
-        node.operation = func_name
-        """
-        Socket types:
-        {SOCK_VECTOR, N_("Vector"), 0.0f, 0.0f, 0.0f, 1.0f, -10000.0f, 10000.0f, PROP_NONE},
-        {SOCK_VECTOR, N_("Vector"), 0.0f, 0.0f, 0.0f, 1.0f, -10000.0f, 10000.0f, PROP_NONE},
-        {SOCK_VECTOR, N_("Vector"), 0.0f, 0.0f, 0.0f, 1.0f, -10000.0f, 10000.0f, PROP_NONE},
-        {SOCK_FLOAT, N_("Scale"), 1.0f, 1.0f, 1.0f, 1.0f, -10000.0f, 10000.0f, PROP_NONE},
-        """
-        for i, arg in enumerate(args):
-            if isinstance(arg, list):
-                node.inputs[i].default_value = arg
-            elif isinstance(arg, float):
-                if func_name == 'SCALE' and i == 1:
-                    node.inputs[3].default_value = arg
-                elif func_name == 'REFRACT' and i == 2:
-                    node.inputs[3].default_value = arg
-                else:
-                    node.inputs[i].default_value = [arg for _ in range(3)]
-            elif isinstance(arg, bpy.types.NodeSocket):
-                socket = arg
-                if func_name == 'SCALE' and i == 1:
-                    tree.links.new(socket, node.inputs[3])
-                elif func_name == 'REFRACT' and i == 2:
-                    tree.links.new(socket, node.inputs[3])
-                else:
-                    tree.links.new(socket, node.inputs[i])
-        return node
-
     @staticmethod
-    def add_other_func(context, args, func_name, prop):
-        tree = context.space_data.edit_tree
+    def add_func(context: bpy.context, args: list[Value], function: NodeFunction):
+        tree: bpy.types.NodeTree = context.space_data.edit_tree
         if tree.type == 'GeometryNodeTree':
-            node = tree.nodes.new(type="GeometryNode" + func_name)
+            node = tree.nodes.new(type="GeometryNode" + function.name())
         else:
-            node = tree.nodes.new(type="ShaderNode" + func_name)
-        prop_name, prop_value = prop
-        setattr(node, prop_name, prop_value)
-        for i, arg in enumerate(args):
-            if isinstance(arg, float):
-                node.inputs[i].default_value = arg
-            elif isinstance(arg, list):
-                avg = (arg[0]+arg[1]+arg[2])/3
-                node.inputs[i].default_value = avg
-            elif isinstance(arg, bpy.types.NodeSocket):
-                socket = arg
-                tree.links.new(socket, node.inputs[i])
+            node = tree.nodes.new(type="ShaderNode" + function.name())
+        for name, value in function.props():
+            setattr(node, name, value)
+        for i, socket in enumerate(function.input_sockets()):
+            arg = args[i]
+            if isinstance(arg.value, bpy.types.NodeSocket):
+                tree.links.new(arg.value, node.inputs[socket.index])
+            elif not arg.value is None:
+                node.inputs[i].default_value = arg.value
         return node
 
     @staticmethod
@@ -251,7 +207,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         else:
             stack.append(last_set)
 
-    def execute(self, context):
+    def execute(self, context: bpy.context):
         space = context.space_data
         # Safe because of poll function
         tree: bpy.types.NodeTree = space.edit_tree
@@ -273,93 +229,27 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         for instruction in instructions:
             instruction_type = instruction.instruction
             data = instruction.data
-            if instruction_type == InstructionType.NUMBER:
-                stack.append(float(data))
-            elif instruction_type == InstructionType.MISSING_ARG:
-                stack.append(False)
-                continue
-            elif instruction_type in (InstructionType.MATH_FUNC, InstructionType.VECTOR_MATH_FUNC):
-                func_name, num_args = data
-                args = self.get_args(stack, num_args)
-                out_socket = None
-                if instruction_type == InstructionType.MATH_FUNC:
-                    node = self.add_math_node(
-                        context, args, func_name)
-                    out_socket = node.outputs[0]
-                else:
-                    node = self.add_vector_math_node(
-                        context, args, func_name)
-                    # If the returned value is a float
-                    ind = 1 if func_name in (
-                        'DOT_PRODUCT', 'DISTANCE', 'LENGTH') else 0
-                    out_socket = node.outputs[ind]
-                # Used for linking
-                stack.append(out_socket)
-                nodes.append(node)
-            elif instruction_type == InstructionType.OTHER_FUNC:
-                name, prop, num_args = data
-                args = self.get_args(stack, num_args)
-                node = self.add_other_func(context, args, name, prop)
-                stack.append(node.outputs[0])
+            if instruction_type == InstructionType.VALUE:
+                stack.append(data)
+            elif instruction_type == InstructionType.FUNCTION:
+                function: NodeFunction = data
+                print(function.input_sockets())
+                args = self.get_args(stack, len(function.input_sockets()))
+                node = self.add_func(context, args, function)
+                for socket in function.output_sockets():
+                    stack.append(
+                        Value(socket.sock_type, node.outputs[socket.index]))
                 nodes.append(node)
             elif instruction_type == InstructionType.END_OF_STATEMENT:
                 if stack == []:
                     print('EMPTY STACK!!!!')
                     continue
                 element = stack.pop()
-                if isinstance(element, bpy.types.NodeSocket):
-                    root_nodes.append(element.node)
-            elif instruction_type == InstructionType.MAKE_VECTOR:
-                args = self.get_args(stack, 3)
-                all_float = True
-                for arg in args:
-                    if not isinstance(arg, float):
-                        all_float = False
-                        break
-                if all_float:
-                    stack.append(args)
-                    continue
-                node = tree.nodes.new('ShaderNodeCombineXYZ')
-                for i, arg in enumerate(args):
-                    if isinstance(arg, float):
-                        node.inputs[i].default_value = arg
-                    elif isinstance(arg, list):
-                        avg = (arg[0]+arg[1]+arg[2])/3
-                        node.inputs[i].default_value = avg
-                    else:
-                        socket = arg
-                        tree.links.new(socket, node.inputs[i])
-                stack.append(node.outputs[0])
-            elif instruction_type == InstructionType.ATTRIBUTE:
-                value = variables.get(data)
-                if value is None:
-                    node = tree.nodes.new('ShaderNodeValue')
-                    node.label = data
-                    socket = node.outputs[0]
-                    variables[data] = socket
-                    stack.append(socket)
-                else:
-                    stack.append(value)
-            elif instruction_type == InstructionType.VAR:
-                stack.append(data)
-            elif instruction_type == InstructionType.VECTOR_VAR:
-                stack.append(data)
-            elif instruction_type == InstructionType.DEFINE:
-                var, value = self.get_args(stack, 2)
-                value = self.get_value_as_socket(
-                    value, str(var), tree)
-                if isinstance(var, str):
-                    variables[var] = value
-                    stack.append(value)
-                else:
-                    self.separate_xyz(value, var, stack, variables, tree)
-            elif instruction_type == InstructionType.SEPARATE:
-                value, components = self.get_args(stack, 2)
-                value = self.get_value_as_socket(
-                    value, 'Vector', tree)
-                components = [
-                    a if a in components else '' for a in ('x', 'y', 'z')]
-                self.separate_xyz(value, components, stack, variables, tree)
+                if isinstance(element, Value) and isinstance(element.value, NodeSocket):
+                    root_nodes.append(element.value.node)
+            else:
+                print(f'Need implementation of {instruction}')
+                raise NotImplementedError
         if props.add_frame and nodes != []:
             # Add all nodes in a frame
             frame = tree.nodes.new(type='NodeFrame')
@@ -702,10 +592,9 @@ class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
         return self.execute(context)
 
 
-def draw_callback_px(self, context):
+def draw_callback_px(self, context: bpy.context):
     prefs = context.preferences.addons['math_formula'].preferences
-    # Default font
-    font_id = 0
+    font_id = fonts['regular']
     font_size = prefs.font_size
     blf.size(font_id, font_size, 72)
     # show_errors = time.time()-self.last_action > 2
@@ -717,10 +606,8 @@ def draw_callback_px(self, context):
 
     # Get the dimensions so that we know where to place the next text
     width, height = blf.dimensions(font_id, "Formula: ")
-    if self.use_attributes:
-        blf.color(font_id, 0.7, 0.0, 0.0, 1.0)
-    else:
-        blf.color(font_id, 0.4, 0.5, 0.1, 1.0)
+    # Color for the non-user text.
+    blf.color(font_id, 0.4, 0.5, 0.1, 1.0)
     blf.position(font_id, posx, posy+height+10, posz)
     blf.draw(font_id, "(Press ENTER to confirm, ESC to cancel)")
 
@@ -731,12 +618,12 @@ def draw_callback_px(self, context):
         self.formula = formula_history[-self.formula_history_loc]
         self.cursor_index = len(self.formula)
     formula = self.formula
-    tokens = Compiler.get_tokens(formula, self.use_attributes)
+    tokens = Compiler.get_tokens(formula)
     cursor_index = self.cursor_index
     cursor_pos_set = False
     cursor_pos = width
     prev = 0
-    for token in tokens:
+    for i, token in enumerate(tokens):
         blf.position(font_id, posx+width, posy, posz)
         text = token.lexeme
         start = token.start
@@ -749,38 +636,32 @@ def draw_callback_px(self, context):
         white_space = formula[prev:start]
         blf.draw(font_id, white_space)
         width += blf.dimensions(font_id, white_space)[0]
-        is_error = False
-        for error in self.errors:
-            if error.token.start == start and error.token == token:
-                color(font_id, prefs.error_color)
-                is_error = True
-                # Error token stores a tuple
-                if token.token_type == TokenType.ERROR:
-                    text, error = token.lexeme
-                break
-        if not is_error:
-            if TokenType.LET.value <= token.token_type.value <= TokenType.OTHER_FUNC.value:
-                color(font_id, prefs.keyword_color)
-            elif token.token_type == TokenType.VECTOR_MATH_FUNC:
-                color(font_id, prefs.vector_math_func_color)
-            elif token.token_type == TokenType.MATH_FUNC:
-                color(font_id, prefs.math_func_color)
-            elif token.token_type == TokenType.NUMBER:
-                color(font_id, prefs.float_color)
-            elif token.token_type == TokenType.PYTHON:
-                color(font_id, prefs.python_color)
-            elif token.token_type == TokenType.ERROR:
-                text, error = token.lexeme
-                color(font_id, prefs.default_color)
-            elif TokenType.MINUS.value <= token.token_type.value <= TokenType.STAR_STAR.value:
-                color(font_id, prefs.math_func_color)
-            elif TokenType.VECTOR_STAR.value <= token.token_type.value <= TokenType.VECTOR_SLASH.value:
-                color(font_id, prefs.vector_math_func_color)
-            else:
-                color(font_id, prefs.default_color)
-        blf.position(font_id, posx+width, posy, posz)
-        blf.draw(font_id, text)
-        width += blf.dimensions(font_id, text)[0]
+        token_font_style = font_id
+        prev_token = tokens[i-1] if i > 0 else token
+        if token.token_type == TokenType.IDENTIFIER and prev_token.token_type == TokenType.COLON:
+            # Check if it's a valid type
+            color(token_font_style,
+                  prefs.type_color if token.lexeme in string_to_data_type else prefs.default_color)
+        elif TokenType.LET.value <= token.token_type.value <= TokenType.FALSE.value:
+            color(token_font_style, prefs.keyword_color)
+        elif token.token_type in (TokenType.INT, TokenType.FLOAT):
+            color(token_font_style, prefs.number_color)
+        elif token.token_type == TokenType.PYTHON:
+            token_font_style = fonts['bold']
+            color(token_font_style, prefs.python_color)
+        elif token.token_type == TokenType.ERROR:
+            text, error = token.lexeme
+            token_font_style = fonts['italic']
+            color(token_font_style, prefs.error_color)
+        elif token.token_type == TokenType.STRING:
+            color(token_font_style, prefs.string_color)
+        else:
+            color(token_font_style, prefs.default_color)
+        blf.size(token_font_style, font_size, 72)
+
+        blf.position(token_font_style, posx+width, posy, posz)
+        blf.draw(token_font_style, text)
+        width += blf.dimensions(token_font_style, text)[0]
         prev = start + len(text)
 
     # Remaining white space at the end
@@ -806,17 +687,12 @@ def color(font_id, color):
 
 
 class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
-    """Type the formula then add the attribute nodes"""
+    """Type the formula then add the nodes"""
     bl_idname = "node.mf_type_formula_then_add_nodes"
-    bl_label = "Type math formula then add node"
+    bl_label = "Type math formula then add nodes"
     bl_options = {'REGISTER'}
 
-    use_attributes: bpy.props.BoolProperty(
-        name="Use attributes",
-        default=False,
-    )
-
-    def modal(self, context, event):
+    def modal(self, context: bpy.context, event: bpy.types.Event):
         context.area.tag_redraw()
         action = False
         # Exit when they press enter
@@ -828,20 +704,19 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 self.report(
                     {'WARNING'}, 'Compile errors, could not create node tree')
                 return {'RUNNING_MODAL'}
-
+            # bpy.types.SpaceNodeEditor.draw_handler_remove(
+            #     self._handle, 'WINDOW')
+            # print(compiler.instructions)
+            # return {'FINISHED'}
             bpy.types.SpaceNodeEditor.draw_handler_remove(
                 self._handle, 'WINDOW')
             context.scene.math_formula_add.formula = self.formula
             formula_history.append(self.formula)
             # Deselect all the nodes before adding new ones
             bpy.ops.node.select_all(action='DESELECT')
-            if self.use_attributes:
-                return bpy.ops.node.mf_attribute_math_formula_add(
-                    use_mouse_location=True)
-            else:
-                bpy.ops.node.mf_math_formula_add(
-                    'INVOKE_DEFAULT', use_mouse_location=True)
-                return {'FINISHED'}
+            bpy.ops.node.mf_math_formula_add(
+                'INVOKE_DEFAULT', use_mouse_location=True)
+            return {'FINISHED'}
         # Cancel when they press Esc or Rmb
         elif event.type in ('ESC', 'RIGHTMOUSE'):
             bpy.types.SpaceNodeEditor.draw_handler_remove(
@@ -850,7 +725,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
 
         # Prevent unwanted repetition
         elif event.value == 'RELEASE':
-            # Lock is needed because of oversensitve keys
+            # Lock is needed because of oversensitive keys
             self.lock = False
             self.middle_mouse = False
 
@@ -863,6 +738,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 self.report({'INFO'}, 'No errors detected')
             else:
                 self.report({'WARNING'}, 'Compilation failed')
+                print('Instructions: ', compiler.instructions)
 
         # NAVIGATION
         elif event.type == 'MIDDLEMOUSE':
@@ -936,7 +812,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             action = True
         elif not self.lock and event.ctrl and event.type == 'V':
             # Paste from clipboard
-            clipboard = bpy.context.window_manager.clipboard
+            clipboard = context.window_manager.clipboard
             # Insert char at the index
             self.formula = self.formula[:self.cursor_index] + \
                 clipboard + self.formula[self.cursor_index:]
@@ -959,9 +835,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             self.last_action = time.time()
         return {'RUNNING_MODAL'}
 
-    def invoke(self, context, event):
-        if context.space_data.tree_type == 'ShaderNodeTree':
-            self.use_attributes = False
+    def invoke(self, context: bpy.context, event: bpy.types.Event):
         args = (self, context)
         self._handle = bpy.types.SpaceNodeEditor.draw_handler_add(
             draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
@@ -983,7 +857,6 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
 classes = (
     MF_OT_arrange_from_root,
     MF_OT_select_from_root,
-    MF_OT_attribute_math_formula_add,
     MF_OT_math_formula_add,
     MF_OT_type_formula_then_add_nodes,
 )

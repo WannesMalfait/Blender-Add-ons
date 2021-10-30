@@ -325,7 +325,6 @@ class Scanner():
 
     def string(self, closing: str) -> Token:
         """ Get the string in between \' or \"."""
-        self.advance()
         while not self.is_at_end():
             if self.match(closing):
                 return self.make_token(TokenType.STRING)
@@ -344,7 +343,12 @@ class Scanner():
         if not c.isascii():
             return self.error_token('Unrecognized token')
 
-        if c.isalpha() or c == '_':
+        if c == '_':
+            nextc = self.peek()
+            if nextc.isalpha() or nextc.isdecimal() or nextc == '_':
+                return self.identifier()
+            return self.make_token(TokenType.UNDERSCORE)
+        elif c.isalpha():
             return self.identifier()
         elif (c.isdecimal()):
             return self.number()
@@ -359,9 +363,9 @@ class Scanner():
         elif c == '}':
             return self.make_token(TokenType.RIGHT_BRACE)
         elif c == '[':
-            return self.make_token(TokenType.RIGHT_SQUARE_BRACKET)
-        elif c == ']':
             return self.make_token(TokenType.LEFT_SQUARE_BRACKET)
+        elif c == ']':
+            return self.make_token(TokenType.RIGHT_SQUARE_BRACKET)
         elif c == ';':
             return self.make_token(TokenType.SEMICOLON)
         elif c == ',':
@@ -382,8 +386,6 @@ class Scanner():
             return self.make_token(TokenType.DOLLAR)
         elif c == ':':
             return self.make_token(TokenType.COLON)
-        elif c == '_':
-            return self.make_token(TokenType.UNDERSCORE)
         # Check for two-character tokens
         elif c == '*':
             return self.make_token(
@@ -432,13 +434,21 @@ if __name__ == '__main__':
 
     scanner_tests = [
         ('4*.5-v **2.17', [
-            Token('4', TokenType.NUMBER),
+            Token('4', TokenType.INT),
             Token('*', TokenType.STAR),
-            Token('.5', TokenType.NUMBER),
+            Token('.5', TokenType.FLOAT),
             Token('-', TokenType.MINUS),
             Token('v', TokenType.IDENTIFIER),
             Token('**', TokenType.STAR_STAR),
-            Token('2.17', TokenType.NUMBER),
+            Token('2.17', TokenType.FLOAT),
+        ]),
+        ('add(_,5)', [
+            Token('add', TokenType.IDENTIFIER),
+            Token('(', TokenType.LEFT_PAREN),
+            Token('_', TokenType.UNDERSCORE),
+            Token(',', TokenType.COMMA),
+            Token('5', TokenType.INT),
+            Token(')', TokenType.RIGHT_PAREN),
         ]),
         ('let z = sin(x*#(sqrt(pi)))', [
             Token('let', TokenType.LET),

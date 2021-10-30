@@ -1,8 +1,9 @@
 import math
-from typing import Tuple
-from scanner import *
+
+from .scanner import TokenType, Token, Scanner
+from .nodes import functions as function_nodes
+from .nodes.base import DataType, Value, ValueType, string_to_data_type, NodeFunction
 from enum import IntEnum, auto
-from bpy.types import NodeSocket
 
 
 class Precedence(IntEnum):
@@ -17,68 +18,19 @@ class Precedence(IntEnum):
     PRIMARY = auto()
 
 
-class DataType(IntEnum):
-    UNKNOWN = 0
-    BOOL = auto()
-    INT = auto()
-    FLOAT = auto()
-    RGBA = auto()
-    VEC3 = auto()
-    GEOMETRY = auto()
-    STRING = auto()
-
-
-string_to_data_type = {
-    '_': DataType.UNKNOWN,
-    'bool': DataType.BOOL,
-    'int': DataType.INT,
-    'float': DataType.FLOAT,
-    'rgba': DataType.RGBA,
-    'vec3': DataType.VEC3,
-    'geometry': DataType.GEOMETRY,
-    'string': DataType.STRING,
-}
-
-data_type_to_string = {value: key for key,
-                       value in string_to_data_type.items()}
-
-
 class InstructionType(IntEnum):
     VALUE = 0
     STRUCT = auto()
     VAR = auto()
     GET_VARIABLE = auto()
-    DEFAULT = auto()
-    DEFINE = auto()
-    MAKE_VECTOR = auto()
-    SEPARATE = auto()
-    MATH_FUNC = auto()
-    VECTOR_MATH_FUNC = auto()
-    OTHER_FUNC = auto()
+    PROPERTIES = auto()
+    FUNCTION = auto()
+    NODEGROUP = auto()
+    DEF_FUNCTION = auto()
+    DEF_NODEGROUP = auto()
     END_OF_STATEMENT = auto()
     ASSIGNMENT = auto()
     IGNORE = auto()
-
-
-ValueType = Union[None, bool, str, int, float,
-                  tuple[float], NodeSocket]
-
-
-class Value():
-    def __init__(self,
-                 data_type: DataType,
-                 value: ValueType) -> None:
-        self.data_type = data_type
-        self.value = value
-
-    def __str__(self) -> str:
-        return f"{self.value} ({data_type_to_string[self.data_type]})"
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
-
-Struct = Tuple[Value]
 
 
 class Variable():
@@ -212,22 +164,6 @@ class Parser():
         self.instructions.append(Instruction(
             InstructionType.END_OF_STATEMENT, None))
 
-    def get_vector_for_assignment(self) -> Instruction:
-        var1 = var2 = var3 = ''
-        if self.match(TokenType.ATTRIBUTE):
-            var1 = self.previous.lexeme
-        self.consume(TokenType.COMMA,
-                     'Expect "," in between variable names')
-        if self.match(TokenType.ATTRIBUTE):
-            var2 = self.previous.lexeme
-        self.consume(TokenType.COMMA,
-                     'Expect "," in between variable names')
-        if self.match(TokenType.ATTRIBUTE):
-            var3 = self.previous.lexeme
-        self.consume(TokenType.RIGHT_BRACE,
-                     'Expect "}" at end of variable names')
-        return Instruction(InstructionType.VECTOR_VAR, (var1, var2, var3))
-
     def parse_type(self) -> DataType:
         if self.match(TokenType.COLON):
             if self.match(TokenType.IDENTIFIER):
@@ -241,7 +177,7 @@ class Parser():
 
     def parse_variable_and_type(self) -> Instruction:
         name = self.previous.lexeme
-        var_type = DataType.UNKNOWN
+        var_type = self.parse_type()
 
         return Instruction(InstructionType.VAR, Variable(name, Value(var_type, None)))
 
@@ -278,7 +214,7 @@ class Parser():
         else:
             # Something like 'let x: float;' gets de-sugared to 'let x = 0.0;'
             self.instructions.append(
-                Instruction(InstructionType.DEFAULT, None))
+                Instruction(InstructionType.VALUE, Value(DataType.DEFAULT, None)))
         self.instructions.append(assignment_instruction)
         # Get optional semicolon at end of expression
         self.match(TokenType.SEMICOLON)
@@ -294,8 +230,9 @@ class Parser():
         if self.panic_mode:
             self.synchronize()
 
-    def argument_list(self, closing_token: Token) -> None:
+    def argument_list(self, function: NodeFunction, closing_token: Token) -> None:
         arg_count = 0
+        expected_arg_count = len(function.input_sockets())
         if not self.check(TokenType.RIGHT_PAREN):
             self.expression()
             arg_count += 1
@@ -304,7 +241,13 @@ class Parser():
                 arg_count += 1
         self.consume(closing_token.token_type,
                      f'Expect "{closing_token.lexeme}" after arguments.')
-        return arg_count
+        if arg_count > expected_arg_count:
+            self.error(
+                f'Expected at most {expected_arg_count} argument(s), but got {arg_count} arguments')
+        elif arg_count < expected_arg_count:
+            for _ in range(expected_arg_count-arg_count):
+                self.instructions.append(
+                    Instruction(InstructionType.VALUE, Value(DataType.DEFAULT, None)))
 
     def synchronize(self) -> None:
         self.panic_mode = False
@@ -335,7 +278,14 @@ def python(self: Parser, can_assign: bool) -> None:
         value = eval(expression, vars(math))
     except (SyntaxError, NameError, TypeError, ZeroDivisionError) as err:
         self.error(f'Invalid python syntax: {err}.')
-    self.instructions.append(Instruction(InstructionType.NUMBER, value))
+    self.instructions.append(Instruction(
+        InstructionType.VALUE, Value(value, DataType.FLOAT)))
+
+
+def default(self: Parser, can_assign: bool) -> None:
+    self.instructions.append(Instruction(
+        InstructionType.VALUE, Value(DataType.DEFAULT, None)
+    ))
 
 
 def identifier(self: Parser, can_assign: bool) -> None:
@@ -346,7 +296,9 @@ def identifier(self: Parser, can_assign: bool) -> None:
 
 def string(self: Parser, can_assign: bool) -> None:
     self.instructions.append(Instruction(
-        InstructionType.VALUE, Value(DataType.STRING, self.previous.lexeme)
+        InstructionType.VALUE, Value(
+            # Get rid of the quotes surrounding it
+            DataType.STRING, self.previous.lexeme[1:-1])
     ))
 
 
@@ -354,17 +306,6 @@ def boolean(self: Parser, can_assign: bool) -> None:
     self.instructions.append(Instruction(
         InstructionType.VALUE, Value(DataType.BOOL, bool(self.previous.lexeme))
     ))
-
-
-def attribute(self: Parser, can_assign: bool) -> None:
-    value = self.previous.lexeme
-    if can_assign and self.match(TokenType.EQUAL):
-        self.instructions.append(Instruction(InstructionType.VAR, value))
-        self.expression()
-        self.instructions.append(Instruction(
-            InstructionType.DEFINE, InstructionType.VAR))
-    else:
-        self.instructions.append(Instruction(InstructionType.ATTRIBUTE, value))
 
 
 def grouping(self: Parser, can_assign: bool) -> None:
@@ -383,62 +324,75 @@ def unary(self: Parser, can_assign: bool) -> None:
         self.instructions.append(Instruction(
             InstructionType.VALUE, Value(DataType.INT, -1)))
         self.instructions.append(Instruction(
-            InstructionType.MATH_FUNC, ('MULTIPLY', 2)))
+            InstructionType.FUNCTION, function_nodes.Math('MULTIPLY')))
     else:
         # Shouldn't happen
         assert False, "Unreachable code"
-        return
 
 
 def make_vector(self: Parser, can_assign: bool) -> None:
-    arg_count = self.argument_list(Token('}', TokenType.RIGHT_BRACE))
-    if arg_count != 3:
-        self.error(
-            f'Expect 3 arguments to vector, got {arg_count} argument(s)')
-    self.instructions.append(Instruction(InstructionType.MAKE_VECTOR, None))
+    function = function_nodes.CombineXYZ([])
+    self.argument_list(function, Token('}', TokenType.RIGHT_BRACE))
+    self.instructions.append(Instruction(InstructionType.FUNCTION, function))
 
 
 def call(self: Parser, can_assign: bool) -> None:
-    func = self.previous
-    self.consume(TokenType.LEFT_PAREN, 'Expect "(" after function name.')
-    arg_count = self.argument_list(Token(')', TokenType.RIGHT_PAREN))
-    if func.token_type == TokenType.MATH_FUNC:
-        instruction_type = InstructionType.MATH_FUNC
-        name, expected_number_of_args = math_operations[func.lexeme]
-    elif func.token_type == TokenType.VECTOR_MATH_FUNC:
-        instruction_type = InstructionType.VECTOR_MATH_FUNC
-        name, expected_number_of_args = vector_math_operations[func.lexeme]
-    else:
-        instruction_type = InstructionType.OTHER_FUNC
-        name, prop, expected_number_of_args = other_functions[func.lexeme]
-    if expected_number_of_args != arg_count:
-        # If it is a binary function, we can deal with more arguments,
-        # i.e. add(4,5,6) = add(add(4,5),6). If there are missing arguments
-        # we detect those. Otherwise we give an error.
-        if arg_count > expected_number_of_args and expected_number_of_args == 2:
-            for _ in range(arg_count-expected_number_of_args):
-                self.instructions.append(Instruction(
-                    instruction_type, (name, expected_number_of_args)))
-        elif arg_count < expected_number_of_args:
-            for _ in range(expected_number_of_args-arg_count):
-                self.instructions.append(
-                    Instruction(InstructionType.MISSING_ARG, None))
+    # We need to get rid of this instruction, and replace it
+    # with a function call.
+    prev_instruction = self.instructions.pop()
+    props = []
+    if prev_instruction.instruction == InstructionType.PROPERTIES:
+        props = [self.instructions.pop().data.value for _ in range(
+            prev_instruction.data)]
+        # This is the function name now
+        prev_instruction = self.instructions.pop()
+    if prev_instruction.instruction != InstructionType.GET_VARIABLE:
+        self.error('Expected callable object')
+    func_name = prev_instruction.data
+    function = None
+    for dict in (function_nodes.functions,):
+        if func_name in dict:
+            function_cls: NodeFunction = dict[func_name]
+            if len(props) > len(function_cls._props):
+                self.error(
+                    f'Too many properties for function {func_name}, expected at most {len(function_cls._props)}')
+            else:
+                invalid = function_cls.invalid_prop_values(props)
+                if invalid != []:
+                    error_list = ['_' if x is None else x for x in invalid]
+                    func_props = [prop[0] for prop in function_cls._props]
+                    self.error(
+                        f'Invalid property values: {error_list}. HINT: {func_name} has the following properties: {func_props}.')
+            function = function_cls(props)
+            break
+    if function is None:
+        self.error(f'Unknown function {func_name}.')
+        return
+    self.argument_list(function, Token(')', TokenType.RIGHT_PAREN))
+    self.instructions.append(Instruction(
+        InstructionType.FUNCTION, function))
+
+
+def properties(self: Parser, can_assign: bool) -> None:
+    num_props = 0
+    while not self.check(TokenType.RIGHT_SQUARE_BRACKET):
+        if self.match(TokenType.STRING):
+            string(self, can_assign)
+            num_props += 1
+        elif self.match(TokenType.UNDERSCORE):
+            default(self, can_assign)
+            num_props += 1
         else:
-            self.error_at(func,
-                          f'{name} expects {expected_number_of_args} argument(s), got {arg_count} argument(s)')
-    if func.token_type == TokenType.OTHER_FUNC:
-        self.instructions.append(Instruction(
-            instruction_type, (name, prop, expected_number_of_args)))
-    else:
-        self.instructions.append(Instruction(
-            instruction_type, (name, expected_number_of_args)))
+            self.error_at_current('Expect property values')
+        if not self.match(TokenType.COMMA):
+            break
+    self.consume(TokenType.RIGHT_SQUARE_BRACKET, 'Expect closing "]".')
+    self.instructions.append(Instruction(
+        InstructionType.PROPERTIES, num_props))
 
 
 def separate(self: Parser, can_assign: bool) -> None:
-    self.consume(TokenType.ATTRIBUTE, 'Expect "xyz" after ".".')
-    self.instructions.append(Instruction(
-        InstructionType.VAR, self.previous.lexeme))
-    self.instructions.append(Instruction(InstructionType.SEPARATE, None))
+    raise NotImplementedError
 
 
 def binary(self: Parser, can_assign: bool) -> None:
@@ -447,55 +401,39 @@ def binary(self: Parser, can_assign: bool) -> None:
     self.parse_precedence(Precedence(rule.precedence.value + 1))
 
     # math: + - / * % > < **
+
     if operator_type == TokenType.PLUS:
         self.instructions.append(Instruction(
-            InstructionType.MATH_FUNC, ('ADD', 2)))
+            InstructionType.FUNCTION, function_nodes.Math(['ADD'])))
     elif operator_type == TokenType.MINUS:
         self.instructions.append(Instruction(
-            InstructionType.MATH_FUNC, ('SUBTRACT', 2)))
+            InstructionType.FUNCTION, function_nodes.Math(['SUBTRACT'])))
     elif operator_type == TokenType.SLASH:
         self.instructions.append(Instruction(
-            InstructionType.MATH_FUNC, ('DIVIDE', 2)))
+            InstructionType.FUNCTION, function_nodes.Math(['DIVIDE'])))
     elif operator_type == TokenType.STAR:
         self.instructions.append(Instruction(
-            InstructionType.MATH_FUNC, ('MULTIPLY', 2)))
+            InstructionType.FUNCTION, function_nodes.Math(['MULTIPLY'])))
     elif operator_type == TokenType.PERCENT:
         self.instructions.append(Instruction(
-            InstructionType.MATH_FUNC, ('MODULO', 2)))
+            InstructionType.FUNCTION, function_nodes.Math(['MODULO'])))
     elif operator_type == TokenType.GREATER:
         self.instructions.append(Instruction(
-            InstructionType.MATH_FUNC, ('GREATER_THAN', 2)))
+            InstructionType.FUNCTION, function_nodes.Math(['GREATER_THAN'])))
     elif operator_type == TokenType.LESS:
         self.instructions.append(Instruction(
-            InstructionType.MATH_FUNC, ('LESS_THAN', 2)))
+            InstructionType.FUNCTION, function_nodes.Math(['LESS_THAN'])))
     elif operator_type in (TokenType.STAR_STAR, TokenType.HAT):
         self.instructions.append(Instruction(
-            InstructionType.MATH_FUNC, ('POWER', 2)))
-    # Vector math: v+ v- v/ v* v%
-    elif operator_type == TokenType.VECTOR_PLUS:
-        self.instructions.append(Instruction(
-            InstructionType.VECTOR_MATH_FUNC, ('ADD', 2)))
-    elif operator_type == TokenType.VECTOR_MINUS:
-        self.instructions.append(Instruction(
-            InstructionType.VECTOR_MATH_FUNC, ('SUBTRACT', 2)))
-    elif operator_type == TokenType.VECTOR_SLASH:
-        self.instructions.append(Instruction(
-            InstructionType.VECTOR_MATH_FUNC, ('DIVIDE', 2)))
-    elif operator_type == TokenType.VECTOR_STAR:
-        self.instructions.append(Instruction(
-            InstructionType.VECTOR_MATH_FUNC, ('MULTIPLY', 2)))
-    elif operator_type == TokenType.VECTOR_PERCENT:
-        self.instructions.append(Instruction(
-            InstructionType.VECTOR_MATH_FUNC, ('MODULO', 2)))
+            InstructionType.FUNCTION, function_nodes.Math(['POWER'])))
     else:
-        # Shouldn't happen
-        return
+        assert False, "Unreachable code"
 
 
 rules: list[ParseRule] = [
-    ParseRule(grouping, call, Precedence.NONE),  # LEFT_PAREN
+    ParseRule(grouping, call, Precedence.CALL),  # LEFT_PAREN
     ParseRule(None, None, Precedence.NONE),  # RIGHT_PAREN
-    ParseRule(None, None, Precedence.NONE),  # LEFT_SQUARE_BRACKET
+    ParseRule(None, properties, Precedence.CALL),  # LEFT_SQUARE_BRACKET
     ParseRule(None, None, Precedence.NONE),  # RIGHT_SQUARE_BRACKET
     ParseRule(make_vector, None, Precedence.NONE),  # LEFT_BRACE
     ParseRule(None, None, Precedence.NONE),  # RIGHT_BRACE
@@ -512,7 +450,7 @@ rules: list[ParseRule] = [
     ParseRule(None, binary, Precedence.COMPARISON),  # LESS
     ParseRule(None, None, Precedence.NONE),  # DOLLAR
     ParseRule(None, None, Precedence.NONE),  # COLON
-    ParseRule(None, None, Precedence.NONE),  # UNDERSCORE
+    ParseRule(default, None, Precedence.NONE),  # UNDERSCORE
 
     ParseRule(None, binary, Precedence.FACTOR),  # STAR
     ParseRule(None, binary, Precedence.EXPONENT),  # STAR_STAR
@@ -569,6 +507,8 @@ if __name__ == '__main__':
     tests = [
         'let x;let y=2+5**-.5; let z = -y*x;',
         'let a,_,c = "HEY";',
+        'let a:float = 1;',
+        'let _,b = 2;'
     ]
     compiler = Compiler()
     for test in tests:
