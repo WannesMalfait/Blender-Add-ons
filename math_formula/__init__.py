@@ -1,4 +1,4 @@
-from . import main, parser, scanner, positioning, nodes
+from . import main, parser, scanner, positioning, nodes, file_loading
 import bpy
 import rna_keymap_ui
 
@@ -19,11 +19,19 @@ if "bpy" in locals():
     importlib.reload(parser)
     importlib.reload(scanner)
     importlib.reload(positioning)
+    importlib.reload(file_loading)
     importlib.reload(nodes)
 
 
 class MFMathFormula(bpy.types.AddonPreferences):
     bl_idname = __name__
+
+    macro_folder: bpy.props.StringProperty(
+        name="Macro Folder",
+        description="The folder where macros should be laoded from",
+        default=file_loading.macro_directory,
+        subtype='DIR_PATH',
+    )
 
     font_size: bpy.props.IntProperty(
         name="Font Size",
@@ -102,16 +110,25 @@ class MFMathFormula(bpy.types.AddonPreferences):
         col.prop(self, 'sibling_distance')
         col.prop(self, 'subtree_distance')
         col.separator()
+        col.prop(self, 'macro_folder')
+        col.label(
+            text=f'{len(file_loading.file_data.macros)} macros are currently loaded.')
+        col.operator(file_loading.MF_OT_load_macros.bl_idname,
+                     icon='FILE_PARENT')
+        props = col.operator(file_loading.MF_OT_load_macros.bl_idname,
+                             icon='FILE_REFRESH', text='Reload Macros')
+        props.force_update = True
+        col.separator()
         col.prop(self, 'show_colors')
         if self.show_colors:
             box = layout.box()
             box.label(text="Syntax Highlighting")
-            box.prop(self, 'math_func_color')
-            box.prop(self, 'vector_math_func_color')
             box.prop(self, 'python_color')
-            box.prop(self, 'float_color')
+            box.prop(self, 'number_color')
+            box.prop(self, 'string_color')
             box.prop(self, 'default_color')
             box.prop(self, 'keyword_color')
+            box.prop(self, 'type_color')
             box.prop(self, 'error_color')
         col = layout.column()
         col.label(text="Keymaps:")
@@ -135,8 +152,8 @@ class MF_Settings(bpy.types.PropertyGroup):
     )
 
 
-class MF_PT_panel(bpy.types.Panel, main.MFBase):
-    bl_idname = "NODE_PT_mf_math_formula"
+class MF_PT_add_panel(bpy.types.Panel, main.MFBase):
+    bl_idname = "NODE_PT_mf_add_math_formula"
     bl_space_type = 'NODE_EDITOR'
     bl_label = "Add Math Formula"
     bl_region_type = "UI"
@@ -161,6 +178,28 @@ class MF_PT_panel(bpy.types.Panel, main.MFBase):
             col.label(text="--no active node--")
 
 
+class MF_PT_file_panel(bpy.types.Panel, main.MFBase):
+    bl_idname = "NODE_PT_mf_files"
+    bl_space_type = 'NODE_EDITOR'
+    bl_label = "Change File Settings"
+    bl_region_type = "UI"
+    bl_category = "Math Formula"
+
+    def draw(self, context: bpy.context):
+
+        # Helper variables
+        layout = self.layout
+        scene = context.scene
+        props = scene.math_formula_add
+
+        col = layout.column(align=True)
+        col.operator(file_loading.MF_OT_load_macros.bl_idname,
+                     icon='FILE_PARENT')
+        props = col.operator(file_loading.MF_OT_load_macros.bl_idname,
+                             icon='FILE_REFRESH', text='Reload Macros')
+        props.force_update = True
+
+
 addon_keymaps = []
 kmi_defs = [
     # kmi_defs entry: (identifier, key, action, CTRL, SHIFT, ALT, props)
@@ -180,11 +219,13 @@ kmi_defs = [
 classes = (
     MFMathFormula,
     MF_Settings,
-    MF_PT_panel,
+    MF_PT_add_panel,
+    MF_PT_file_panel,
 )
 
 
 def register():
+    file_loading.register()
     main.register()
     for cls in classes:
         bpy.utils.register_class(cls)
@@ -209,6 +250,7 @@ def register():
 
 def unregister():
     main.unregister()
+    file_loading.unregister()
     for cls in classes:
         bpy.utils.unregister_class(cls)
 

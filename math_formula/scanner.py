@@ -1,128 +1,6 @@
 from enum import IntEnum, auto
 from typing import Union
 
-
-math_operations = {
-    # keyword : (function name, number of arguments)
-    'add': ('ADD', 2),
-    'sub': ('SUBTRACT', 2),
-    'mul': ('MULTIPLY', 2),
-    'mult': ('MULTIPLY', 2),
-    'div': ('DIVIDE', 2),
-    'mult_add': ('MULTIPLY_ADD', 3),
-    'sin': ('SINE', 1),
-    'sine': ('SINE', 1),
-    'cos': ('COSINE', 1),
-    'cosine': ('COSINE', 1),
-    'tan': ('TANGENT', 1),
-    'tangent': ('TANGENT', 1),
-    'asin': ('ARCSINE', 1),
-    'arcsin': ('ARCSINE', 1),
-    'arcsine': ('ARCSINE', 1),
-    'acos': ('ARCCOSINE', 1),
-    'arccos': ('ARCCOSINE', 1),
-    'arccosine': ('ARCCOSINE', 1),
-    'atan': ('ARCTANGENT', 1),
-    'arctan': ('ARCTANGENT', 1),
-    'arctangent': ('ARCTANGENT', 1),
-    'atan2': ('ARCTAN2', 2),
-    'arctan2': ('ARCTAN2', 2),
-    'sinh': ('SINH', 1),
-    'cosh': ('COSH', 1),
-    'tanh': ('TANH', 1),
-    'pow': ('POWER', 2),
-    'power': ('POWER', 2),
-    'log': ('LOGARITHM', 2),
-    'logarithm': ('LOGARITHM', 2),
-    'sqrt': ('SQRT', 1),
-    'inv_sqrt': ('INVERSE_SQRT', 1),
-    'exp': ('EXPONENT', 1),
-    'min': ('MINIMUM', 2),
-    'minimum': ('MINIMUM', 2),
-    'max': ('MAXIMUM', 2),
-    'maximum': ('MAXIMUM', 2),
-    'less_than': ('LESS_THAN', 2),
-    'greater_than': ('GREATER_THAN', 2),
-    'sgn': ('SIGN', 1),
-    'sign': ('SIGN', 1),
-    'compare': ('COMPARE', 3),
-    'smin': ('SMOOTH_MIN', 3),
-    'smooth_min': ('SMOOTH_MIN', 3),
-    'smooth_minimum': ('SMOOTH_MIN', 3),
-    'smax': ('SMOOTH_MAX', 3),
-    'smooth_max': ('SMOOTH_MAX', 3),
-    'smooth_maximum': ('SMOOTH_MAX', 3),
-    'fract': ('FRACT', 1),
-    'mod': ('MODULO', 2),
-    'snap': ('SNAP', 2),
-    'wrap': ('WRAP', 3),
-    'pingpong': ('PINGPONG', 2),
-    'ping_pong': ('PINGPONG', 2),
-    'abs': ('ABSOLUTE', 1),
-    'absolute': ('ABSOLUTE', 1),
-    'round': ('ROUND', 1),
-    'floor': ('FLOOR', 1),
-    'ceil': ('CEIL', 1),
-    'trunc': ('TRUNCATE', 1),
-    'truncate': ('TRUNCATE', 1),
-    'rad': ('RADIANS', 1),
-    'to_rad': ('RADIANS', 1),
-    'to_radians': ('RADIANS', 1),
-    'radians': ('RADIANS', 1),
-    'deg': ('DEGREES', 1),
-    'to_deg': ('DEGREES', 1),
-    'to_degrees': ('DEGREES', 1),
-    'degrees': ('DEGREES', 1),
-}
-
-vector_math_operations = {
-    'vadd': ('ADD', 2),
-    'vsub': ('SUBTRACT', 2),
-    'vmult': ('MULTIPLY', 2),
-    'vdiv': ('DIVIDE', 2),
-    'vcross': ('CROSS_PRODUCT', 2),
-    'cross': ('CROSS_PRODUCT', 2),
-    'cross_product': ('CROSS_PRODUCT', 2),
-    'vproject': ('PROJECT', 2),
-    'project': ('PROJECT', 2),
-    'vreflect': ('REFLECT', 2),
-    'reflect': ('REFLECT', 2),
-    'refract': ('REFRACT', 3),
-    'vrefract': ('REFRACT', 3),
-    'vfaceforward': ('FACEFORWARD', 3),
-    'faceforward': ('FACEFORWARD', 3),
-    'vsnap': ('SNAP', 2),
-    'vmod': ('MODULO', 2),
-    'vmin': ('MINIMUM', 2),
-    'vminimum': ('MINIMUM', 2),
-    'vmax': ('MAXIMUM', 2),
-    'vmaximum': ('MAXIMUM', 2),
-    'vdot': ('DOT_PRODUCT', 2),
-    'dot': ('DOT_PRODUCT', 2),
-    'dot_product': ('DOT_PRODUCT', 2),
-    'vdist': ('DISTANCE', 2),
-    'dist': ('DISTANCE', 2),
-    'distance': ('DISTANCE', 2),
-    'vlength': ('LENGTH', 1),
-    'length': ('LENGTH', 1),
-    'vscale': ('SCALE', 2),
-    'scale': ('SCALE', 2),
-    'vnormalize': ('NORMALIZE', 1),
-    'normalize': ('NORMALIZE', 1),
-    'vfloor': ('FLOOR', 1),
-    'vceil': ('CEIL', 1),
-    'vfract': ('FRACTION', 1),
-    'vabs': ('ABSOLUTE', 1),
-    'vabsolute': ('ABSOLUTE', 1),
-    'vsin': ('SINE', 1),
-    'vsine': ('SINE', 1),
-    'vcos': ('COSINE', 1),
-    'vcosine': ('COSINE', 1),
-    'vtan': ('TANGENT', 1),
-    'vtangent': ('TANGENT', 1),
-    'vwrap': ('WRAP', 3),
-}
-
 other_functions = {
     # alias:
     # (bl_idname without 'ShaderNode' or 'GeometryNode',
@@ -197,12 +75,14 @@ class Token():
     Each token has:
     - a `TokenType`
     - a lexeme which is the text that this token had in the source
-    - a number start which says where in the source the token starts
+    - a number line which says which line of the text the token is in
+    - a number col which says where in the line the token starts
     """
 
-    def __init__(self, lexeme: str, token_type: TokenType, start: int = 0) -> None:
+    def __init__(self, lexeme: str, token_type: TokenType, line: int = 0, start: int = 0) -> None:
         self.token_type = token_type
         self.start = start
+        self.line = line
         self.lexeme = lexeme
 
     def __str__(self) -> str:
@@ -226,6 +106,7 @@ class Scanner():
         # Place a sentinel at the end of the string
         self.source = source + '\0'
         self.start = 0
+        self.line = 1
         self.current = 0
 
     def is_at_end(self) -> bool:
@@ -254,16 +135,21 @@ class Scanner():
     def skip_whitespace(self) -> None:
         while True:
             c = self.peek()
-            if c.isspace():
+            if c == '\n':
+                self.line += 1
+                self.advance()
+            elif c.isspace():
                 self.advance()
             else:
                 return
 
     def make_token(self, token_type: TokenType) -> Token:
-        return Token(self.source[self.start: self.current], token_type, start=self.start)
+        return Token(self.source[self.start: self.current], token_type,
+                     line=self.line, start=self.start)
 
     def error_token(self, message: str) -> Token:
-        return Token((self.source[self.start: self.current], message), TokenType.ERROR, start=self.start)
+        return Token((self.source[self.start: self.current], message),
+                     TokenType.ERROR, line=self.line, start=self.start)
 
     def keyword(self) -> Union[TokenType, None]:
         """ Checks if it's a keyword, otherwise it's treated as an identifier."""

@@ -177,7 +177,6 @@ class VectorMath(NodeFunction):
             self._output_sockets = self._output_sockets[1:]
         else:
             self._output_sockets = self._output_sockets[:1]
-        print(self._output_sockets)
         self.prop_values = [('operation', operation)]
 
 

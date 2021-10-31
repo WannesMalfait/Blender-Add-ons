@@ -1,9 +1,11 @@
 import math
-
 from .scanner import TokenType, Token, Scanner
 from .nodes import functions as function_nodes
-from .nodes.base import DataType, Value, ValueType, string_to_data_type, NodeFunction
+from .nodes.base import DataType, Value, string_to_data_type, NodeFunction
 from enum import IntEnum, auto
+
+
+MacroType = dict[str, list[Token]]
 
 
 class Precedence(IntEnum):
@@ -51,6 +53,12 @@ class Error():
         self.token = token
         self.message = message
 
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    def __str__(self) -> str:
+        return f'Line: {self.token.line}: {self.message}'
+
 
 class Instruction():
     def __init__(self, instruction: InstructionType, data) -> None:
@@ -76,14 +84,16 @@ class ParseRule():
 
 class Parser():
 
-    def __init__(self, source: str) -> None:
+    def __init__(self, source: str, macro_storage: MacroType) -> None:
         self.scanner = Scanner(source)
+        self.token_buffer: list[Token] = []
         self.current: Token = None
         self.previous: Token = None
         self.had_error: bool = False
         self.panic_mode: bool = False
         self.instructions: list[Instruction] = []
         self.errors: list[Error] = []
+        self.macro_storage = macro_storage
 
     def error_at_current(self, message: str) -> None:
         self.error_at(self.current, message)
@@ -113,12 +123,22 @@ class Parser():
 
         self.error_at_current(message)
 
+    def add_tokens(self, tokens: list[Token]) -> None:
+        first = tokens[0]
+        self.token_buffer.append(self.current)
+        # Need to reverse because we pop later
+        self.token_buffer += list(reversed(tokens[1:]))
+        self.current = first
+
     def advance(self) -> None:
         self.previous = self.current
 
         # Get tokens till not an error
         while True:
-            self.current = self.scanner.scan_token()
+            if self.token_buffer != []:
+                self.current = self.token_buffer.pop()
+            else:
+                self.current = self.scanner.scan_token()
             if self.current.token_type != TokenType.ERROR:
                 break
             token, message = self.current.lexeme
@@ -289,9 +309,14 @@ def default(self: Parser, can_assign: bool) -> None:
 
 
 def identifier(self: Parser, can_assign: bool) -> None:
-    self.instructions.append(Instruction(
-        InstructionType.GET_VARIABLE, self.previous.lexeme)
-    )
+    name = self.previous.lexeme
+    if name in self.macro_storage:
+        rhs = self.macro_storage[name]
+        self.add_tokens(rhs)
+    else:
+        self.instructions.append(Instruction(
+            InstructionType.GET_VARIABLE, name)
+        )
 
 
 def string(self: Parser, can_assign: bool) -> None:
@@ -391,6 +416,24 @@ def properties(self: Parser, can_assign: bool) -> None:
         InstructionType.PROPERTIES, num_props))
 
 
+def macro(self: Parser, can_assign: bool) -> None:
+    # Simplified version of macros for now. No arguments.
+    # We're turning something like this:
+    # MACRO sub = math['SUBTRACT'];
+    # into a dictionary entry with key 'sub' and value:
+    # [Tokens] (list of tokens of the right hand side)
+    self.consume(TokenType.IDENTIFIER, 'Expect macro name.')
+    name = self.previous.lexeme
+    self.consume(TokenType.EQUAL, 'Expect "=" after macro name.')
+    rhs = []
+    while not self.check(TokenType.SEMICOLON):
+        if self.match(TokenType.MACRO):
+            self.error('Definition of a macro inside of a macro.')
+        self.advance()
+        rhs.append(self.previous)
+    self.macro_storage[name] = rhs
+
+
 def separate(self: Parser, can_assign: bool) -> None:
     raise NotImplementedError
 
@@ -465,7 +508,7 @@ rules: list[ParseRule] = [
     ParseRule(None, None, Precedence.NONE),  # LET
     ParseRule(None, None, Precedence.NONE),  # FUNCTION
     ParseRule(None, None, Precedence.NONE),  # NODEGROUP
-    ParseRule(None, None, Precedence.NONE),  # MACRO
+    ParseRule(macro, None, Precedence.NONE),  # MACRO
     ParseRule(None, None, Precedence.NONE),  # SELF
     ParseRule(boolean, None, Precedence.NONE),  # TRUE
     ParseRule(boolean, None, Precedence.NONE),  # FALSE
@@ -482,9 +525,10 @@ class Compiler():
         self.instructions: list[Instruction] = []
         self.errors: list[Error] = []
 
-    def compile(self, source: str) -> bool:
+    def compile(self, source: str, macros: MacroType) -> bool:
         self.instructions = []
-        parser = Parser(source)
+        parser = Parser(source, macros)
+        macros = parser.macro_storage
         parser.advance()
         while not parser.match(TokenType.EOL):
             parser.declaration()
@@ -496,7 +540,7 @@ class Compiler():
     @staticmethod
     def get_tokens(source: str) -> list[Token]:
         tokens = []
-        parser = Parser(source)
+        parser = Parser(source, {})
         scanner = parser.scanner
         while(token := scanner.scan_token()).token_type != TokenType.EOL:
             tokens.append(token)

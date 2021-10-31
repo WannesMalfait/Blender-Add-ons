@@ -1,25 +1,15 @@
-from bpy.types import NodeSocket
-from .parser import Compiler, Error, InstructionType, string_to_data_type
-from .scanner import TokenType
-from .positioning import TreePositioner
-from .nodes.base import DataType, NodeFunction, Value
+from .nodes.base import NodeFunction, Value
 import time
 import bpy
 import blf
-import os
-
+from . import file_loading
+from .file_loading import fonts
+from .positioning import TreePositioner
+from .scanner import TokenType
+from .parser import Compiler, Error, InstructionType, string_to_data_type
+from bpy.types import NodeSocket
 
 formula_history = []
-
-font_directory = os.path.join(os.path.dirname(
-    os.path.realpath(__file__)), 'fonts')
-fonts = {
-    'bfont': 0,
-    'regular': blf.load(os.path.join(font_directory, 'Anonymous_Pro.ttf')),
-    'italic': blf.load(os.path.join(font_directory, 'Anonymous_Pro_I.ttf')),
-    'bold': blf.load(os.path.join(font_directory, 'Anonymous_Pro_0.ttf')),
-    'bold_italic': blf.load(os.path.join(font_directory, 'Anonymous_Pro_BI.ttf')),
-}
 
 
 def mf_check(context) -> bool:
@@ -222,7 +212,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         variables = {}
         # Parse the input string into a sequence of tokens
         compiler = Compiler()
-        success = compiler.compile(formula)
+        success = compiler.compile(formula, file_loading.file_data.macros)
         if not success:
             return {'CANCELLED'}
         instructions = compiler.instructions
@@ -233,7 +223,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 stack.append(data)
             elif instruction_type == InstructionType.FUNCTION:
                 function: NodeFunction = data
-                print(function.input_sockets())
                 args = self.get_args(stack, len(function.input_sockets()))
                 node = self.add_func(context, args, function)
                 for socket in function.output_sockets():
@@ -242,7 +231,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 nodes.append(node)
             elif instruction_type == InstructionType.END_OF_STATEMENT:
                 if stack == []:
-                    print('EMPTY STACK!!!!')
                     continue
                 element = stack.pop()
                 if isinstance(element, Value) and isinstance(element.value, NodeSocket):
@@ -698,7 +686,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         # Exit when they press enter
         if event.type == 'RET':
             compiler = Compiler()
-            res = compiler.compile(self.formula)
+            res = compiler.compile(self.formula, file_loading.file_data.macros)
             if not res:
                 self.errors = compiler.errors
                 self.report(
@@ -732,7 +720,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         # Compile and check for errors
         elif not self.lock and event.alt and event.type == 'C':
             compiler = Compiler()
-            res = compiler.compile(self.formula)
+            res = compiler.compile(self.formula, file_loading.file_data.macros)
             self.errors = compiler.errors
             if res:
                 self.report({'INFO'}, 'No errors detected')
