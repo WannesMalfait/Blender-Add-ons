@@ -84,6 +84,7 @@ class Token():
         self.start = start
         self.line = line
         self.lexeme = lexeme
+        self.expanded_from = None
 
     def __str__(self) -> str:
         return f'[{self.lexeme}, {self.token_type.name}]'

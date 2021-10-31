@@ -14,6 +14,15 @@ class DataType(IntEnum):
     GEOMETRY = auto()
     STRING = auto()
 
+    def can_convert(self, other: 'DataType') -> bool:
+        if self == DataType.UNKNOWN:
+            return True
+        elif self == other:
+            return True
+        elif DataType.GEOMETRY <= self.value <= DataType.STRING or DataType.GEOMETRY <= other.value <= DataType.STRING:
+            return False
+        return True
+
 
 string_to_data_type = {
     '_': DataType.UNKNOWN,
@@ -48,6 +57,59 @@ class Value():
     def __repr__(self) -> str:
         return self.__str__()
 
+    def convert(self, dtype: DataType) -> 'Value':
+        assert self.data_type.can_convert(dtype), 'Only convert when possible'
+        if self.data_type == DataType.BOOL:
+            if dtype == dtype.INT:
+                self.value = int(self.value)
+            if dtype == dtype.FLOAT:
+                self.value = float(self.value)
+            if dtype == dtype.RGBA:
+                self.value = [float(self.value) for _ in range(4)]
+            if dtype == dtype.VEC3:
+                self.value = [float(self.value) for _ in range(3)]
+        if self.data_type == DataType.INT:
+            if dtype == dtype.BOOL:
+                self.value = bool(self.value)
+            if dtype == dtype.FLOAT:
+                self.value = float(self.value)
+            if dtype == dtype.RGBA:
+                self.value = [float(self.value) for _ in range(4)]
+            if dtype == dtype.VEC3:
+                self.value = [float(self.value) for _ in range(3)]
+        if self.data_type == DataType.FLOAT:
+            if dtype == dtype.BOOL:
+                self.value = bool(self.value)
+            if dtype == dtype.INT:
+                self.value = int(self.value)
+            if dtype == dtype.RGBA:
+                self.value = [self.value for _ in range(4)]
+            if dtype == dtype.VEC3:
+                self.value = [self.value for _ in range(3)]
+        if self.data_type == DataType.RGBA:
+            gray_scale = (
+                0.2126 * self.value[0]) + (0.7152 * self.value[1]) + (0.0722 * self.value[2])
+            if dtype == dtype.BOOL:
+                self.value = bool(gray_scale)
+            if dtype == dtype.INT:
+                self.value = int(gray_scale)
+            if dtype == dtype.FLOAT:
+                self.value = gray_scale
+            if dtype == dtype.VEC3:
+                self.value = [self.value[i] for i in range(3)]
+        if self.data_type == DataType.VEC3:
+            avg = (
+                self.value[0] + self.value[1] + self.value[2])/3.0
+            if dtype == dtype.BOOL:
+                self.value = bool(avg)
+            if dtype == dtype.INT:
+                self.value = int(avg)
+            if dtype == dtype.FLOAT:
+                self.value = avg
+            if dtype == dtype.RGBA:
+                self.value = self.value + [1]
+        self.data_type = dtype
+
 
 Struct = Tuple[Value]
 
@@ -62,7 +124,7 @@ class Socket():
         return self.__str__()
 
     def __str__(self) -> str:
-        return f'Socket[{self.index}]: {self.name}: {self.sock_type}'
+        return f'Socket[{self.index}]: {self.name}: {data_type_to_string[self.sock_type]}'
 
 
 class NodeFunction():
@@ -81,6 +143,9 @@ class NodeFunction():
 
     def output_sockets(self) -> list[Socket]:
         return self._output_sockets
+
+    def __str__(self) -> str:
+        return f'function: {self._name}[{self.prop_values}]'
 
     @classmethod
     def name(cls) -> str:

@@ -157,7 +157,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             if isinstance(arg.value, bpy.types.NodeSocket):
                 tree.links.new(arg.value, node.inputs[socket.index])
             elif not arg.value is None:
-                node.inputs[i].default_value = arg.value
+                node.inputs[socket.index].default_value = arg.value
         return node
 
     @staticmethod

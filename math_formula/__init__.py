@@ -193,6 +193,8 @@ class MF_PT_file_panel(bpy.types.Panel, main.MFBase):
         props = scene.math_formula_add
 
         col = layout.column(align=True)
+        col.label(
+            text=f'{len(file_loading.file_data.macros)} macros are currently loaded.')
         col.operator(file_loading.MF_OT_load_macros.bl_idname,
                      icon='FILE_PARENT')
         props = col.operator(file_loading.MF_OT_load_macros.bl_idname,
