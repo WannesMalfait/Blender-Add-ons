@@ -1,5 +1,6 @@
 import math
-from bpy.types import NodeSocket
+from typing import Union
+from bpy.types import NodeSocket, Operator
 from .scanner import TokenType, Token, Scanner
 from .nodes import functions as function_nodes
 from .nodes.base import DataType, Socket, Value, ValueType, string_to_data_type, data_type_to_string, NodeFunction
@@ -23,17 +24,30 @@ class Precedence(IntEnum):
 
 class InstructionType(IntEnum):
     VALUE = 0
-    STRUCT = auto()
+    # STRUCT = auto()
     VAR = auto()
-    GET_VARIABLE = auto()
+    GET_VAR = auto()
     PROPERTIES = auto()
     FUNCTION = auto()
-    NODEGROUP = auto()
-    DEF_FUNCTION = auto()
-    DEF_NODEGROUP = auto()
+    # NODEGROUP = auto()
+    # DEF_FUNCTION = auto()
+    # DEF_NODEGROUP = auto()
     END_OF_STATEMENT = auto()
     ASSIGNMENT = auto()
     IGNORE = auto()
+
+
+class OpType(IntEnum):
+    PUSH_VALUE = 0
+    CALL_FUNCTION = auto()
+    END_OF_STATEMENT = auto()
+
+
+class Operation():
+    def __init__(self, op_type: OpType,
+                 data: Union[ValueType, NodeFunction]) -> None:
+        self.op_type = op_type
+        self.data = data
 
 
 class Variable():
@@ -62,12 +76,13 @@ class Error():
 
 
 class Instruction():
-    def __init__(self, instruction: InstructionType, data) -> None:
+    def __init__(self, instruction: InstructionType, data, token: Token) -> None:
         """ Create an instruction of the given type. `data` should
         contain the information needed to execute the type of instruction,
         not the arguments. """
         self.instruction = instruction
         self.data = data
+        self.token = token
 
     def __str__(self) -> str:
         return f'[{self.instruction.name}, {self.data}]'
@@ -95,7 +110,6 @@ class Parser():
         self.instructions: list[Instruction] = []
         self.errors: list[Error] = []
         self.macro_storage = macro_storage
-        self.type_check_stack: list[tuple[Value, Instruction]] = []
 
     def error_at_current(self, message: str) -> None:
         self.error_at(self.current, message)
@@ -187,7 +201,7 @@ class Parser():
         # A statement has no return value, this tells the operator
         # to remove remaining values from the stack.
         self.instructions.append(Instruction(
-            InstructionType.END_OF_STATEMENT, None))
+            InstructionType.END_OF_STATEMENT, None, self.previous))
 
     def parse_type(self) -> DataType:
         if self.match(TokenType.COLON):
@@ -201,12 +215,13 @@ class Parser():
         return DataType.UNKNOWN
 
     def parse_variable_and_type(self) -> Instruction:
-        name = self.previous.lexeme
+        token = self.previous
+        name = token.lexeme
         var_type = self.parse_type()
 
-        return Instruction(InstructionType.VAR, Variable(name, Value(var_type, None)))
+        return Instruction(InstructionType.VAR, Variable(name, Value(var_type, None)), token)
 
-    def parse_variable(self, message: str) -> Instruction:
+    def parse_variable(self, message: str) -> int:
         # Possible options after let:
         # - let x = ...;
         # - let a, b, c = ...;
@@ -221,7 +236,7 @@ class Parser():
                 num_vars += 1
             elif self.match(TokenType.UNDERSCORE):
                 self.instructions.append(
-                    Instruction(InstructionType.IGNORE, None))
+                    Instruction(InstructionType.IGNORE, None, self.previous))
                 num_vars += 1
             else:
                 self.error_at_current(message)
@@ -229,29 +244,27 @@ class Parser():
                 break
         if num_vars == 0:
             self.error(message)
-        return Instruction(InstructionType.ASSIGNMENT, num_vars)
+        return num_vars
 
     def add_value_instruction(self, value: Value) -> None:
-        self.instructions.append(Instruction(InstructionType.VALUE, value))
-        self.type_check_stack.append((value, self.instructions[-1]))
-
-    def type_check_assignment(self, assignment_instruction: Instruction):
-        raise NotImplementedError
+        self.instructions.append(Instruction(
+            InstructionType.VALUE, value, self.previous))
 
     def variable_declaration(self) -> None:
-        assignment_instruction = self.parse_variable(
+        let_token = self.previous
+        num_vars = self.parse_variable(
             'Expect variable name or "_" after "let".')
         if self.match(TokenType.EQUAL):
             self.expression()
         else:
             # Something like 'let x: float;' gets de-sugared to 'let x = 0.0;'
             self.add_value_instruction(Value(DataType.DEFAULT, None))
-        self.instructions.append(assignment_instruction)
-        self.type_check_assignment(assignment_instruction)
+        self.instructions.append(Instruction(
+            InstructionType.ASSIGNMENT, num_vars, let_token))
         # Get optional semicolon at end of expression
         self.match(TokenType.SEMICOLON)
         self.instructions.append(Instruction(
-            InstructionType.END_OF_STATEMENT, None))
+            InstructionType.END_OF_STATEMENT, None, self.previous))
 
     def declaration(self) -> None:
         if self.match(TokenType.LET):
@@ -262,83 +275,7 @@ class Parser():
         if self.panic_mode:
             self.synchronize()
 
-    def test_conversion_of_args(self, arg_types: list[tuple[Value, Instruction]], expected_arguments: list[Socket]) -> None:
-        for i, arg_type in enumerate(arg_types):
-            given = arg_type[0].data_type
-            expected = expected_arguments[i].sock_type
-            if given == DataType.DEFAULT or expected == given:
-                continue
-            elif given.can_convert(expected):
-                if arg_type[0].value == NodeSocket:
-                    continue
-                else:
-                    instruction = arg_type[1]
-                    value: Value = instruction.data
-                    value.convert(expected)
-            else:
-                self.error(
-                    f'Invalid type, can\'t convert from {data_type_to_string[given]} to {data_type_to_string[expected]}.')
-
-    def type_check_arguments(self, function: NodeFunction, arg_count: int) -> None:
-        expected_arguments = function.input_sockets()
-        if len(expected_arguments) < arg_count:
-            self.error(
-                f'Expected at most {len(expected_arguments)} argument(s), but got {arg_count} arguments')
-        else:
-            arg_types = self.type_check_stack[-arg_count:]
-            self.type_check_stack = self.type_check_stack[:-arg_count]
-            self.test_conversion_of_args(arg_types, expected_arguments)
-            if arg_count < len(expected_arguments):
-                for _ in range(len(expected_arguments)-arg_count):
-                    # No need to type check these.
-                    self.instructions.append(Instruction(
-                        InstructionType.VALUE, Value(DataType.DEFAULT, None)))
-
-    def type_check_outputs(self, function: NodeFunction) -> None:
-        self.instructions.append(Instruction(
-            InstructionType.FUNCTION, function))
-        outputs = function.output_sockets()
-        if len(outputs) == 1:
-            self.type_check_stack.append(
-                (Value(outputs[0].sock_type, NodeSocket), self.instructions[-1]))
-        else:
-            raise NotImplementedError
-            # for output in outputs:
-            #     self.type_check_stack.append(Value(output.sock_type, NodeSocket))
-
-    def type_check_multiply(self) -> None:
-        arg2 = self.type_check_stack.pop()
-        arg1 = self.type_check_stack.pop()
-        function = None
-        if arg1[0].data_type == DataType.VEC3:
-            if arg2[0].data_type == DataType.VEC3:
-                function = function_nodes.VectorMath(['MULTIPLY'])
-            else:
-                function = function_nodes.VectorMath(['SCALE'])
-        elif arg2[0].data_type == DataType.VEC3:
-            function = function_nodes.VectorMath(['SCALE'])
-            # Vector should be first input!
-            instruction1 = arg1[1]
-            arg2, arg1 = arg1, arg2
-            self.instructions.remove(instruction1)
-            self.instructions.append(instruction1)
-        else:
-            function = function_nodes.Math(['MULTIPLY'])
-        self.test_conversion_of_args((arg1, arg2), function.input_sockets())
-        self.type_check_outputs(function)
-
-    def type_check_operator(self, operator_name: str) -> None:
-        arg2 = self.type_check_stack.pop()
-        arg1 = self.type_check_stack.pop()
-        function = None
-        if arg1[0].data_type == DataType.VEC3 or arg2[0].data_type == DataType.VEC3:
-            function = function_nodes.VectorMath([operator_name])
-        else:
-            function = function_nodes.Math([operator_name])
-        self.test_conversion_of_args((arg1, arg2), function.input_sockets())
-        self.type_check_outputs(function)
-
-    def argument_list(self, function: NodeFunction, closing_token: Token) -> None:
+    def argument_list(self, closing_token: Token) -> int:
         arg_count = 0
         if not self.check(TokenType.RIGHT_PAREN):
             self.expression()
@@ -348,8 +285,7 @@ class Parser():
                 arg_count += 1
         self.consume(closing_token.token_type,
                      f'Expect "{closing_token.lexeme}" after arguments.')
-        self.type_check_arguments(function, arg_count)
-        self.type_check_outputs(function)
+        return arg_count
 
     def synchronize(self) -> None:
         self.panic_mode = False
@@ -386,16 +322,21 @@ def default(self: Parser, can_assign: bool) -> None:
 
 
 def identifier(self: Parser, can_assign: bool) -> None:
-    name = self.previous.lexeme
+    identifier_token = self.previous
+    name = identifier_token.lexeme
     if name in self.macro_storage:
         rhs = self.macro_storage[name]
         for token in rhs:
-            token.expanded_from = self.previous
+            token.expanded_from = identifier_token
+            token.times_expanded = self.previous.times_expanded + 1
+            if token.times_expanded > 10:
+                self.error_at(identifier_token,
+                              'Expansion limit exceeded. Possible recursion')
         self.add_tokens(rhs)
         self.expression()
     else:
         self.instructions.append(Instruction(
-            InstructionType.GET_VARIABLE, name)
+            InstructionType.GET_VAR, name, identifier_token)
         )
 
 
@@ -417,7 +358,8 @@ def grouping(self: Parser, can_assign: bool) -> None:
 
 
 def unary(self: Parser, can_assign: bool) -> None:
-    operator_type = self.previous.token_type
+    operator_token = self.previous
+    operator_type = operator_token.token_type
     # Compile the operand
     self.parse_precedence(Precedence.UNARY)
 
@@ -425,7 +367,8 @@ def unary(self: Parser, can_assign: bool) -> None:
         # unary minus (-x) in shader nodes is x * -1
         # postfix: x -1 *
         self.add_value_instruction(Value(DataType.INT, -1))
-        self.type_check_multiply()
+        self.instructions.append(Instruction(
+            InstructionType.FUNCTION, (function_nodes.Math(['MULTIPLY']), 2), operator_token))
     else:
         # Shouldn't happen
         assert False, "Unreachable code"
@@ -445,22 +388,24 @@ def make_vec3_from_values(args: list[Instruction]) -> list[float]:
 
 
 def make_vector(self: Parser, can_assign: bool) -> None:
+    bracket_token = self.previous
     function = function_nodes.CombineXYZ([])
-    self.argument_list(function, Token('}', TokenType.RIGHT_BRACE))
-    # Check if the arguments are just regular values. In that case
-    # we don't need a combine XYZ node.
-    args = self.instructions[-4:-1]
-    no_expressions = True
-    for arg in args:
-        if not isinstance(arg.data, Value):
-            no_expressions = False
-            break
-    if no_expressions:
-        self.instructions = self.instructions[:-4]
-        # Get rid of the result of CombineXYZ
-        self.type_check_stack.pop()
-        self.add_value_instruction(
-            Value(DataType.VEC3, make_vec3_from_values(args)))
+    arg_count = self.argument_list(Token('}', TokenType.RIGHT_BRACE))
+    self.instructions.append(Instruction(
+        InstructionType.FUNCTION, (function, arg_count), bracket_token))
+    # # Check if the arguments are just regular values. In that case
+    # # we don't need a combine XYZ node.
+    # args = self.instructions[-4:-1]
+    # no_expressions = True
+    # for arg in args:
+    #     if not isinstance(arg.data, Value):
+    #         no_expressions = False
+    #         break
+    # if no_expressions:
+    #     self.instructions = self.instructions[:-4]
+    #     # Get rid of the result of CombineXYZ
+    #     self.add_value_instruction(
+    #         Value(DataType.VEC3, make_vec3_from_values(args)))
 
 
 def call(self: Parser, can_assign: bool) -> None:
@@ -473,7 +418,7 @@ def call(self: Parser, can_assign: bool) -> None:
             prev_instruction.data)]
         # This is the function name now
         prev_instruction = self.instructions.pop()
-    if prev_instruction.instruction != InstructionType.GET_VARIABLE:
+    if prev_instruction.instruction != InstructionType.GET_VAR:
         self.error('Expected callable object')
     func_name = prev_instruction.data
     function = None
@@ -495,10 +440,13 @@ def call(self: Parser, can_assign: bool) -> None:
     if function is None:
         self.error(f'Unknown function {func_name}.')
         return
-    self.argument_list(function, Token(')', TokenType.RIGHT_PAREN))
+    arg_count = self.argument_list(Token(')', TokenType.RIGHT_PAREN))
+    self.instructions.append(Instruction(
+        InstructionType.FUNCTION, (function, arg_count), prev_instruction))
 
 
 def properties(self: Parser, can_assign: bool) -> None:
+    bracket_token = self.previous
     num_props = 0
     while not self.check(TokenType.RIGHT_SQUARE_BRACKET):
         if self.match(TokenType.STRING):
@@ -509,13 +457,11 @@ def properties(self: Parser, can_assign: bool) -> None:
             num_props += 1
         else:
             self.error_at_current('Expect property values')
-        # These have been handled
-        self.type_check_stack.pop()
         if not self.match(TokenType.COMMA):
             break
     self.consume(TokenType.RIGHT_SQUARE_BRACKET, 'Expect closing "]".')
     self.instructions.append(Instruction(
-        InstructionType.PROPERTIES, num_props))
+        InstructionType.PROPERTIES, num_props, bracket_token))
 
 
 def macro(self: Parser, can_assign: bool) -> None:
@@ -541,35 +487,33 @@ def separate(self: Parser, can_assign: bool) -> None:
 
 
 def binary(self: Parser, can_assign: bool) -> None:
-    operator_type = self.previous.token_type
+    operator_token = self.previous
+    operator_type = operator_token.token_type
     rule = self.get_rule(operator_type)
     self.parse_precedence(Precedence(rule.precedence.value + 1))
 
     # math: + - / * % > < **
-
+    function = None
     if operator_type == TokenType.PLUS:
-        self.type_check_operator('ADD')
+        function = function_nodes.Math(['ADD'])
     elif operator_type == TokenType.MINUS:
-        self.type_check_operator('SUBTRACT')
+        function = function_nodes.Math(['SUBTRACT'])
     elif operator_type == TokenType.SLASH:
-        self.type_check_operator('DIVIDE')
+        function = function_nodes.Math(['DIVIDE'])
     elif operator_type == TokenType.STAR:
-        self.type_check_multiply()
-        # self.instructions.append(Instruction(
-        #     InstructionType.FUNCTION, function_nodes.Math(['MULTIPLY'])))
+        function = function_nodes.Math(['MULTIPLY'])
     elif operator_type == TokenType.PERCENT:
-        self.type_check_operator('MODULO')
+        function = function_nodes.Math(['MODULO'])
     elif operator_type == TokenType.GREATER:
         function = function_nodes.Math(['GREATER_THAN'])
-        self.type_check_arguments(function, 2)
     elif operator_type == TokenType.LESS:
         function = function_nodes.Math(['LESS_THAN'])
-        self.type_check_arguments(function, 2)
     elif operator_type in (TokenType.STAR_STAR, TokenType.HAT):
         function = function_nodes.Math(['POWER'])
-        self.type_check_arguments(function, 2)
     else:
         assert False, "Unreachable code"
+    self.instructions.append(Instruction(
+        InstructionType.FUNCTION, (function, 2), operator_token))
 
 
 rules: list[ParseRule] = [
@@ -619,22 +563,206 @@ rules: list[ParseRule] = [
 assert len(rules) == TokenType.EOL.value + 1, "Didn't handle all tokens!"
 
 
+class TypeCheckValue():
+    """
+    Values stored on the simulation stack when type checking
+    - Token is used to report errors
+    - Value is used to determine types
+    - Intermediate is used to tell if it came from an instruction or is
+        an intermediate value.
+    - AdjustTarget: If it's not intermediate then this gives the index in
+        `checked_program` that came from this instruction.
+    """
+
+    def __init__(self, token: Token, value: Value, intermediate: bool, adjust_target: int) -> None:
+        self.token = token
+        self.value = value
+        self.intermediate = intermediate
+        self.adjust_target = adjust_target
+
+
+class TypeChecker():
+    def __init__(self) -> None:
+        self.stack: list[TypeCheckValue] = []
+        self.vars = {}
+        self.checked_program: list[Operation] = []
+        self.errors: list[Error] = []
+
+    def error_at(self, token: Token, msg: str) -> None:
+        error = f'Error at "{token.lexeme}":'
+        if token.expanded_from is not None:
+            error += f' expanded from macro "{token.expanded_from.lexeme}": '
+        self.errors.append(Error(token, f'{error} {msg}'))
+
+    def add_operation(self, op_type: OpType, data: Union[ValueType, NodeFunction]):
+        self.checked_program.append(Operation(op_type, data))
+
+    # def type_check_operator(self, operator_name: str) -> None:
+    #     arg2 = self.type_check_stack.pop()
+    #     arg1 = self.type_check_stack.pop()
+    #     function = None
+    #     if arg1[0].data_type == DataType.VEC3 or arg2[0].data_type == DataType.VEC3:
+    #         function = function_nodes.VectorMath([operator_name])
+    #     else:
+    #         function = function_nodes.Math([operator_name])
+    #     self.test_conversion_of_args((arg1, arg2), function.input_sockets())
+    #     self.type_check_outputs(function)
+
+    # def type_check_multiply(self) -> None:
+    #     arg2 = self.type_check_stack.pop()
+    #     arg1 = self.type_check_stack.pop()
+    #     function = None
+    #     if arg1[0].data_type == DataType.VEC3:
+    #         if arg2[0].data_type == DataType.VEC3:
+    #             function = function_nodes.VectorMath(['MULTIPLY'])
+    #         else:
+    #             function = function_nodes.VectorMath(['SCALE'])
+    #     elif arg2[0].data_type == DataType.VEC3:
+    #         function = function_nodes.VectorMath(['SCALE'])
+    #         # Vector should be first input!
+    #         instruction1 = arg1[1]
+    #         arg2, arg1 = arg1, arg2
+    #         self.instructions.remove(instruction1)
+    #         self.instructions.append(instruction1)
+    #     else:
+    #         function = function_nodes.Math(['MULTIPLY'])
+    #     self.test_conversion_of_args((arg1, arg2), function.input_sockets())
+    #     self.type_check_outputs(function)
+
+    # def type_check_outputs(self, function: NodeFunction) -> None:
+    #     self.instructions.append(Instruction(
+    #         InstructionType.FUNCTION, function))
+    #     outputs = function.output_sockets()
+    #     if len(outputs) == 1:
+    #         self.type_check_stack.append(
+    #             (Value(outputs[0].sock_type, NodeSocket), self.instructions[-1]))
+    #     else:
+    #         raise NotImplementedError
+    #         # for output in outputs:
+    #         #     self.type_check_stack.append(Value(output.sock_type, NodeSocket))
+
+    def test_conversion_of_args(self, arg_values: list[TypeCheckValue], expected_arguments: list[Socket]) -> bool:
+        for i, arg_value in enumerate(arg_values):
+            assert isinstance(arg_value.value, Value), 'Type checker bug'
+            given = arg_value.value.data_type
+            expected = expected_arguments[i].sock_type
+            if given == DataType.DEFAULT or expected == given:
+                continue
+            elif given.can_convert(expected):
+                if arg_value.intermediate:
+                    continue
+                else:
+                    operation = self.checked_program[arg_value.adjust_target]
+                    assert operation.op_type == OpType.PUSH_VALUE, 'Type checker bug'
+                    operation.data = Value(
+                        given, operation.data).convert(expected)
+            else:
+                self.error_at(arg_value.token,
+                              f'Invalid type, can\'t convert from {data_type_to_string[given]} to {data_type_to_string[expected]}.')
+                return False
+        return True
+
+    def type_check_arguments(self, function: NodeFunction, arg_count: int, instruction: Instruction) -> bool:
+        expected_arguments = function.input_sockets()
+        if len(expected_arguments) < arg_count:
+            self.error_at(instruction.token,
+                          f'Expected at most {len(expected_arguments)} argument(s), but got {arg_count} arguments')
+            return False
+        assert len(self.stack) >= arg_count, 'Bug in type checker'
+        arg_types = self.stack[-arg_count:]
+        self.stack = self.stack[:-arg_count]
+        if not self.test_conversion_of_args(arg_types, expected_arguments):
+            return False
+        if arg_count < len(expected_arguments):
+            # Fill up with default values
+            for _ in range(len(expected_arguments)-arg_count):
+                # No need to type check these.
+                self.add_operation(OpType.PUSH_VALUE, None)
+        return True
+
+    def type_check_function(self, instruction: Instruction) -> bool:
+        """
+        Check if the input arguments of the function are correct. If
+        everything is fine then it is added to `checked_program`.
+        The arguments needed to execute the function are checked and
+        added to `checked_program` as well.
+        """
+        function, arg_count = instruction.data
+        assert isinstance(function, NodeFunction)
+        assert isinstance(arg_count, int)
+        if not self.type_check_arguments(function, arg_count, Instruction):
+            return False
+        self.add_operation(OpType.CALL_FUNCTION, function)
+        outputs = function.output_sockets()
+        assert len(outputs) == 1, 'Not implemented'
+        self.stack.append(TypeCheckValue(instruction.token, Value(
+            outputs[0].sock_type, NodeSocket), True, 0))
+        return True
+
+    def type_check_assignment(self, assignment_instruction: Instruction):
+        raise NotImplementedError
+
+    def type_check(self, program: list[Instruction]) -> bool:
+        """
+        Go through all the instructions and make sure types and argument counts match up.
+        This will modify the program in some cases to ensure correctness.
+        """
+        assert InstructionType.IGNORE.value == 7, 'Exhaustive handling of instructions'
+        ip = 0
+        while ip < len(program):
+            instruction = program[ip]
+            itype = instruction.instruction
+            if itype == InstructionType.VALUE:
+                assert isinstance(instruction.data,
+                                  Value), 'Parser Bug: non-value data.'
+                self.add_operation(OpType.PUSH_VALUE, instruction.data.value)
+                self.stack.append(TypeCheckValue(
+                    instruction.token, instruction.data, False, len(self.checked_program) - 1))
+            elif itype == InstructionType.VAR:
+                raise NotImplementedError
+            elif itype == InstructionType.GET_VAR:
+                raise NotImplementedError
+            elif itype == InstructionType.PROPERTIES:
+                assert False, 'Parser Bug: Properties should have been handled already.'
+            elif itype == InstructionType.FUNCTION:
+                if not self.type_check_function(instruction):
+                    return False
+            elif itype == InstructionType.END_OF_STATEMENT:
+                self.stack = []
+                self.add_operation(OpType.END_OF_STATEMENT, None)
+            elif itype == InstructionType.ASSIGNMENT:
+                raise NotImplementedError
+            elif itype == InstructionType.IGNORE:
+                raise NotImplementedError
+            ip += 1
+        return True
+        # raise NotImplementedError
+
+
 class Compiler():
     def __init__(self) -> None:
         self.instructions: list[Instruction] = []
         self.errors: list[Error] = []
+        self.checked_program: list[Operation] = []
 
     def compile(self, source: str, macros: MacroType) -> bool:
         self.instructions = []
         parser = Parser(source, macros)
-        macros = parser.macro_storage
+        # macros = parser.macro_storage
         parser.advance()
         while not parser.match(TokenType.EOL):
             parser.declaration()
         parser.consume(TokenType.EOL, 'Expect end of expression.')
         self.instructions = parser.instructions
         self.errors = parser.errors
-        return not parser.had_error
+        if parser.had_error:
+            return False
+        type_checker = TypeChecker()
+        result = type_checker.type_check(self.instructions)
+        self.checked_program = type_checker.checked_program
+        # TODO: Maybe keep these separate?
+        self.errors += type_checker.errors
+        return result
 
     @ staticmethod
     def get_tokens(source: str) -> list[Token]:

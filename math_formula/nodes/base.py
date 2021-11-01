@@ -38,7 +38,7 @@ string_to_data_type = {
 
 data_type_to_string = {value: key for key,
                        value in string_to_data_type.items()}
-vec3 = tuple[float]
+vec3 = list[float]
 
 ValueType = Union[None, bool, str, int, float,
                   vec3, NodeSocket]
@@ -57,58 +57,60 @@ class Value():
     def __repr__(self) -> str:
         return self.__str__()
 
-    def convert(self, dtype: DataType) -> 'Value':
-        assert self.data_type.can_convert(dtype), 'Only convert when possible'
+    def convert(self, to_type: DataType) -> ValueType:
+        assert self.data_type.can_convert(
+            to_type), 'Only convert when possible'
         if self.data_type == DataType.BOOL:
-            if dtype == dtype.INT:
+            if to_type == DataType.INT:
                 self.value = int(self.value)
-            if dtype == dtype.FLOAT:
+            if to_type == DataType.FLOAT:
                 self.value = float(self.value)
-            if dtype == dtype.RGBA:
+            if to_type == DataType.RGBA:
                 self.value = [float(self.value) for _ in range(4)]
-            if dtype == dtype.VEC3:
+            if to_type == DataType.VEC3:
                 self.value = [float(self.value) for _ in range(3)]
         if self.data_type == DataType.INT:
-            if dtype == dtype.BOOL:
-                self.value = bool(self.value)
-            if dtype == dtype.FLOAT:
+            if to_type == DataType.BOOL:
+                self.value = bool(self.value <= 0)
+            if to_type == DataType.FLOAT:
                 self.value = float(self.value)
-            if dtype == dtype.RGBA:
+            if to_type == DataType.RGBA:
                 self.value = [float(self.value) for _ in range(4)]
-            if dtype == dtype.VEC3:
+            if to_type == DataType.VEC3:
                 self.value = [float(self.value) for _ in range(3)]
         if self.data_type == DataType.FLOAT:
-            if dtype == dtype.BOOL:
-                self.value = bool(self.value)
-            if dtype == dtype.INT:
+            if to_type == DataType.BOOL:
+                self.value = bool(self.value <= 0.0)
+            if to_type == DataType.INT:
                 self.value = int(self.value)
-            if dtype == dtype.RGBA:
+            if to_type == DataType.RGBA:
                 self.value = [self.value for _ in range(4)]
-            if dtype == dtype.VEC3:
+            if to_type == DataType.VEC3:
                 self.value = [self.value for _ in range(3)]
         if self.data_type == DataType.RGBA:
             gray_scale = (
                 0.2126 * self.value[0]) + (0.7152 * self.value[1]) + (0.0722 * self.value[2])
-            if dtype == dtype.BOOL:
+            if to_type == DataType.BOOL:
                 self.value = bool(gray_scale)
-            if dtype == dtype.INT:
+            if to_type == DataType.INT:
                 self.value = int(gray_scale)
-            if dtype == dtype.FLOAT:
+            if to_type == DataType.FLOAT:
                 self.value = gray_scale
-            if dtype == dtype.VEC3:
+            if to_type == DataType.VEC3:
                 self.value = [self.value[i] for i in range(3)]
         if self.data_type == DataType.VEC3:
             avg = (
                 self.value[0] + self.value[1] + self.value[2])/3.0
-            if dtype == dtype.BOOL:
+            if to_type == DataType.BOOL:
                 self.value = bool(avg)
-            if dtype == dtype.INT:
+            if to_type == DataType.INT:
                 self.value = int(avg)
-            if dtype == dtype.FLOAT:
+            if to_type == DataType.FLOAT:
                 self.value = avg
-            if dtype == dtype.RGBA:
+            if to_type == DataType.RGBA:
                 self.value = self.value + [1]
-        self.data_type = dtype
+        self.data_type = to_type
+        return self.value
 
 
 Struct = Tuple[Value]

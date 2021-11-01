@@ -75,8 +75,10 @@ class Token():
     Each token has:
     - a `TokenType`
     - a lexeme which is the text that this token had in the source
-    - a number line which says which line of the text the token is in
-    - a number col which says where in the line the token starts
+    - a number `line` which says which line of the text the token is in
+    - a number `start` which says where in the text the token starts
+    - a number `times_expanded` which says how many times it has been expanded
+    - a token `expanded_from`  which indicates which macro it was expanded from if not None
     """
 
     def __init__(self, lexeme: str, token_type: TokenType, line: int = 0, start: int = 0) -> None:
@@ -84,7 +86,8 @@ class Token():
         self.start = start
         self.line = line
         self.lexeme = lexeme
-        self.expanded_from = None
+        self.times_expanded: int = 0
+        self.expanded_from: Union[None, 'Token'] = None
 
     def __str__(self) -> str:
         return f'[{self.lexeme}, {self.token_type.name}]'

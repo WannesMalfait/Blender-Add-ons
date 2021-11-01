@@ -1,4 +1,4 @@
-from .nodes.base import NodeFunction, Value
+from .nodes.base import NodeFunction, Value, ValueType
 import time
 import bpy
 import blf
@@ -6,7 +6,7 @@ from . import file_loading
 from .file_loading import fonts
 from .positioning import TreePositioner
 from .scanner import TokenType
-from .parser import Compiler, Error, InstructionType, string_to_data_type
+from .parser import Compiler, Error, InstructionType, OpType, string_to_data_type
 from bpy.types import NodeSocket
 
 formula_history = []
@@ -136,15 +136,12 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             space.cursor_location = tree.view_center
 
     def get_args(self, stack: list, num_args: int) -> list[Value]:
-        args = []
-        for _ in range(num_args):
-            arg = stack.pop()
-            args.append(arg)
-        args.reverse()
+        args = stack[-num_args:]
+        stack[:] = stack[:-num_args]
         return args
 
     @staticmethod
-    def add_func(context: bpy.context, args: list[Value], function: NodeFunction):
+    def add_func(context: bpy.context, args: list[ValueType], function: NodeFunction):
         tree: bpy.types.NodeTree = context.space_data.edit_tree
         if tree.type == 'GeometryNodeTree':
             node = tree.nodes.new(type="GeometryNode" + function.name())
@@ -154,10 +151,10 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             setattr(node, name, value)
         for i, socket in enumerate(function.input_sockets()):
             arg = args[i]
-            if isinstance(arg.value, bpy.types.NodeSocket):
-                tree.links.new(arg.value, node.inputs[socket.index])
-            elif not arg.value is None:
-                node.inputs[socket.index].default_value = arg.value
+            if isinstance(arg, bpy.types.NodeSocket):
+                tree.links.new(arg, node.inputs[socket.index])
+            elif not arg is None:
+                node.inputs[socket.index].default_value = arg
         return node
 
     @staticmethod
@@ -215,28 +212,31 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         success = compiler.compile(formula, file_loading.file_data.macros)
         if not success:
             return {'CANCELLED'}
-        instructions = compiler.instructions
-        for instruction in instructions:
-            instruction_type = instruction.instruction
-            data = instruction.data
-            if instruction_type == InstructionType.VALUE:
-                stack.append(data)
-            elif instruction_type == InstructionType.FUNCTION:
-                function: NodeFunction = data
+        checked_program = compiler.checked_program
+        for operation in checked_program:
+            op_type = operation.op_type
+            op_data = operation.data
+            assert OpType.END_OF_STATEMENT.value == 2, 'Exhaustive handling of Operation types.'
+            if op_type == OpType.PUSH_VALUE:
+                stack.append(op_data)
+            elif op_type == OpType.CALL_FUNCTION:
+                assert isinstance(
+                    op_data, NodeFunction), 'Bug in type checker.'
+                function: NodeFunction = op_data
                 args = self.get_args(stack, len(function.input_sockets()))
                 node = self.add_func(context, args, function)
                 for socket in function.output_sockets():
-                    stack.append(
-                        Value(socket.sock_type, node.outputs[socket.index]))
+                    stack.append(node.outputs[socket.index])
                 nodes.append(node)
-            elif instruction_type == InstructionType.END_OF_STATEMENT:
+            elif op_type == OpType.END_OF_STATEMENT:
                 if stack == []:
                     continue
                 element = stack.pop()
-                if isinstance(element, Value) and isinstance(element.value, NodeSocket):
-                    root_nodes.append(element.value.node)
+                if isinstance(element, NodeSocket):
+                    root_nodes.append(element.node)
+                stack = []
             else:
-                print(f'Need implementation of {instruction}')
+                print(f'Need implementation of {op_type}')
                 raise NotImplementedError
         if props.add_frame and nodes != []:
             # Add all nodes in a frame
@@ -283,301 +283,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             context.window_manager.modal_handler_add(self)
             context.area.tag_redraw()
             return {'RUNNING_MODAL'}
-
-
-class MF_OT_attribute_math_formula_add(bpy.types.Operator, MFBase):
-    """Add the attribute nodes for the formula"""
-    bl_idname = "node.mf_attribute_math_formula_add"
-    bl_label = "Attribute Math Formula"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    use_mouse_location: bpy.props.BoolProperty(
-        default=False,
-    )
-
-    @ staticmethod
-    def store_mouse_cursor(context, event):
-        space = context.space_data
-        tree = space.edit_tree
-
-        # convert mouse position to the View2D for later node placement
-        if context.region.type == 'WINDOW':
-            # convert mouse position to the View2D for later node placement
-            space.cursor_location_from_region(
-                event.mouse_region_x, event.mouse_region_y)
-        else:
-            space.cursor_location = tree.view_center
-
-    def get_args(self, stack, num_args):
-        args = []
-        for _ in range(num_args):
-            arg = stack.pop()
-            if isinstance(arg, str) and self.temp_attr_name in arg:
-                self.number_of_temp_attributes = max(
-                    0, self.number_of_temp_attributes-1)
-            args.append(arg)
-        args.reverse()
-        return args
-
-    def place_node(self, context, node, nodes):
-        prefs = bpy.context.preferences.addons['math_formula'].preferences
-        space = context.space_data
-        tree = space.edit_tree
-        # First node
-        if nodes == []:
-            node.location = space.cursor_location if self.use_mouse_location else (
-                0, 0)
-        else:
-            prev_node = nodes[-1]
-            node.location = (prev_node.location.x +
-                             prev_node.width + prefs.node_distance, prev_node.location.y)
-            tree.links.new(
-                prev_node.outputs["Geometry"], node.inputs["Geometry"])
-
-    def add_combine_xyz_node(self, context, nodes, vec):
-        tree = context.space_data.edit_tree
-        node = tree.nodes.new(type="GeometryNodeAttributeCombineXYZ")
-        self.place_node(context, node, nodes)
-        types = ['FLOAT' if type(
-            comp) == float else 'ATTRIBUTE' for comp in vec]
-        node.input_type_x = types[0]
-        node.input_type_y = types[1]
-        node.input_type_z = types[2]
-        for i in range(3):
-            offset = 0 if types[i] == 'ATTRIBUTE' else 1
-            node.inputs[1 + 2*i + offset].default_value = vec[i]
-        nodes.append(node)
-        return node
-
-    def add_separate_xyz_node(self, context, nodes, name, components):
-        tree = context.space_data.edit_tree
-        node = tree.nodes.new(type="GeometryNodeAttributeSeparateXYZ")
-        self.place_node(context, node, nodes)
-        node.input_type = 'ATTRIBUTE'
-        node.inputs[1].default_value = name
-        vec = ('x', 'y', 'z')
-        for i in range(3):
-            if components[i]:
-                node.inputs[3 + i].default_value = vec[i]
-        nodes.append(node)
-        return node
-
-    def add_math_node(self, context, nodes, args, func_name):
-        tree = context.space_data.edit_tree
-        node = tree.nodes.new(type="GeometryNodeAttributeMath")
-        self.place_node(context, node, nodes)
-        node.operation = func_name
-        l = len(args)
-        # False -> ATTRIBUTE, True -> FLOAT
-        arg_types = ['FLOAT' if type(
-            arg) == float else 'ATTRIBUTE' for arg in args]
-        # Convert the wrong vectors to strings
-        for i in range(l):
-            if type(args[i]) == list:
-                # It's a vec3
-                args[i] = str(args[i])
-        # Possible types for the socket
-        node.input_type_a = arg_types[0]
-        if l >= 2:
-            node.input_type_b = arg_types[1]
-        if l == 3:
-            node.input_type_c = arg_types[2]
-        for i in range(l):
-            # First input is Geometry so we skip it
-            # The inputs are in the following order:
-            # Geometry
-            # A Attribute
-            # A Float
-            # B Attribute
-            # B Float
-            # C Attribute
-            # C Float
-            # Result Attribute
-            # So we need to go in pairs of two
-            offset = 0 if arg_types[i] == 'ATTRIBUTE' else 1
-            node.inputs[1 + 2*i + offset].default_value = args[i]
-
-        nodes.append(node)
-        return node
-
-    def add_vector_math_node(self, context, nodes, args, func_name):
-        tree = context.space_data.edit_tree
-        node = tree.nodes.new(type="GeometryNodeAttributeVectorMath")
-        self.place_node(context, node, nodes)
-        node.operation = func_name
-        # Socket ordering:
-        # Geometry
-        # A Attribute
-        # A Vector
-        # B Attribute
-        # B Vector
-        # B Float (Only used if func_name is 'SCALE')
-        # C Attribute
-        # C Vector
-        # Result Attribute
-
-        # Index of the first socket for 'A','B', and 'C'
-        first_socket = (1, 3, 6)
-
-        l = len(args)
-
-        # If it's a float we convert it to a vec3
-        for i in range(l):
-            if type(args[i]) == float and not ((func_name == 'SCALE' and i == 1) or (func_name == 'REFRACT' and i == 2)):
-                args[i] = [args[i] for _ in range(3)]
-        arg_types = ['VECTOR' if type(arg) == list else 'FLOAT'if type(
-            arg) == float else'ATTRIBUTE' for arg in args]
-        node.input_type_a = arg_types[0]
-        if l >= 2:
-            node.input_type_b = arg_types[1]
-        if l == 3:
-            node.input_type_c = arg_types[2]
-
-        for i in range(l):
-            offset = 0 if arg_types[i] == 'ATTRIBUTE' else 1 if arg_types[i] == 'VECTOR' else 2
-            node.inputs[first_socket[i] + offset].default_value = args[i]
-        nodes.append(node)
-        return node
-
-    def execute(self, context):
-        space = context.space_data
-        # Safe because of poll function
-        tree = space.edit_tree
-        props = context.scene.math_formula_add
-        # The formula that we parse. Should be in Reverse Polish Notation
-        formula = props.formula
-        # Used to store temporary results
-        self.temp_attr_name = props.temp_attr_name
-        # Used to fill in missing arguments
-        self.no_arg = props.no_arg
-        # If two results are stored as temp attributes we need separate names
-        self.number_of_temp_attributes = 0
-        stack = []
-        # The nodes that we added
-        nodes = []
-        # Parse the input string into a sequence of tokens
-        compiler = Compiler()
-        success = compiler.compile(formula)
-        if not success:
-            return {'CANCELLED'}
-        instructions = compiler.instructions
-        for instruction in instructions:
-            instruction_type = instruction.instruction
-            data = instruction.data
-            if instruction_type == InstructionType.NUMBER:
-                stack.append(float(data))
-            elif instruction_type == InstructionType.MISSING_ARG:
-                stack.append(self.no_arg)
-            elif instruction_type in (InstructionType.MATH_FUNC, InstructionType.VECTOR_MATH_FUNC):
-                func_name, num_args = data
-                args = self.get_args(stack, num_args)
-                node = None
-                if instruction_type == InstructionType.MATH_FUNC:
-                    node = self.add_math_node(
-                        context, nodes, args, func_name)
-                else:
-                    node = self.add_vector_math_node(
-                        context, nodes, args, func_name)
-                res_string = self.temp_attr_name + \
-                    (str(self.number_of_temp_attributes)
-                     if self.number_of_temp_attributes else "")
-                node.inputs["Result"].default_value = res_string
-                stack.append(res_string)
-                self.number_of_temp_attributes += 1
-            elif instruction_type == InstructionType.END_OF_STATEMENT:
-                if stack == []:
-                    print('EMPTY STACK!!!!')
-                    continue
-                stack.pop()
-            elif instruction_type == InstructionType.MAKE_VECTOR:
-                args = self.get_args(stack, 3)
-                all_float = True
-                for arg in args:
-                    if not isinstance(arg, float):
-                        all_float = False
-                        break
-                if all_float:
-                    stack.append(args)
-                    continue
-                # It contains attributes, so we need a Combine XYZ
-                node = self.add_combine_xyz_node(context, nodes, args)
-                res_string = self.temp_attr_name + \
-                    (str(self.number_of_temp_attributes)
-                     if self.number_of_temp_attributes else "")
-                node.inputs["Result"].default_value = res_string
-                stack.append(res_string)
-                self.number_of_temp_attributes += 1
-            elif instruction_type == InstructionType.ATTRIBUTE:
-                stack.append(data)
-            elif instruction_type == InstructionType.VAR:
-                stack.append(data)
-            elif instruction_type == InstructionType.VECTOR_VAR:
-                stack.append(data)
-            elif instruction_type == InstructionType.DEFINE:
-                name, result = self.get_args(stack, 2)
-                if isinstance(result, float) or isinstance(result, list):
-                    node = tree.nodes.new('GeometryNodeAttributeFill')
-                    self.place_node(context, node, nodes)
-                    node.inputs['Attribute'].default_value = str(name)
-                    stack.append(str(name))
-                    if isinstance(result, float):
-                        # Float is default data type
-                        node.inputs[3].default_value = result
-                    else:
-                        node.data_type = 'FLOAT_VECTOR'
-                        node.inputs[2].default_value = result
-                    nodes.append(node)
-                elif isinstance(name, tuple):
-                    self.add_separate_xyz_node(
-                        context, nodes, result, ('x', 'y', 'z'))
-                    # Separate XYZ
-                    last_node = nodes[-1]
-                    if last_node.bl_idname == 'GeometryNodeAttributeSeparateXYZ':
-                        for i, res_name in enumerate(('Result X', 'Result Y', 'Result Z')):
-                            last_node.inputs[res_name].default_value = name[i]
-                    best_name = ''
-                    for comp in name:
-                        if comp != '':
-                            best_name = comp
-                    stack.append(best_name)
-                elif nodes != []:
-                    last_node = nodes[-1]
-                    if last_node.bl_idname == 'GeometryNodeAttributeSeparateXYZ':
-                        for res_name in ('Result X', 'Result Y', 'Result Z'):
-                            last_node.inputs[res_name].default_value = name
-                    elif last_node.bl_idname == 'GeometryNodeAttributeFill':
-                        last_node.inputs['Attribute'].default_value = name
-                    else:
-                        last_node.inputs['Result'].default_value = name
-                    stack.append(name)
-                else:
-                    stack.append(name)
-            elif instruction_type == InstructionType.SEPARATE:
-                name, data = self.get_args(stack, 2)
-                components = [
-                    a if a in data else None for a in ('x', 'y', 'z')]
-                node = self.add_separate_xyz_node(
-                    context, nodes, name, components)
-                best_name = 'x'
-                for comp in components:
-                    if comp is not None:
-                        best_name = comp
-                stack.append(best_name)
-        if props.add_frame and nodes != []:
-            # Add all nodes in a frame
-            frame = tree.nodes.new(type='NodeFrame')
-            frame.label = formula
-            for node in nodes:
-                node.parent = frame
-            frame.update()
-        # Force an update
-        tree.nodes.update()
-        tree.update_tag()
-        return {'FINISHED'}
-
-    def invoke(self, context, event):
-        self.store_mouse_cursor(context, event)
-        return self.execute(context)
 
 
 def draw_callback_px(self, context: bpy.context):
@@ -727,6 +432,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             else:
                 self.report({'WARNING'}, 'Compilation failed')
                 print('Instructions: ', compiler.instructions)
+                print('Checked Program: ', compiler.checked_program)
 
         # NAVIGATION
         elif event.type == 'MIDDLEMOUSE':
