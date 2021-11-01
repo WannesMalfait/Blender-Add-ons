@@ -426,16 +426,41 @@ def unary(self: Parser, can_assign: bool) -> None:
         # postfix: x -1 *
         self.add_value_instruction(Value(DataType.INT, -1))
         self.type_check_multiply()
-        # self.instructions.append(Instruction(
-        #     InstructionType.FUNCTION, function_nodes.Math('MULTIPLY')))
     else:
         # Shouldn't happen
         assert False, "Unreachable code"
 
 
+def make_vec3_from_values(args: list[Instruction]) -> list[float]:
+    vec3 = []
+    for arg in args:
+        val = arg.data.value
+        if val is None:
+            vec3.append(0.0)
+        elif isinstance(val, float):
+            vec3.append(val)
+        else:
+            assert False, 'Unreachable code'
+    return vec3
+
+
 def make_vector(self: Parser, can_assign: bool) -> None:
     function = function_nodes.CombineXYZ([])
     self.argument_list(function, Token('}', TokenType.RIGHT_BRACE))
+    # Check if the arguments are just regular values. In that case
+    # we don't need a combine XYZ node.
+    args = self.instructions[-4:-1]
+    no_expressions = True
+    for arg in args:
+        if not isinstance(arg.data, Value):
+            no_expressions = False
+            break
+    if no_expressions:
+        self.instructions = self.instructions[:-4]
+        # Get rid of the result of CombineXYZ
+        self.type_check_stack.pop()
+        self.add_value_instruction(
+            Value(DataType.VEC3, make_vec3_from_values(args)))
 
 
 def call(self: Parser, can_assign: bool) -> None:
