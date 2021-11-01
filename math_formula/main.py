@@ -216,9 +216,13 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         for operation in checked_program:
             op_type = operation.op_type
             op_data = operation.data
-            assert OpType.END_OF_STATEMENT.value == 2, 'Exhaustive handling of Operation types.'
+            assert OpType.END_OF_STATEMENT.value == 3, 'Exhaustive handling of Operation types.'
             if op_type == OpType.PUSH_VALUE:
                 stack.append(op_data)
+            elif op_type == OpType.SWAP_2:
+                a1 = stack.pop()
+                a2 = stack.pop()
+                stack += [a1, a2]
             elif op_type == OpType.CALL_FUNCTION:
                 assert isinstance(
                     op_data, NodeFunction), 'Bug in type checker.'

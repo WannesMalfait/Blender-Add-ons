@@ -69,6 +69,29 @@ class Math(NodeFunction):
         ),),
     )
 
+    # The operations which have a vector math equivalent
+    # The dictionary gives the operation of the equivalent
+    # form
+    _overloadable = {
+        'ADD': 'ADD',
+        'SUBTRACT': 'SUBTRACT',
+        'MULTIPLY': 'MULTIPLY',
+        'DIVIDE': 'DIVIDE',
+        'MULTIPLY_ADD': 'MULTIPLY_ADD',
+        'ABSOLUTE': 'ABSOLUTE',
+        'MINIMUM': 'MINIMUM',
+        'MAXIMUM': 'MAXIMUM',
+        'FLOOR': 'FLOOR',
+        'CEIL': 'CEIL',
+        'FRACT': 'FRACTION',
+        'MODULO': 'MODULO',
+        'WRAP': 'WRAP',
+        'SNAP': 'SNAP',
+        'SINE': 'SINE',
+        'COSINE': 'COSINE',
+        'TANGENT': 'TANGENT',
+    }
+
     def __init__(self, props) -> None:
         sockets = [self._input_sockets[0]]
         operation = props[0]

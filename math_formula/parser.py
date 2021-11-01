@@ -39,6 +39,7 @@ class InstructionType(IntEnum):
 
 class OpType(IntEnum):
     PUSH_VALUE = 0
+    SWAP_2 = auto()
     CALL_FUNCTION = auto()
     END_OF_STATEMENT = auto()
 
@@ -374,38 +375,12 @@ def unary(self: Parser, can_assign: bool) -> None:
         assert False, "Unreachable code"
 
 
-def make_vec3_from_values(args: list[Instruction]) -> list[float]:
-    vec3 = []
-    for arg in args:
-        val = arg.data.value
-        if val is None:
-            vec3.append(0.0)
-        elif isinstance(val, float):
-            vec3.append(val)
-        else:
-            assert False, 'Unreachable code'
-    return vec3
-
-
 def make_vector(self: Parser, can_assign: bool) -> None:
     bracket_token = self.previous
     function = function_nodes.CombineXYZ([])
     arg_count = self.argument_list(Token('}', TokenType.RIGHT_BRACE))
     self.instructions.append(Instruction(
         InstructionType.FUNCTION, (function, arg_count), bracket_token))
-    # # Check if the arguments are just regular values. In that case
-    # # we don't need a combine XYZ node.
-    # args = self.instructions[-4:-1]
-    # no_expressions = True
-    # for arg in args:
-    #     if not isinstance(arg.data, Value):
-    #         no_expressions = False
-    #         break
-    # if no_expressions:
-    #     self.instructions = self.instructions[:-4]
-    #     # Get rid of the result of CombineXYZ
-    #     self.add_value_instruction(
-    #         Value(DataType.VEC3, make_vec3_from_values(args)))
 
 
 def call(self: Parser, can_assign: bool) -> None:
@@ -597,50 +572,6 @@ class TypeChecker():
     def add_operation(self, op_type: OpType, data: Union[ValueType, NodeFunction]):
         self.checked_program.append(Operation(op_type, data))
 
-    # def type_check_operator(self, operator_name: str) -> None:
-    #     arg2 = self.type_check_stack.pop()
-    #     arg1 = self.type_check_stack.pop()
-    #     function = None
-    #     if arg1[0].data_type == DataType.VEC3 or arg2[0].data_type == DataType.VEC3:
-    #         function = function_nodes.VectorMath([operator_name])
-    #     else:
-    #         function = function_nodes.Math([operator_name])
-    #     self.test_conversion_of_args((arg1, arg2), function.input_sockets())
-    #     self.type_check_outputs(function)
-
-    # def type_check_multiply(self) -> None:
-    #     arg2 = self.type_check_stack.pop()
-    #     arg1 = self.type_check_stack.pop()
-    #     function = None
-    #     if arg1[0].data_type == DataType.VEC3:
-    #         if arg2[0].data_type == DataType.VEC3:
-    #             function = function_nodes.VectorMath(['MULTIPLY'])
-    #         else:
-    #             function = function_nodes.VectorMath(['SCALE'])
-    #     elif arg2[0].data_type == DataType.VEC3:
-    #         function = function_nodes.VectorMath(['SCALE'])
-    #         # Vector should be first input!
-    #         instruction1 = arg1[1]
-    #         arg2, arg1 = arg1, arg2
-    #         self.instructions.remove(instruction1)
-    #         self.instructions.append(instruction1)
-    #     else:
-    #         function = function_nodes.Math(['MULTIPLY'])
-    #     self.test_conversion_of_args((arg1, arg2), function.input_sockets())
-    #     self.type_check_outputs(function)
-
-    # def type_check_outputs(self, function: NodeFunction) -> None:
-    #     self.instructions.append(Instruction(
-    #         InstructionType.FUNCTION, function))
-    #     outputs = function.output_sockets()
-    #     if len(outputs) == 1:
-    #         self.type_check_stack.append(
-    #             (Value(outputs[0].sock_type, NodeSocket), self.instructions[-1]))
-    #     else:
-    #         raise NotImplementedError
-    #         # for output in outputs:
-    #         #     self.type_check_stack.append(Value(output.sock_type, NodeSocket))
-
     def test_conversion_of_args(self, arg_values: list[TypeCheckValue], expected_arguments: list[Socket]) -> bool:
         for i, arg_value in enumerate(arg_values):
             assert isinstance(arg_value.value, Value), 'Type checker bug'
@@ -662,15 +593,66 @@ class TypeChecker():
                 return False
         return True
 
-    def type_check_arguments(self, function: NodeFunction, arg_count: int, token: Token) -> bool:
+    def multiply_overloading(self, function: NodeFunction, arg_count: int) -> tuple[list[TypeCheckValue], NodeFunction]:
+        if arg_count == 0:
+            return [], function
+        elif arg_count == 1:
+            arg = self.stack.pop()
+            if arg.value.data_type == DataType.VEC3:
+                function = function_nodes.VectorMath(['MULTIPLY'])
+            return [arg], function
+        arg2 = self.stack.pop()
+        arg1 = self.stack.pop()
+        if arg1.value.data_type == DataType.VEC3:
+            if arg2.value.data_type == DataType.VEC3:
+                function = function_nodes.VectorMath(['MULTIPLY'])
+            else:
+                function = function_nodes.VectorMath(['SCALE'])
+        elif arg2.value.data_type == DataType.VEC3:
+            function = function_nodes.VectorMath(['SCALE'])
+            # Vector should be first input!
+            self.add_operation(OpType.SWAP_2, None)
+            arg1, arg2 = arg2, arg1
+        arg_types = [arg1, arg2]
+        return arg_types, function
+
+    def other_overloading(self, function: NodeFunction, arg_count: int) -> tuple[list[TypeCheckValue], NodeFunction]:
+        operator_name = function_nodes.Math._overloadable[function.prop_values[0][1]]
+        arg_types = self.stack[-arg_count:]
+        self.stack = self.stack[:-arg_count]
+        vector_math = False
+        for arg in arg_types:
+            if arg.value.data_type == DataType.VEC3:
+                vector_math = True
+                break
+        if vector_math:
+            function = function_nodes.VectorMath([operator_name])
+        return arg_types, function
+
+    def type_check_arguments(self, function: NodeFunction, arg_count: int, token: Token) -> tuple[bool, NodeFunction]:
         expected_arguments = function.input_sockets()
         if len(expected_arguments) < arg_count:
             self.error_at(token,
                           f'Expected at most {len(expected_arguments)} argument(s), but got {arg_count} arguments')
             return False
         assert len(self.stack) >= arg_count, 'Bug in type checker'
-        arg_types = self.stack[-arg_count:]
-        self.stack = self.stack[:-arg_count]
+        arg_types = None
+        if isinstance(function, function_nodes.Math):
+            if function.prop_values[0][1] == 'MULTIPLY':
+                arg_types, function = self.multiply_overloading(
+                    function, arg_count)
+                expected_arguments = function.input_sockets()
+
+            elif function.prop_values[0][1] in function_nodes.Math._overloadable:
+                arg_types, function = self.other_overloading(
+                    function, arg_count)
+                expected_arguments = function.input_sockets()
+            else:
+                arg_types = self.stack[-arg_count:]
+                self.stack = self.stack[:-arg_count]
+        else:
+            arg_types = self.stack[-arg_count:]
+            self.stack = self.stack[:-arg_count]
         if not self.test_conversion_of_args(arg_types, expected_arguments):
             return False
         if arg_count < len(expected_arguments):
@@ -678,7 +660,7 @@ class TypeChecker():
             for _ in range(len(expected_arguments)-arg_count):
                 # No need to type check these.
                 self.add_operation(OpType.PUSH_VALUE, None)
-        return True
+        return True, function
 
     def type_check_function(self, instruction: Instruction) -> bool:
         """
@@ -690,7 +672,11 @@ class TypeChecker():
         function, arg_count = instruction.data
         assert isinstance(function, NodeFunction)
         assert isinstance(arg_count, int)
-        if not self.type_check_arguments(function, arg_count, instruction.token):
+        # Have to return `function` because modifying it inside the function
+        # doesn't work.
+        ok, function = self.type_check_arguments(
+            function, arg_count, instruction.token)
+        if not ok:
             return False
         self.add_operation(OpType.CALL_FUNCTION, function)
         outputs = function.output_sockets()
