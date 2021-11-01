@@ -442,7 +442,7 @@ def call(self: Parser, can_assign: bool) -> None:
         return
     arg_count = self.argument_list(Token(')', TokenType.RIGHT_PAREN))
     self.instructions.append(Instruction(
-        InstructionType.FUNCTION, (function, arg_count), prev_instruction))
+        InstructionType.FUNCTION, (function, arg_count), prev_instruction.token))
 
 
 def properties(self: Parser, can_assign: bool) -> None:
@@ -662,10 +662,10 @@ class TypeChecker():
                 return False
         return True
 
-    def type_check_arguments(self, function: NodeFunction, arg_count: int, instruction: Instruction) -> bool:
+    def type_check_arguments(self, function: NodeFunction, arg_count: int, token: Token) -> bool:
         expected_arguments = function.input_sockets()
         if len(expected_arguments) < arg_count:
-            self.error_at(instruction.token,
+            self.error_at(token,
                           f'Expected at most {len(expected_arguments)} argument(s), but got {arg_count} arguments')
             return False
         assert len(self.stack) >= arg_count, 'Bug in type checker'
@@ -690,7 +690,7 @@ class TypeChecker():
         function, arg_count = instruction.data
         assert isinstance(function, NodeFunction)
         assert isinstance(arg_count, int)
-        if not self.type_check_arguments(function, arg_count, Instruction):
+        if not self.type_check_arguments(function, arg_count, instruction.token):
             return False
         self.add_operation(OpType.CALL_FUNCTION, function)
         outputs = function.output_sockets()
