@@ -38,9 +38,18 @@ class InstructionType(IntEnum):
 
 
 class OpType(IntEnum):
+    # Push the given value on the stack. None represents a default value.
     PUSH_VALUE = 0
+    # Create a variable with the given name, and assign it to stack.pop()
+    CREATE_VAR = auto()
+    # Swap the last 2 elements of the stack.
     SWAP_2 = auto()
+    # Call the given function, all the arguments are on the stack. Push the output
+    # onto the stack
     CALL_FUNCTION = auto()
+    # Create an input node for the given type. The value is stack.pop().
+    CREATE_INPUT = auto()
+    # Clear the stack.
     END_OF_STATEMENT = auto()
 
 
@@ -49,6 +58,12 @@ class Operation():
                  data: Union[ValueType, NodeFunction]) -> None:
         self.op_type = op_type
         self.data = data
+
+    def __str__(self) -> str:
+        return f"({self.op_type.name}, {self.data})"
+
+    def __repr__(self) -> str:
+        return self.__str__()
 
 
 class Variable():
@@ -556,10 +571,18 @@ class TypeCheckValue():
         self.adjust_target = adjust_target
 
 
+class TypeCheckVar():
+    def __init__(self, token: Token, var: Variable, target: int) -> None:
+        self.token = token
+        self.var = var
+        self.target = target
+
+
 class TypeChecker():
     def __init__(self) -> None:
-        self.stack: list[TypeCheckValue] = []
-        self.vars = {}
+        self.value_stack: list[TypeCheckValue] = []
+        self.var_stack: list[Union[TypeCheckVar, None]] = []
+        self.vars: dict[str, DataType] = {}
         self.checked_program: list[Operation] = []
         self.errors: list[Error] = []
 
@@ -597,12 +620,12 @@ class TypeChecker():
         if arg_count == 0:
             return [], function
         elif arg_count == 1:
-            arg = self.stack.pop()
+            arg = self.value_stack.pop()
             if arg.value.data_type == DataType.VEC3:
                 function = function_nodes.VectorMath(['MULTIPLY'])
             return [arg], function
-        arg2 = self.stack.pop()
-        arg1 = self.stack.pop()
+        arg2 = self.value_stack.pop()
+        arg1 = self.value_stack.pop()
         if arg1.value.data_type == DataType.VEC3:
             if arg2.value.data_type == DataType.VEC3:
                 function = function_nodes.VectorMath(['MULTIPLY'])
@@ -618,8 +641,8 @@ class TypeChecker():
 
     def other_overloading(self, function: NodeFunction, arg_count: int) -> tuple[list[TypeCheckValue], NodeFunction]:
         operator_name = function_nodes.Math._overloadable[function.prop_values[0][1]]
-        arg_types = self.stack[-arg_count:]
-        self.stack = self.stack[:-arg_count]
+        arg_types = self.value_stack[-arg_count:]
+        self.value_stack = self.value_stack[:-arg_count]
         vector_math = False
         for arg in arg_types:
             if arg.value.data_type == DataType.VEC3:
@@ -635,7 +658,7 @@ class TypeChecker():
             self.error_at(token,
                           f'Expected at most {len(expected_arguments)} argument(s), but got {arg_count} arguments')
             return False
-        assert len(self.stack) >= arg_count, 'Bug in type checker'
+        assert len(self.value_stack) >= arg_count, 'Bug in type checker'
         arg_types = None
         if isinstance(function, function_nodes.Math):
             if function.prop_values[0][1] == 'MULTIPLY':
@@ -648,11 +671,11 @@ class TypeChecker():
                     function, arg_count)
                 expected_arguments = function.input_sockets()
             else:
-                arg_types = self.stack[-arg_count:]
-                self.stack = self.stack[:-arg_count]
+                arg_types = self.value_stack[-arg_count:]
+                self.value_stack = self.value_stack[:-arg_count]
         else:
-            arg_types = self.stack[-arg_count:]
-            self.stack = self.stack[:-arg_count]
+            arg_types = self.value_stack[-arg_count:]
+            self.value_stack = self.value_stack[:-arg_count]
         if not self.test_conversion_of_args(arg_types, expected_arguments):
             return False
         if arg_count < len(expected_arguments):
@@ -681,12 +704,38 @@ class TypeChecker():
         self.add_operation(OpType.CALL_FUNCTION, function)
         outputs = function.output_sockets()
         assert len(outputs) == 1, 'Not implemented'
-        self.stack.append(TypeCheckValue(instruction.token, Value(
+        self.value_stack.append(TypeCheckValue(instruction.token, Value(
             outputs[0].sock_type, NodeSocket), True, 0))
         return True
 
-    def type_check_assignment(self, assignment_instruction: Instruction):
-        raise NotImplementedError
+    def type_check_assignment(self, assignment_instruction: Instruction) -> bool:
+        num_vars = assignment_instruction.data
+        assert isinstance(
+            num_vars, int), 'Bug in parser, wrong data for assignment'
+        if num_vars != 1:
+            raise NotImplementedError
+        var = self.var_stack.pop()
+        if var is None:
+            return
+        assert len(self.value_stack) == 1, 'Should always be one element for now.'
+        value = self.value_stack.pop()
+        var_type = var.var.value.data_type
+        value_type = value.value.data_type
+        if value_type == DataType.DEFAULT:
+            self.add_operation(OpType.CREATE_INPUT,
+                               var_type)
+        else:
+            if var_type.can_convert(value_type):
+                if value.value.value != NodeSocket:
+                    self.add_operation(OpType.CREATE_INPUT, value_type)
+                var_type = value_type
+            else:
+                self.error_at(
+                    var.token, f'Can\'t assign value with type {data_type_to_string[value_type]} to variable with type {data_type_to_string[var_type]}.')
+                return False
+        self.add_operation(OpType.CREATE_VAR, var.var.name)
+        self.vars[var.var.name] = var_type
+        return True
 
     def type_check(self, program: list[Instruction]) -> bool:
         """
@@ -702,10 +751,12 @@ class TypeChecker():
                 assert isinstance(instruction.data,
                                   Value), 'Parser Bug: non-value data.'
                 self.add_operation(OpType.PUSH_VALUE, instruction.data.value)
-                self.stack.append(TypeCheckValue(
+                self.value_stack.append(TypeCheckValue(
                     instruction.token, instruction.data, False, len(self.checked_program) - 1))
             elif itype == InstructionType.VAR:
-                raise NotImplementedError
+                assert isinstance(instruction.data, Variable), 'Parser bug.'
+                self.var_stack.append(TypeCheckVar(
+                    instruction.token, instruction.data, len(self.checked_program)-1))
             elif itype == InstructionType.GET_VAR:
                 raise NotImplementedError
             elif itype == InstructionType.PROPERTIES:
@@ -714,15 +765,17 @@ class TypeChecker():
                 if not self.type_check_function(instruction):
                     return False
             elif itype == InstructionType.END_OF_STATEMENT:
-                self.stack = []
+                self.value_stack = []
+                self.var_stack = []
                 self.add_operation(OpType.END_OF_STATEMENT, None)
             elif itype == InstructionType.ASSIGNMENT:
-                raise NotImplementedError
+                if not self.type_check_assignment(instruction):
+                    return False
             elif itype == InstructionType.IGNORE:
-                raise NotImplementedError
+                self.value_stack.append(TypeCheckValue(
+                    instruction.token, instruction.value, True, 0))
             ip += 1
         return True
-        # raise NotImplementedError
 
 
 class Compiler():

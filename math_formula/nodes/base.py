@@ -15,7 +15,7 @@ class DataType(IntEnum):
     STRING = auto()
 
     def can_convert(self, other: 'DataType') -> bool:
-        if self == DataType.UNKNOWN:
+        if self == DataType.UNKNOWN or self == DataType.DEFAULT:
             return True
         elif self == other:
             return True

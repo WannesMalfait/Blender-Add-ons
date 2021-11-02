@@ -1,4 +1,4 @@
-from .nodes.base import NodeFunction, Value, ValueType
+from .nodes.base import DataType, NodeFunction, Value, ValueType
 import time
 import bpy
 import blf
@@ -158,22 +158,35 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         return node
 
     @staticmethod
-    def get_value_as_socket(value, name: str, tree) -> tuple:
-        if isinstance(value, float):
-            node = tree.nodes.new('ShaderNodeValue')
-            node.label = name
-            node.outputs[0].default_value = value
-            socket = node.outputs[0]
-            return socket
-        elif isinstance(value, list):
-            node = tree.nodes.new('ShaderNodeCombineXYZ')
-            node.label = name
-            for i in range(3):
-                node.inputs[i].default_value = value[i]
-            socket = node.outputs[0]
-            return socket
+    def get_value_as_socket(value: ValueType, type: DataType, tree: bpy.types.NodeTree) -> tuple[bpy.types.Node, NodeSocket]:
+        node = None
+        node_prefix = 'ShaderNode'
+        if type == DataType.UNKNOWN or type == DataType.DEFAULT or type == DataType.FLOAT:
+            node = tree.nodes.new(node_prefix + 'Value')
+            if value is not None:
+                node.outputs[0].default_value = value
+            return node, node.outputs[0]
+
+        node_prefix = 'FunctionNode'
+        if type == DataType.BOOL:
+            node = tree.nodes.new(node_prefix + 'InputBool')
+            if value is not None:
+                node.boolean = value
+        elif type == DataType.INT:
+            node = tree.nodes.new(node_prefix + 'InputInt')
+            if value is not None:
+                node.integer = value
+        elif type == DataType.RGBA:
+            node = tree.nodes.new(node_prefix + 'InputColor')
+            if value is not None:
+                node.color = value
+        elif type == DataType.STRING:
+            node = tree.nodes.new(node_prefix + 'InputString')
+            if value is not None:
+                node.string = value
         else:
-            return value
+            assert False, 'Unreachable, problem in type checker'
+        return node, node.outputs[0]
 
     @staticmethod
     def separate_xyz(value, names, stack, variables, tree) -> tuple:
@@ -206,7 +219,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         nodes = []
         root_nodes = []
         # Variables in the form of output sockets
-        variables = {}
+        variables: dict[str, NodeSocket] = {}
         # Parse the input string into a sequence of tokens
         compiler = Compiler()
         success = compiler.compile(formula, file_loading.file_data.macros)
@@ -216,9 +229,16 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         for operation in checked_program:
             op_type = operation.op_type
             op_data = operation.data
-            assert OpType.END_OF_STATEMENT.value == 3, 'Exhaustive handling of Operation types.'
+            assert OpType.END_OF_STATEMENT.value == 5, 'Exhaustive handling of Operation types.'
             if op_type == OpType.PUSH_VALUE:
                 stack.append(op_data)
+            elif op_type == OpType.CREATE_VAR:
+                assert isinstance(
+                    op_data, str), 'Variable name should be a string.'
+                socket = stack[-1]
+                assert isinstance(
+                    socket, NodeSocket), 'Bug in type checker, create var expects a node socket.'
+                variables[op_data] = socket
             elif op_type == OpType.SWAP_2:
                 a1 = stack.pop()
                 a2 = stack.pop()
@@ -231,6 +251,13 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 node = self.add_func(context, args, function)
                 for socket in function.output_sockets():
                     stack.append(node.outputs[socket.index])
+                nodes.append(node)
+            elif op_type == OpType.CREATE_INPUT:
+                value = stack.pop()
+                assert not isinstance(
+                    value, NodeSocket), 'Only create Inputs for real values'
+                node, socket = self.get_value_as_socket(value, op_data, tree)
+                stack.append(socket)
                 nodes.append(node)
             elif op_type == OpType.END_OF_STATEMENT:
                 if stack == []:
