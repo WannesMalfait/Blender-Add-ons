@@ -1,8 +1,9 @@
 import math
 from typing import Union
-from bpy.types import NodeSocket, Operator
+from bpy.types import NodeSocket
 from .scanner import TokenType, Token, Scanner
 from .nodes import functions as function_nodes
+from .nodes import geometry as geometry_nodes
 from .nodes.base import DataType, Socket, Value, ValueType, string_to_data_type, data_type_to_string, NodeFunction
 from enum import IntEnum, auto
 
@@ -421,7 +422,7 @@ def call(self: Parser, can_assign: bool) -> None:
         self.error('Expected callable object')
     func_name = prev_instruction.data
     function = None
-    for dict in (function_nodes.functions,):
+    for dict in (function_nodes.functions, geometry_nodes.functions):
         if func_name in dict:
             function_cls: NodeFunction = dict[func_name]
             if len(props) > len(function_cls._props):

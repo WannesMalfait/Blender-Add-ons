@@ -22,9 +22,9 @@ let selection = dot(normal(), {1,0,1}) > 5;
 // The second option is useful if there are lots of arguments you want to skip.
 let uv_sphere = uv_sphere(18,20);
 // Here g1 and g2 are both of the type `Geometry`. The `separate_geometry` node has
-// a mode to choose from. By default this is 'POINTS', but other modes can be set by
+// a mode to choose from. By default this is 'POINT', but other modes can be set by
 // specifying: 
-// `separate_geometry['FACES'](uv_sphere, selection);`
+// `separate_geometry['FACE'](uv_sphere, selection);`
 // Modes, or other options on the node that don't have a socket, are skipped in
 // the positional argument list, i.e. you should always specify them with a keyword.
 let g1, g2 = separate_geometry(uv_sphere, selection);
@@ -54,13 +54,13 @@ You can define your own functions, node groups, and macros. Functions are exactl
 Example use of macros:
 ```js
 // A macro definition always starts with `MACRO`. Here we define a macro
-// which will replace `separate_faces` with `separate_geometry['FACES']`.
-MACRO separate_faces = separate_geometry['FACES'];
+// which will replace `separate_faces` with `separate_geometry['FACE']`.
+MACRO separate_faces = separate_geometry['FACE'];
 
 // Now we can do the following:
 let geo, _ = separate_faces(uv_sphere(), position().x > 0.2);
 // Which is the same as:
-let geo, _ = separate_geometry['FACES'](uv_sphere(), position().x > 0.2);
+let geo, _ = separate_geometry['FACE'](uv_sphere(), position().x > 0.2);
 
 // NOT SUPPORTED ATM:.
 MACRO lerp(a, b, fac) = map_range(fac, _,_, a, b);

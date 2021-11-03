@@ -2,7 +2,7 @@ from .base import *
 
 
 class CombineXYZ(NodeFunction):
-    _name = 'CombineXYZ'
+    _name = 'ShaderNodeCombineXYZ'
     _input_sockets = [
         Socket(0, 'x', DataType.FLOAT),
         Socket(1, 'y', DataType.FLOAT),
@@ -15,7 +15,7 @@ class CombineXYZ(NodeFunction):
 
 
 class SeparateXYZ(NodeFunction):
-    _name = 'SeparateXYZ'
+    _name = 'ShaderNodeSeparateXYZ'
     _input_sockets = [
         Socket(0, 'vector', DataType.VEC3),
     ]
@@ -29,8 +29,43 @@ class SeparateXYZ(NodeFunction):
         super().__init__(props)
 
 
+class MapRange(NodeFunction):
+    _name = 'ShaderNodeMapRange'
+    _input_sockets = [
+        Socket(0, 'value', DataType.FLOAT),
+        Socket(1, 'from_min', DataType.FLOAT),
+        Socket(2, 'from_max', DataType.FLOAT),
+        Socket(3, 'to_min', DataType.FLOAT),
+        Socket(4, 'to_max', DataType.FLOAT),
+        Socket(5, 'steps', DataType.FLOAT),
+    ]
+    _output_sockets = [
+        Socket(0, 'result', DataType.FLOAT),
+    ]
+
+    _props = (
+        ('interpolation_type', (
+            'LINEAR',
+            'STEPPED',
+            'SMOOTHSTEP',
+            'SMOOTHERSTEP',
+        ),),
+    )
+
+    def __init__(self, props) -> None:
+        super().__init__(props)
+        interpolation_type = None
+        if len(props) != 1:
+            interpolation_type = 'LINEAR'
+        else:
+            interpolation_type = props[0]
+        if interpolation_type != 'STEPPED':
+            self._input_sockets = self._input_sockets[:-1]
+        self.prop_values = [('interpolation_type', interpolation_type)]
+
+
 class Math(NodeFunction):
-    _name = 'Math'
+    _name = 'ShaderNodeMath'
     _input_sockets = [
         Socket(0, 'value1', DataType.FLOAT),
         Socket(1, 'value2', DataType.FLOAT),
@@ -109,7 +144,11 @@ class Math(NodeFunction):
 
     def __init__(self, props) -> None:
         sockets = [self._input_sockets[0]]
-        operation = props[0]
+        operation = None
+        if len(props) != 1:
+            operation = 'ADD'
+        else:
+            operation = props[0]
         if not operation in (
             'SQRT',
             'SIGN',
@@ -145,7 +184,7 @@ class Math(NodeFunction):
 
 
 class VectorMath(NodeFunction):
-    _name = 'VectorMath'
+    _name = 'ShaderNodeVectorMath'
     _input_sockets = [
         Socket(0, 'vector1', DataType.VEC3),
         Socket(1, 'vector2', DataType.VEC3),
@@ -189,7 +228,11 @@ class VectorMath(NodeFunction):
 
     def __init__(self, props) -> None:
         sockets = [self._input_sockets[0]]
-        operation = props[0]
+        operation = None
+        if len(props) != 1:
+            operation = 'ADD'
+        else:
+            operation = props[0]
         if not operation in (
             'SINE',
             'COSINE',
@@ -221,6 +264,7 @@ class VectorMath(NodeFunction):
 functions = {
     'combine_xyz': CombineXYZ,
     'separate_xyz': SeparateXYZ,
+    'map_range': MapRange,
     'math': Math,
     'vector_math': VectorMath,
 }

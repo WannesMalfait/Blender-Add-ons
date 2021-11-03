@@ -7,7 +7,7 @@ from .file_loading import fonts
 from .positioning import TreePositioner
 from .scanner import TokenType
 from .parser import Compiler, Error, InstructionType, OpType, string_to_data_type
-from bpy.types import NodeSocket
+from bpy.types import Event, Node, NodeSocket
 
 formula_history = []
 
@@ -123,7 +123,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
     )
 
     @ staticmethod
-    def store_mouse_cursor(context, event):
+    def store_mouse_cursor(context: bpy.context, event: bpy.types.Event):
         space = context.space_data
         tree = space.edit_tree
 
@@ -143,10 +143,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
     @staticmethod
     def add_func(context: bpy.context, args: list[ValueType], function: NodeFunction):
         tree: bpy.types.NodeTree = context.space_data.edit_tree
-        if tree.type == 'GeometryNodeTree':
-            node = tree.nodes.new(type="GeometryNode" + function.name())
-        else:
-            node = tree.nodes.new(type="ShaderNode" + function.name())
+        node = tree.nodes.new(type=function.name())
         for name, value in function.props():
             setattr(node, name, value)
         for i, socket in enumerate(function.input_sockets()):
@@ -188,36 +185,16 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             assert False, 'Unreachable, problem in type checker'
         return node, node.outputs[0]
 
-    @staticmethod
-    def separate_xyz(value, names, stack, variables, tree) -> tuple:
-        # position.xyz; theta = atan2(y,x); r = length({x,y,0}); {r,theta,z}
-        out_socket = value
-        node = tree.nodes.new('ShaderNodeSeparateXYZ')
-        tree.links.new(node.inputs[0], out_socket)
-        last_set = None
-        for i, component in enumerate(names):
-            if component == '':
-                continue
-            else:
-                socket = node.outputs[i]
-                variables[component] = socket
-                last_set = socket
-        if last_set is None:
-            stack.append(0)
-        else:
-            stack.append(last_set)
-
     def execute(self, context: bpy.context):
         space = context.space_data
         # Safe because of poll function
         tree: bpy.types.NodeTree = space.edit_tree
         props = context.scene.math_formula_add
         # The formula that we parse. Should be in Reverse Polish Notation
-        formula = props.formula
-        stack = []
+        formula: str = props.formula
+        stack: list[ValueType] = []
         # The nodes that we added
-        nodes = []
-        root_nodes = []
+        nodes: list[Node] = []
         # Variables in the form of output sockets
         variables: dict[str, NodeSocket] = {}
         # Parse the input string into a sequence of tokens
@@ -277,11 +254,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 stack.append(socket)
                 nodes.append(node)
             elif op_type == OpType.END_OF_STATEMENT:
-                if stack == []:
-                    continue
-                element = stack.pop()
-                if isinstance(element, NodeSocket):
-                    root_nodes.append(element.node)
                 stack = []
             else:
                 print(f'Need implementation of {op_type}')
@@ -294,21 +266,19 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 node.parent = frame
             frame.update()
         self.root_nodes = []
-        if root_nodes != []:
-            for root_node in root_nodes:
-                invalid = False
-                for socket in root_node.outputs:
-                    # It was connected later on, and is not a root node anymore
-                    if socket.is_linked:
-                        invalid = True
-                        break
-                if invalid:
-                    continue
-                else:
-                    self.root_nodes.append(root_node)
+        for node in nodes:
+            invalid = False
+            for socket in node.outputs:
+                if socket.is_linked:
+                    invalid = True
+                    break
+            if invalid:
+                continue
+            else:
+                self.root_nodes.append(node)
         return {'FINISHED'}
 
-    def modal(self, context, event):
+    def modal(self, context: bpy.context, event: bpy.types.Event):
         if self.root_nodes[0].dimensions.x == 0:
             return {'RUNNING_MODAL'}
         space = context.space_data
@@ -321,7 +291,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
 
         return {'FINISHED'}
 
-    def invoke(self, context, event):
+    def invoke(self, context: bpy.context, event: bpy.types.Event):
         self.store_mouse_cursor(context, event)
         self.execute(context)
         if self.root_nodes == []:
