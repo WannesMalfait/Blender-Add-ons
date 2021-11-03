@@ -40,10 +40,13 @@ class InstructionType(IntEnum):
 class OpType(IntEnum):
     # Push the given value on the stack. None represents a default value.
     PUSH_VALUE = 0
-    # Create a variable with the given name, and assign it to stack.pop()
+    # Create a variable with the given name, and assign it to stack.pop().
     CREATE_VAR = auto()
     # Get the variable with the given name, and push it onto the stack.
     GET_VAR = auto()
+    # Get the output with the given index from the last value on the stack.
+    # Put this value on top of the stack.
+    GET_OUTPUT = auto()
     # Swap the last 2 elements of the stack.
     SWAP_2 = auto()
     # Call the given function, all the arguments are on the stack. Push the output
@@ -295,7 +298,7 @@ class Parser():
 
     def argument_list(self, closing_token: Token) -> int:
         arg_count = 0
-        if not self.check(TokenType.RIGHT_PAREN):
+        if not self.check(closing_token.token_type):
             self.expression()
             arg_count += 1
             while self.match(TokenType.COMMA):
@@ -434,7 +437,7 @@ def call(self: Parser, can_assign: bool) -> None:
             function = function_cls(props)
             break
     if function is None:
-        self.error(f'Unknown function {func_name}.')
+        self.error_at(prev_instruction.token, f'Unknown function {func_name}.')
         return
     arg_count = self.argument_list(Token(')', TokenType.RIGHT_PAREN))
     self.instructions.append(Instruction(
@@ -577,6 +580,12 @@ class TypeCheckValue():
         self.adjust_target = adjust_target
 
 
+class TypeCheckStruct():
+    def __init__(self, token: Token, types: list[Socket]) -> None:
+        self.token = token
+        self.types = types
+
+
 class TypeCheckVar():
     def __init__(self, token: Token, var: Variable, target: int) -> None:
         self.token = token
@@ -586,7 +595,7 @@ class TypeCheckVar():
 
 class TypeChecker():
     def __init__(self) -> None:
-        self.value_stack: list[TypeCheckValue] = []
+        self.value_stack: list[Union[TypeCheckValue, TypeCheckStruct]] = []
         self.var_stack: list[Union[TypeCheckVar, None]] = []
         self.vars: dict[str, DataType] = {}
         self.checked_program: list[Operation] = []
@@ -666,6 +675,10 @@ class TypeChecker():
             return False
         assert len(self.value_stack) >= arg_count, 'Bug in type checker'
         arg_types = None
+        for v in self.value_stack[-arg_count:]:
+            if isinstance(v, TypeCheckStruct):
+                self.error_at(v.token, 'Function has more than 1 output.')
+                return False, function
         if isinstance(function, function_nodes.Math):
             if function.prop_values[0][1] == 'MULTIPLY':
                 arg_types, function = self.multiply_overloading(
@@ -683,7 +696,7 @@ class TypeChecker():
             arg_types = self.value_stack[-arg_count:]
             self.value_stack = self.value_stack[:-arg_count]
         if not self.test_conversion_of_args(arg_types, expected_arguments):
-            return False
+            return False, function
         if arg_count < len(expected_arguments):
             # Fill up with default values
             for _ in range(len(expected_arguments)-arg_count):
@@ -709,38 +722,88 @@ class TypeChecker():
             return False
         self.add_operation(OpType.CALL_FUNCTION, function)
         outputs = function.output_sockets()
-        assert len(outputs) == 1, 'Not implemented'
-        self.value_stack.append(TypeCheckValue(instruction.token, Value(
-            outputs[0].sock_type, NodeSocket), True, 0))
+        if len(outputs) == 1:
+            self.value_stack.append(TypeCheckValue(instruction.token, Value(
+                outputs[0].sock_type, NodeSocket), True, 0))
+        elif len(outputs) > 1:
+            self.value_stack.append(
+                TypeCheckStruct(instruction.token, outputs))
+        return True
+
+    def try_assign(self, var: TypeCheckVar, value: Value) -> bool:
+        var_type = var.var.value.data_type
+        value_type = value.data_type
+        if value_type == DataType.DEFAULT:
+            self.add_operation(OpType.CREATE_INPUT,
+                               var_type)
+        else:
+            if var_type.can_convert(value_type):
+                if value.value != NodeSocket:
+                    self.add_operation(OpType.CREATE_INPUT, value_type)
+            else:
+                self.error_at(
+                    var.token, f'Can\'t assign value with type {data_type_to_string[value_type]} to variable with type {data_type_to_string[var_type]}.')
+                return False
+        self.add_operation(OpType.CREATE_VAR, var.var.name)
+        self.vars[var.var.name] = value_type
         return True
 
     def type_check_assignment(self, assignment_instruction: Instruction) -> bool:
         num_vars = assignment_instruction.data
         assert isinstance(
             num_vars, int), 'Bug in parser, wrong data for assignment'
-        if num_vars != 1:
-            raise NotImplementedError
-        var = self.var_stack.pop()
-        if var is None:
-            return
-        assert len(self.value_stack) == 1, 'Should always be one element for now.'
+        assert len(
+            self.value_stack) == 1, 'Should always be one element (a Value or a Struct).'
         value = self.value_stack.pop()
-        var_type = var.var.value.data_type
-        value_type = value.value.data_type
-        if value_type == DataType.DEFAULT:
-            self.add_operation(OpType.CREATE_INPUT,
-                               var_type)
-        else:
-            if var_type.can_convert(value_type):
-                if value.value.value != NodeSocket:
-                    self.add_operation(OpType.CREATE_INPUT, value_type)
-                var_type = value_type
+        value_is_struct = isinstance(value, TypeCheckStruct)
+        if num_vars > 1:
+            if value_is_struct:
+                if len(value.types) < num_vars:
+                    self.error_at(assignment_instruction.token,
+                                  f'Too many variables, expected at most {len(value.types)}.')
+                    return False
             else:
-                self.error_at(
-                    var.token, f'Can\'t assign value with type {data_type_to_string[value_type]} to variable with type {data_type_to_string[var_type]}.')
-                return False
-        self.add_operation(OpType.CREATE_VAR, var.var.name)
-        self.vars[var.var.name] = var_type
+                if value.value.data_type == DataType.VEC3 and 3 < num_vars:
+                    self.error_at(assignment_instruction.token,
+                                  'Too many variables, expected at most 3.')
+                    return False
+        vars = self.var_stack[-num_vars:]
+        self.var_stack[:] = self.var_stack[:-num_vars]
+        if value_is_struct:
+            for i, var in enumerate(vars):
+                if var is None:
+                    continue
+                self.add_operation(OpType.GET_OUTPUT, i)
+                self.add_operation(OpType.CREATE_VAR, var.var.name)
+                var_type = var.var.value.data_type
+                value_type = value.types[i].sock_type
+                if not var_type.can_convert(value_type):
+                    self.error_at(
+                        var.token, f'Can\'t assign value of type {data_type_to_string[value_type]} to variable of type {[data_type_to_string[var_type]]}')
+                    return False
+                self.vars[var.var.name] = value_type
+        else:
+            if value.value.data_type == DataType.VEC3:
+                self.add_operation(OpType.CALL_FUNCTION,
+                                   function_nodes.SeparateXYZ([]))
+                for i, var in enumerate(vars):
+                    if var is None:
+                        continue
+                    self.add_operation(OpType.GET_OUTPUT, i)
+                    self.add_operation(OpType.CREATE_VAR, var.var.name)
+                    var_type = var.var.value.data_type
+                    if not var_type.can_convert(DataType.FLOAT):
+                        self.error_at(
+                            var.token, f'Can\'t assign value of type {data_type_to_string[DataType.FLOAT]} to variable of type {[data_type_to_string[var_type]]}')
+                        return False
+                    self.vars[var.var.name] = DataType.FLOAT
+            else:
+                self.try_assign(vars[0], value.value)
+                for var in vars[1:]:
+                    if var is None:
+                        continue
+                    self.add_operation(OpType.GET_VAR, vars[0].var.name)
+                    self.try_assign(var, value.value)
         return True
 
     def type_check(self, program: list[Instruction]) -> bool:
@@ -787,8 +850,7 @@ class TypeChecker():
                 if not self.type_check_assignment(instruction):
                     return False
             elif itype == InstructionType.IGNORE:
-                self.value_stack.append(TypeCheckValue(
-                    instruction.token, instruction.value, True, 0))
+                self.var_stack.append(None)
             ip += 1
         return True
 

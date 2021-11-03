@@ -28,10 +28,11 @@ let uv_sphere = uv_sphere(18,20);
 // Modes, or other options on the node that don't have a socket, are skipped in
 // the positional argument list, i.e. you should always specify them with a keyword.
 let g1, g2 = separate_geometry(uv_sphere, selection);
-// Calling '.xy' on a `vector` returns those components.
-let x, y = position().xy;
-// We can now update the position of g1, using the x and y components.
-set_position(g1, {x, y, z/(x*y)});
+// Vectors can also be decomposed into their components.
+let x, y = position();
+// We can now update the position of g1, using the x and y components. We ignore the selection
+// input.
+set_position(g1,_, {x, y, z/(x*y)});
 ```
 
 ### Python expressions
@@ -61,11 +62,13 @@ let geo, _ = separate_faces(uv_sphere(), position().x > 0.2);
 // Which is the same as:
 let geo, _ = separate_geometry['FACES'](uv_sphere(), position().x > 0.2);
 
-// In this case the arguments are just individual arguments.
+// NOT SUPPORTED ATM:.
 MACRO lerp(a, b, fac) = map_range(fac, _,_, a, b);
 MACRO slerp(a, b, fac) = map_range(mode = 'SMOOTHSTEP', fac, _,_, a, b);
 MACRO sslerp(a, b, fac) = map_range(mode = 'SMOOTHERSTEP', fac, _,_, a, b);
 ```
+
+NOTE: function and nodegroup creation is not supported at the moment.
 
 As a convention you use "snake_case" for function names, and "PascalCase" for node groups. Function definition and usage:
 ```js

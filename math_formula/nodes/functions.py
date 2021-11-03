@@ -14,6 +14,21 @@ class CombineXYZ(NodeFunction):
         super().__init__(props)
 
 
+class SeparateXYZ(NodeFunction):
+    _name = 'SeparateXYZ'
+    _input_sockets = [
+        Socket(0, 'vector', DataType.VEC3),
+    ]
+    _output_sockets = [
+        Socket(0, 'x', DataType.FLOAT),
+        Socket(1, 'y', DataType.FLOAT),
+        Socket(2, 'z', DataType.FLOAT),
+    ]
+
+    def __init__(self, props) -> None:
+        super().__init__(props)
+
+
 class Math(NodeFunction):
     _name = 'Math'
     _input_sockets = [
@@ -205,6 +220,7 @@ class VectorMath(NodeFunction):
 
 functions = {
     'combine_xyz': CombineXYZ,
+    'separate_xyz': SeparateXYZ,
     'math': Math,
     'vector_math': VectorMath,
 }

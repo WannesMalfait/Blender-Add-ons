@@ -229,20 +229,29 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         for operation in checked_program:
             op_type = operation.op_type
             op_data = operation.data
-            assert OpType.END_OF_STATEMENT.value == 6, 'Exhaustive handling of Operation types.'
+            assert OpType.END_OF_STATEMENT.value == 7, 'Exhaustive handling of Operation types.'
             if op_type == OpType.PUSH_VALUE:
                 stack.append(op_data)
             elif op_type == OpType.CREATE_VAR:
                 assert isinstance(
                     op_data, str), 'Variable name should be a string.'
-                socket = stack[-1]
+                socket = stack.pop()
                 assert isinstance(
                     socket, NodeSocket), 'Bug in type checker, create var expects a node socket.'
                 variables[op_data] = socket
+                # root_nodes.append(socket.node)
             elif op_type == OpType.GET_VAR:
                 assert isinstance(
                     op_data, str), 'Variable name should be a string.'
                 stack.append(variables[op_data])
+            elif op_type == OpType.GET_OUTPUT:
+                assert isinstance(
+                    op_data, int), 'Bug in type checker, index should be int.'
+                index = op_data
+                struct = stack[-1]
+                assert isinstance(
+                    struct, list), 'Bug in type checker, get_output only works on structs.'
+                stack.append(struct[index])
             elif op_type == OpType.SWAP_2:
                 a1 = stack.pop()
                 a2 = stack.pop()
@@ -253,8 +262,12 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 function: NodeFunction = op_data
                 args = self.get_args(stack, len(function.input_sockets()))
                 node = self.add_func(context, args, function)
-                for socket in function.output_sockets():
-                    stack.append(node.outputs[socket.index])
+                outputs = function.output_sockets()
+                if len(outputs) == 1:
+                    stack.append(node.outputs[outputs[0].index])
+                elif len(outputs) > 1:
+                    stack.append([node.outputs[socket.index]
+                                  for socket in outputs])
                 nodes.append(node)
             elif op_type == OpType.CREATE_INPUT:
                 value = stack.pop()
