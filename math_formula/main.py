@@ -229,7 +229,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         for operation in checked_program:
             op_type = operation.op_type
             op_data = operation.data
-            assert OpType.END_OF_STATEMENT.value == 5, 'Exhaustive handling of Operation types.'
+            assert OpType.END_OF_STATEMENT.value == 6, 'Exhaustive handling of Operation types.'
             if op_type == OpType.PUSH_VALUE:
                 stack.append(op_data)
             elif op_type == OpType.CREATE_VAR:
@@ -239,6 +239,10 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 assert isinstance(
                     socket, NodeSocket), 'Bug in type checker, create var expects a node socket.'
                 variables[op_data] = socket
+            elif op_type == OpType.GET_VAR:
+                assert isinstance(
+                    op_data, str), 'Variable name should be a string.'
+                stack.append(variables[op_data])
             elif op_type == OpType.SWAP_2:
                 a1 = stack.pop()
                 a2 = stack.pop()

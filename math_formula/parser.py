@@ -42,6 +42,8 @@ class OpType(IntEnum):
     PUSH_VALUE = 0
     # Create a variable with the given name, and assign it to stack.pop()
     CREATE_VAR = auto()
+    # Get the variable with the given name, and push it onto the stack.
+    GET_VAR = auto()
     # Swap the last 2 elements of the stack.
     SWAP_2 = auto()
     # Call the given function, all the arguments are on the stack. Push the output
@@ -758,7 +760,16 @@ class TypeChecker():
                 self.var_stack.append(TypeCheckVar(
                     instruction.token, instruction.data, len(self.checked_program)-1))
             elif itype == InstructionType.GET_VAR:
-                raise NotImplementedError
+                assert isinstance(
+                    instruction.data, str), 'Parser Bug: variable name should be a str.'
+                name = instruction.data
+                if not name in self.vars:
+                    self.error_at(instruction.token, 'Unknown variable name.')
+                    return False
+                data_type = self.vars[name]
+                self.value_stack.append(TypeCheckValue(
+                    instruction.token, Value(data_type, NodeSocket), True, 0))
+                self.add_operation(OpType.GET_VAR, name)
             elif itype == InstructionType.PROPERTIES:
                 assert False, 'Parser Bug: Properties should have been handled already.'
             elif itype == InstructionType.FUNCTION:
@@ -787,7 +798,6 @@ class Compiler():
     def compile(self, source: str, macros: MacroType) -> bool:
         self.instructions = []
         parser = Parser(source, macros)
-        # macros = parser.macro_storage
         parser.advance()
         while not parser.match(TokenType.EOL):
             parser.declaration()
