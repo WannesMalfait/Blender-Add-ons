@@ -62,8 +62,9 @@ class MFMathFormula(bpy.types.AddonPreferences):
         default=False,
     )
     python_color: bpy.props.FloatVectorProperty(
+        # C586C0
         name="Python Color",
-        default=(0.3, 0.1, 0.8),
+        default=(0.773, 0.525, 0.753),
         subtype='COLOR',
     )
     number_color: bpy.props.FloatVectorProperty(

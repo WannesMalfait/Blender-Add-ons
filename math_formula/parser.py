@@ -332,7 +332,11 @@ def python(self: Parser, can_assign: bool) -> None:
         value = eval(expression, vars(math))
     except (SyntaxError, NameError, TypeError, ZeroDivisionError) as err:
         self.error(f'Invalid python syntax: {err}.')
-    self.add_value_instruction(Value(value, DataType.FLOAT))
+    try:
+        value = float(value)
+    except:
+        self.error(f'Expected result of python expression to be a number.')
+    self.add_value_instruction(Value(DataType.FLOAT, value))
 
 
 def default(self: Parser, can_assign: bool) -> None:
