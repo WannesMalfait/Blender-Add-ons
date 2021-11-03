@@ -2,17 +2,17 @@
 
 Math Formula is an addon that speeds up the workflow of adding nodes or node setups to a node tree in blender. A prompt can be accessed in which the user types in a "formula". This then gets converted to nodes, which can be used in blender. The syntax that can be used to write this formula is described below.
 
-NOTE: These are only plans, and haven't been implemented yet.
+NOTE: These are plans, and not everything has been implemented yet.
 
 ## Types
 
-The different types are just the different types of node sockets, e.g. Geometry, vector, float... 
+The different types are just the different types of node sockets, e.g. geometry, vector, float... 
 
 ## Syntax
 
 The following example illustrates the basics of the syntax.
 ```js
-// The type of selection will be `boolean`, because `>` returns a `boolean`.
+// The type of selection will be `float`, because `>` returns a `float`.
 let selection = dot(normal(), {1,0,1}) > 5;
 // The uv_sphere node usually also takes a radius as input, but because it was 
 // omitted the node socket will be left unconnected. If we only wanted to set the
@@ -48,10 +48,10 @@ let example2 = sin(#(tau/4))
 
 
 ### Chaining calls
-When writing a formula we like to think from left to right. However, when we want to compose multiple functions we now have to think from right to left. Say that we want to scale some vector `pos` and then apply the fract to that, we would have to write: `fract(scale(pos, 0.5))` or `fract(pos * 0.5)`. Notice that the last thing we wanted to do was the first thing we had write. To prevent this problem you can also write the following: `pos.scale(0.5).fract();`. Calling `.function()` will take the expression before the `.` and place it in the first argument. In other words: `pos.scale(0.5)` is the same as `scale(pos, 0.5)`. This can feel a lot more natural, because it is also the way we usually build node trees.
+When writing a formula we like to think from left to right. However, when we want to compose multiple functions we now have to think from right to left. Say that we want to scale some vector `pos` and then apply `fract` to that, we would have to write: `fract(scale(pos, 0.5))` or `fract(pos * 0.5)`. Notice that the last thing we wanted to do was the first thing we had to write. To prevent this problem you can also write the following: `pos.scale(0.5).fract();`. Calling `.function()` will take the expression before the `.` and place it in the first argument. For example: `pos.scale(0.5)` is the same as `scale(pos, 0.5)`. This can feel a lot more natural, because it is also the way we usually build node trees.
 
 ### Getting specific outputs
-Another thing that can be annoying is getting the specific output of a node with many outputs. Take for example the Texture Coordinate node. If we want to get the object output you would have to write: `let _,_,_, object = tex_coord();`. To fix this you can also use the `.` to get a specific output. So we could write `let object = tex_coord().object`. Combining this with the chaining of function calls we get a concatenive way of writing expressions: 
+Another thing that can be annoying is getting the specific output of a node with many outputs. Take for example the Texture Coordinate node. If we want to get the object output you would have to write: `let _,_,_, object = tex_coord();`. To fix this you can also use the `.` to get a specific output. So we could write `let object = tex_coord().object`. Combining this with the chaining of function calls we get a concatenative way of writing expressions: 
 ```js
 tex_coord().object.scale(0.5).fract().sub(0.5).abs() ...
 ```
@@ -73,8 +73,8 @@ let geo, _ = separate_geometry['FACE'](uv_sphere(), position().x > 0.2);
 
 // NOT SUPPORTED ATM:.
 MACRO lerp(a, b, fac) = map_range(fac, _,_, a, b);
-MACRO slerp(a, b, fac) = map_range(mode = 'SMOOTHSTEP', fac, _,_, a, b);
-MACRO sslerp(a, b, fac) = map_range(mode = 'SMOOTHERSTEP', fac, _,_, a, b);
+MACRO slerp(a, b, fac) = map_range['SMOOTHSTEP'](fac, _,_, a, b);
+MACRO sslerp(a, b, fac) = map_range['SMOOTHERSTEP'](fac, _,_, a, b);
 ```
 
 NOTE: function and nodegroup creation is not supported at the moment.
