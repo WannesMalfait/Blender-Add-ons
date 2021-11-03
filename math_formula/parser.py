@@ -4,6 +4,7 @@ from bpy.types import NodeSocket
 from .scanner import TokenType, Token, Scanner
 from .nodes import functions as function_nodes
 from .nodes import geometry as geometry_nodes
+from .nodes import shading as shader_nodes
 from .nodes.base import DataType, Socket, Value, ValueType, string_to_data_type, data_type_to_string, NodeFunction
 from enum import IntEnum, auto
 
@@ -25,9 +26,9 @@ class Precedence(IntEnum):
 
 class InstructionType(IntEnum):
     VALUE = 0
-    # STRUCT = auto()
     VAR = auto()
     GET_VAR = auto()
+    GET_OUTPUT = auto()
     PROPERTIES = auto()
     FUNCTION = auto()
     # NODEGROUP = auto()
@@ -348,6 +349,7 @@ def default(self: Parser, can_assign: bool) -> None:
 
 
 def identifier(self: Parser, can_assign: bool) -> None:
+    # Return True if it was a macro
     identifier_token = self.previous
     name = identifier_token.lexeme
     if name in self.macro_storage:
@@ -362,8 +364,7 @@ def identifier(self: Parser, can_assign: bool) -> None:
         self.expression()
     else:
         self.instructions.append(Instruction(
-            InstructionType.GET_VAR, name, identifier_token)
-        )
+            InstructionType.GET_VAR, name, identifier_token))
 
 
 def string(self: Parser, can_assign: bool) -> None:
@@ -422,7 +423,7 @@ def call(self: Parser, can_assign: bool) -> None:
         self.error('Expected callable object')
     func_name = prev_instruction.data
     function = None
-    for dict in (function_nodes.functions, geometry_nodes.functions):
+    for dict in (function_nodes.functions, geometry_nodes.functions, shader_nodes.functions):
         if func_name in dict:
             function_cls: NodeFunction = dict[func_name]
             if len(props) > len(function_cls._props):
@@ -464,6 +465,34 @@ def properties(self: Parser, can_assign: bool) -> None:
         InstructionType.PROPERTIES, num_props, bracket_token))
 
 
+def dot(self: Parser, can_assign: bool) -> None:
+    # This can be two cases:
+    # 1. (expression).output_name (get the output of the result of the expression)
+    # 2. (expression).function_name() (call the function with the expression
+    #     as the first argument)
+    self.consume(TokenType.IDENTIFIER,
+                 'Expect output name or function call after ".".')
+    identifier_token = self.previous
+    if self.check(TokenType.LEFT_SQUARE_BRACKET) or self.check(TokenType.LEFT_PAREN):
+        prev_instruction = self.instructions[-1]
+        # Add back identifier
+        self.add_tokens([identifier_token])
+        self.expression()
+        # Add extra argument to function.
+        last_function = None
+        for i in range(len(self.instructions)):
+            if self.instructions[-i-1] == prev_instruction:
+                assert last_function is not None, 'Parser bug'
+                function, arg_count = last_function.data
+                last_function.data = (function, arg_count + 1)
+                break
+            if self.instructions[-i-1].instruction == InstructionType.FUNCTION:
+                last_function = self.instructions[-i-1]
+    else:
+        self.instructions.append(Instruction(
+            InstructionType.GET_OUTPUT, identifier_token.lexeme, identifier_token))
+
+
 def macro(self: Parser, can_assign: bool) -> None:
     # Simplified version of macros for now. No arguments.
     # We're turning something like this:
@@ -480,10 +509,6 @@ def macro(self: Parser, can_assign: bool) -> None:
         self.advance()
         rhs.append(self.previous)
     self.macro_storage[name] = rhs
-
-
-def separate(self: Parser, can_assign: bool) -> None:
-    raise NotImplementedError
 
 
 def binary(self: Parser, can_assign: bool) -> None:
@@ -524,7 +549,7 @@ rules: list[ParseRule] = [
     ParseRule(make_vector, None, Precedence.NONE),  # LEFT_BRACE
     ParseRule(None, None, Precedence.NONE),  # RIGHT_BRACE
     ParseRule(None, None, Precedence.NONE),  # COMMA
-    ParseRule(None, separate, Precedence.CALL),  # DOT
+    ParseRule(None, dot, Precedence.CALL),  # DOT
     ParseRule(None, None, Precedence.NONE),  # SEMICOLON
     ParseRule(None, None, Precedence.NONE),  # EQUAL
     ParseRule(unary, binary, Precedence.TERM),  # MINUS
@@ -784,7 +809,7 @@ class TypeChecker():
                     return False
                 self.vars[var.var.name] = value_type
         else:
-            if value.value.data_type == DataType.VEC3:
+            if num_vars > 1 and value.value.data_type == DataType.VEC3:
                 self.add_operation(OpType.CALL_FUNCTION,
                                    function_nodes.SeparateXYZ([]))
                 for i, var in enumerate(vars):
@@ -812,7 +837,7 @@ class TypeChecker():
         Go through all the instructions and make sure types and argument counts match up.
         This will modify the program in some cases to ensure correctness.
         """
-        assert InstructionType.IGNORE.value == 7, 'Exhaustive handling of instructions'
+        assert InstructionType.IGNORE.value == 8, 'Exhaustive handling of instructions'
         ip = 0
         while ip < len(program):
             instruction = program[ip]
@@ -838,6 +863,31 @@ class TypeChecker():
                 self.value_stack.append(TypeCheckValue(
                     instruction.token, Value(data_type, NodeSocket), True, 0))
                 self.add_operation(OpType.GET_VAR, name)
+            elif itype == InstructionType.GET_OUTPUT:
+                value = self.value_stack.pop()
+                if isinstance(value, TypeCheckValue):
+                    if value.value.data_type == DataType.VEC3:
+                        function = function_nodes.SeparateXYZ([])
+                        self.add_operation(
+                            OpType.CALL_FUNCTION, function)
+                        value = TypeCheckStruct(
+                            None, function.output_sockets())
+                    else:
+                        self.error_at(instruction.token,
+                                      f'Previous expression only had one output. HINT: remove ".{instruction.token.lexeme}".')
+                        return False
+                found = False
+                for i, socket in enumerate(value.types):
+                    if socket.name == instruction.data:
+                        self.add_operation(OpType.GET_OUTPUT, i)
+                        self.value_stack.append(TypeCheckValue(
+                            instruction.token, Value(socket.sock_type, NodeSocket), True, 0))
+                        found = True
+                        break
+                if not found:
+                    self.error_at(
+                        instruction.token, 'Output name does not match any of the output socket names.')
+                    return False
             elif itype == InstructionType.PROPERTIES:
                 assert False, 'Parser Bug: Properties should have been handled already.'
             elif itype == InstructionType.FUNCTION:

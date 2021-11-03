@@ -19,7 +19,10 @@ class SeparateGeometry(NodeFunction):
 
     def __init__(self, props) -> None:
         super().__init__(props)
-        self.prop_values = [('domain', props[0])]
+        if len(props) == 1:
+            self.prop_values = [('domain', props[0])]
+        else:
+            self.prop_values = [('domain', 'POINT')]
 
 
 class SetPosition(NodeFunction):

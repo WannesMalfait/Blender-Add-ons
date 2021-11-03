@@ -47,6 +47,15 @@ let example2 = sin(#(tau/4))
 ```
 
 
+### Chaining calls
+When writing a formula we like to think from left to right. However, when we want to compose multiple functions we now have to think from right to left. Say that we want to scale some vector `pos` and then apply the fract to that, we would have to write: `fract(scale(pos, 0.5))` or `fract(pos * 0.5)`. Notice that the last thing we wanted to do was the first thing we had write. To prevent this problem you can also write the following: `pos.scale(0.5).fract();`. Calling `.function()` will take the expression before the `.` and place it in the first argument. In other words: `pos.scale(0.5)` is the same as `scale(pos, 0.5)`. This can feel a lot more natural, because it is also the way we usually build node trees.
+
+### Getting specific outputs
+Another thing that can be annoying is getting the specific output of a node with many outputs. Take for example the Texture Coordinate node. If we want to get the object output you would have to write: `let _,_,_, object = tex_coord();`. To fix this you can also use the `.` to get a specific output. So we could write `let object = tex_coord().object`. Combining this with the chaining of function calls we get a concatenive way of writing expressions: 
+```js
+tex_coord().object.scale(0.5).fract().sub(0.5).abs() ...
+```
+
 ### Functions Node Groups and Macros
 You can define your own functions, node groups, and macros. Functions are exactly like node groups, but don't get turned into an actual node group when called. Macros on the other hand, are like an advanced "find and replace". They allow you to write commonly used expressions faster. In general if you want something with multiple nodes and arguments, using a function will be better.
 
