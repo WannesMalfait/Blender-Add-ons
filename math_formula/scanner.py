@@ -74,17 +74,19 @@ class Token():
 
     Each token has:
     - a `TokenType`
-    - a lexeme which is the text that this token had in the source
+    - a `lexeme` which is the text that this token had in the source
     - a number `line` which says which line of the text the token is in
+    - a number `col` which says where in the line the token starts
     - a number `start` which says where in the text the token starts
     - a number `times_expanded` which says how many times it has been expanded
     - a token `expanded_from`  which indicates which macro it was expanded from if not None
     """
 
-    def __init__(self, lexeme: str, token_type: TokenType, line: int = 0, start: int = 0) -> None:
+    def __init__(self, lexeme: str, token_type: TokenType, line: int = 0, col: int = 0, start: int = 0) -> None:
         self.token_type = token_type
         self.start = start
         self.line = line
+        self.col = col
         self.lexeme = lexeme
         self.times_expanded: int = 0
         self.expanded_from: Union[None, 'Token'] = None
@@ -111,6 +113,7 @@ class Scanner():
         self.source = source + '\0'
         self.start = 0
         self.line = 1
+        self.col = 1
         self.current = 0
 
     def is_at_end(self) -> bool:
@@ -118,6 +121,7 @@ class Scanner():
 
     def advance(self) -> str:
         self.current += 1
+        self.col += 1
         return self.source[self.current-1]
 
     def peek(self) -> str:
@@ -134,6 +138,7 @@ class Scanner():
         if self.peek() != expected:
             return False
         self.current += 1
+        self.col += 1
         return True
 
     def skip_whitespace(self) -> None:
@@ -141,6 +146,7 @@ class Scanner():
             c = self.peek()
             if c == '\n':
                 self.line += 1
+                self.col = 0
                 self.advance()
             elif c.isspace():
                 self.advance()
@@ -148,12 +154,14 @@ class Scanner():
                 return
 
     def make_token(self, token_type: TokenType) -> Token:
+        col = self.col - (self.current-self.start)
         return Token(self.source[self.start: self.current], token_type,
-                     line=self.line, start=self.start)
+                     line=self.line, col=col, start=self.start)
 
     def error_token(self, message: str) -> Token:
+        col = self.col - (self.current-self.start)
         return Token((self.source[self.start: self.current], message),
-                     TokenType.ERROR, line=self.line, start=self.start)
+                     TokenType.ERROR, line=self.line, col=col, start=self.start)
 
     def keyword(self) -> Union[TokenType, None]:
         """ Checks if it's a keyword, otherwise it's treated as an identifier."""

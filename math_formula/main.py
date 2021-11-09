@@ -5,11 +5,9 @@ import blf
 from . import file_loading
 from .file_loading import fonts
 from .positioning import TreePositioner
-from .scanner import TokenType
+from .scanner import Scanner, Token, TokenType
 from .parser import Compiler, Error, InstructionType, OpType, string_to_data_type
-from bpy.types import Event, Node, NodeSocket
-
-formula_history = []
+from bpy.types import Event, Node, NodeSocket, TexPaintSlot
 
 
 def mf_check(context) -> bool:
@@ -303,94 +301,258 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             return {'RUNNING_MODAL'}
 
 
-def draw_callback_px(self, context: bpy.context):
-    prefs = context.preferences.addons['math_formula'].preferences
-    font_id = fonts['regular']
-    font_size = prefs.font_size
-    blf.size(font_id, font_size, 72)
-    # show_errors = time.time()-self.last_action > 2
-    # show_errors = False
-    # Set the initial positions of the text
-    posx = self.formula_loc[0]
-    posy = self.formula_loc[1]
-    posz = 0
+class Editor():
+    def __init__(self, pos: tuple[float, float]) -> None:
+        self.pos = pos
+        self.lines: list[str] = [""]
+        self.line_tokens: list[list[Token]] = [[]]
+        self.cursor_col: int = 0
+        self.cursor_row: int = 0
+        self.draw_cursor_col: int = 0
+        self.scanner = Scanner("")
+        self.errors: list[Error] = []
 
-    # Get the dimensions so that we know where to place the next text
-    width, height = blf.dimensions(font_id, "Formula: ")
-    # Color for the non-user text.
-    blf.color(font_id, 0.4, 0.5, 0.1, 1.0)
-    blf.position(font_id, posx, posy+height+10, posz)
-    blf.draw(font_id, "(Press ENTER to confirm, ESC to cancel)")
-
-    blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
-    blf.position(font_id, posx, posy, posz)
-    blf.draw(font_id, "Formula: ")
-    if len(formula_history) >= self.formula_history_loc > 0:
-        self.formula = formula_history[-self.formula_history_loc]
-        self.cursor_index = len(self.formula)
-    formula = self.formula
-    tokens = Compiler.get_tokens(formula)
-    cursor_index = self.cursor_index
-    cursor_pos_set = False
-    cursor_pos = width
-    prev = 0
-    for i, token in enumerate(tokens):
-        blf.position(font_id, posx+width, posy, posz)
-        text = token.lexeme
-        start = token.start
-        # Get cursor relative offset
-        if not cursor_pos_set and start >= cursor_index:
-            cursor_pos = width - blf.dimensions(
-                font_id, formula[cursor_index:start])[0]
-            cursor_pos_set = True
-        # Draw white space
-        white_space = formula[prev:start]
-        blf.draw(font_id, white_space)
-        width += blf.dimensions(font_id, white_space)[0]
-        token_font_style = font_id
-        prev_token = tokens[i-1] if i > 0 else token
-        if token.token_type == TokenType.IDENTIFIER and prev_token.token_type == TokenType.COLON:
-            # Check if it's a valid type
-            color(token_font_style,
-                  prefs.type_color if token.lexeme in string_to_data_type else prefs.default_color)
-        elif TokenType.LET.value <= token.token_type.value <= TokenType.FALSE.value:
-            color(token_font_style, prefs.keyword_color)
-        elif token.token_type in (TokenType.INT, TokenType.FLOAT):
-            color(token_font_style, prefs.number_color)
-        elif token.token_type == TokenType.PYTHON:
-            token_font_style = fonts['bold']
-            color(token_font_style, prefs.python_color)
-        elif token.token_type == TokenType.ERROR:
-            text, error = token.lexeme
-            token_font_style = fonts['italic']
-            color(token_font_style, prefs.error_color)
-        elif token.token_type == TokenType.STRING:
-            color(token_font_style, prefs.string_color)
+    def cursor_up(self) -> None:
+        if self.cursor_row == 0:
+            return
         else:
-            color(token_font_style, prefs.default_color)
-        blf.size(token_font_style, font_size, 72)
+            self.cursor_row -= 1
+            # Make sure that we don't draw outside of the line, but
+            # at the same time keep track of where the actual cursor is
+            # in case we jump to a longer line next.
+            self.draw_cursor_col = min(
+                len(self.lines[self.cursor_row]), self.cursor_col)
 
-        blf.position(token_font_style, posx+width, posy, posz)
-        blf.draw(token_font_style, text)
-        width += blf.dimensions(token_font_style, text)[0]
-        prev = start + len(text)
+    def cursor_down(self) -> None:
+        if self.cursor_row == len(self.lines) - 1:
+            return
+        else:
+            self.cursor_row += 1
+            # Make sure that we don't draw outside of the line, but
+            # at the same time keep track of where the actual cursor is
+            # in case we jump to a longer line next.
+            self.draw_cursor_col = min(
+                len(self.lines[self.cursor_row]), self.cursor_col)
 
-    # Remaining white space at the end
-    width += blf.dimensions(font_id, formula[prev:])[0]
+    def cursor_left(self) -> None:
+        if self.draw_cursor_col == 0:
+            if self.cursor_row != 0:
+                self.cursor_row -= 1
+                self.draw_cursor_col = len(self.lines[self.cursor_row])
+        else:
+            self.draw_cursor_col -= 1
+        self.cursor_col = self.draw_cursor_col
 
-    # Errors
-    color(font_id, prefs.error_color)
-    for n, error in enumerate(self.errors):
-        blf.position(font_id, posx, posy-10-font_size*(n+1), posz)
-        blf.draw(font_id, error.message)
-    # Cursor is in the last token
-    if not cursor_pos_set and tokens != []:
-        cursor_pos = width-blf.dimensions(font_id,
-                                          formula[cursor_index:])[0]
-    # Draw cursor
-    blf.color(font_id, 0.1, 0.4, 0.7, 1.0)
-    blf.position(font_id, posx+cursor_pos, posy-font_size/10, posz)
-    blf.draw(font_id, '_')
+    def cursor_right(self) -> None:
+        if self.draw_cursor_col == len(self.lines[self.cursor_row]):
+            if self.cursor_row != len(self.lines) - 1:
+                self.cursor_row += 1
+                self.draw_cursor_col = 0
+        else:
+            self.draw_cursor_col += 1
+        self.cursor_col = self.draw_cursor_col
+
+    def cursor_home(self) -> None:
+        self.draw_cursor_col = 0
+        self.cursor_col = self.draw_cursor_col
+
+    def cursor_end(self) -> None:
+        self.draw_cursor_col = len(self.lines[self.cursor_row])
+        self.cursor_col = self.draw_cursor_col
+
+    def delete_before_cursor(self) -> None:
+        if self.draw_cursor_col == 0:
+            if self.cursor_row == 0:
+                self.cursor_col = 0
+                return
+            # Merge this line with previous one.
+            self.draw_cursor_col = len(self.lines[self.cursor_row - 1])
+            self.lines[self.cursor_row-1] += self.lines[self.cursor_row]
+            self.cursor_row -= 1
+            self.rescan_line()
+            self.cursor_col = self.draw_cursor_col
+            self.lines.pop(self.cursor_row+1)
+            self.line_tokens.pop(self.cursor_row+1)
+            return
+        line = self.lines[self.cursor_row]
+        self.lines[self.cursor_row] = line[:self.draw_cursor_col -
+                                           1] + line[self.draw_cursor_col:]
+        self.draw_cursor_col -= 1
+        self.cursor_col = self.draw_cursor_col
+        self.rescan_line()
+
+    def delete_after_cursor(self) -> None:
+        line = self.lines[self.cursor_row]
+        self.cursor_col = self.draw_cursor_col
+        if self.draw_cursor_col == len(line):
+            if self.cursor_row == len(self.lines) - 1:
+                return
+            # Merge this next line with this one.
+            self.lines[self.cursor_row] += self.lines[self.cursor_row + 1]
+            self.rescan_line()
+            self.lines.pop(self.cursor_row+1)
+            self.line_tokens.pop(self.cursor_row+1)
+            return
+        self.lines[self.cursor_row] = line[:self.draw_cursor_col] + \
+            line[self.draw_cursor_col + 1:]
+        self.rescan_line()
+
+    def paste_after_cursor(self, text: str) -> None:
+        line = self.lines[self.cursor_row]
+        if (index := text.find('\n')) != -1:
+            self.lines[self.cursor_row] = line[:self.draw_cursor_col] + text[:index]
+            self.rescan_line()
+            line = line[self.draw_cursor_col:]
+            text = text[index+1:]
+            self.new_line()
+            while True:
+                if text == "":
+                    break
+                if (index := text.find('\n')) != -1:
+                    self.lines[self.cursor_row] = text[:index]
+                    self.rescan_line()
+                    text = text[index+1:]
+                    self.new_line()
+                else:
+                    self.lines[self.cursor_row] = text + line
+                    self.rescan_line()
+                    break
+        else:
+            self.lines[self.cursor_row] = line[:self.draw_cursor_col] + \
+                text + line[self.draw_cursor_col:]
+            self.rescan_line()
+        self.draw_cursor_col += len(text)
+        self.cursor_col = self.draw_cursor_col
+
+    def add_char_after_cursor(self, char: str) -> None:
+        line = self.lines[self.cursor_row]
+        self.lines[self.cursor_row] = line[:self.draw_cursor_col] + \
+            char + line[self.draw_cursor_col:]
+        self.draw_cursor_col += 1
+        self.cursor_col = self.draw_cursor_col
+        self.rescan_line()
+
+    def new_line(self) -> None:
+        if self.draw_cursor_col != len(self.lines[self.cursor_row]):
+            line = self.lines[self.cursor_row]
+            self.lines[self.cursor_row] = line[:self.draw_cursor_col]
+            self.rescan_line()
+            self.cursor_row += 1
+            self.lines.insert(self.cursor_row, line[self.draw_cursor_col:])
+            self.line_tokens.insert(self.cursor_row, [])
+            self.rescan_line()
+            self.cursor_col = 0
+            self.draw_cursor_col = 0
+            return
+        self.cursor_row += 1
+        self.lines.insert(self.cursor_row, "")
+        self.line_tokens.insert(self.cursor_row, [])
+        self.cursor_col = 0
+        self.draw_cursor_col = 0
+
+    def rescan_line(self) -> None:
+        line = self.cursor_row
+        self.scanner.reset(self.lines[line])
+        # Expects a 1-based index
+        self.scanner.line = line + 1
+        self.line_tokens[line] = []
+        while(token := self.scanner.scan_token()).token_type != TokenType.EOL:
+            self.line_tokens[line].append(token)
+
+    def get_text(self) -> str:
+        return '\n'.join(self.lines)
+
+    def draw_callback_px(self, context: bpy.context):
+        prefs = context.preferences.addons['math_formula'].preferences
+        font_id = fonts['regular']
+        font_size = prefs.font_size
+        font_dpi = 72
+        blf.size(font_id, font_size, font_dpi)
+
+        char_width = blf.dimensions(font_id, 'H')[0]
+        char_height = blf.dimensions(font_id, 'Hq')[1]*1.3
+        # show_errors = time.time()-self.last_action > 2
+        # show_errors = False
+        # Set the initial positions of the text
+        posx = self.pos[0]
+        posy = self.pos[1]
+        posz = 0
+
+        # Get the dimensions so that we know where to place the next stuff
+        width = blf.dimensions(font_id, "Formula: ")[0]
+        # Color for the non-user text.
+        blf.color(font_id, 0.4, 0.5, 0.1, 1.0)
+        blf.position(font_id, posx, posy+char_height, posz)
+        blf.draw(
+            font_id, f"(Press ENTER to confirm, ESC to cancel)    (Line:{self.cursor_row+1} Col:{self.draw_cursor_col+1})")
+
+        blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
+        blf.position(font_id, posx, posy, posz)
+        blf.draw(font_id, "Formula: ")
+        for line_num, tokens in enumerate(self.line_tokens):
+            line = self.lines[line_num]
+            prev = 0
+            line_posx = posx+width
+            line_posy = posy - char_height*line_num
+            for i, token in enumerate(tokens):
+                blf.position(font_id, line_posx, line_posy, posz)
+                text = token.lexeme
+                start = token.start
+                # Draw white space
+                white_space = line[prev:start]
+                for char in white_space:
+                    blf.position(font_id, line_posx, line_posy, posz)
+                    blf.draw(font_id, char)
+                    line_posx += char_width
+                token_font_style = font_id
+                prev_token = tokens[i-1] if i > 0 else token
+                if token.token_type == TokenType.IDENTIFIER and prev_token.token_type == TokenType.COLON:
+                    # Check if it's a valid type
+                    color(token_font_style,
+                          prefs.type_color if token.lexeme in string_to_data_type else prefs.default_color)
+                elif TokenType.LET.value <= token.token_type.value <= TokenType.FALSE.value:
+                    color(token_font_style, prefs.keyword_color)
+                elif token.token_type in (TokenType.INT, TokenType.FLOAT):
+                    color(token_font_style, prefs.number_color)
+                elif token.token_type == TokenType.PYTHON:
+                    token_font_style = fonts['bold']
+                    color(token_font_style, prefs.python_color)
+                elif token.token_type == TokenType.ERROR:
+                    text, error = token.lexeme
+                    token_font_style = fonts['italic']
+                    color(token_font_style, prefs.error_color)
+                elif token.token_type == TokenType.STRING:
+                    color(token_font_style, prefs.string_color)
+                else:
+                    color(token_font_style, prefs.default_color)
+                blf.size(token_font_style, font_size, font_dpi)
+
+                # Draw manually to ensure equal spacing and no kerning.
+                for char in text:
+                    blf.position(token_font_style, line_posx, line_posy, posz)
+                    blf.draw(token_font_style, char)
+                    line_posx += char_width
+                prev = start + len(text)
+            # Errors
+            color(font_id, prefs.error_color)
+            error_base_y = posy-char_height*(len(self.lines) + 1)
+            for n, error in enumerate(self.errors):
+                blf.position(font_id, posx+width,
+                             error_base_y - n*char_height, posz)
+                blf.draw(font_id, error.message)
+                macro_token = error.token
+                while macro_token.expanded_from is not None:
+                    macro_token = macro_token.expanded_from
+                error_col = macro_token.col - 1
+                error_row = macro_token.line - 1
+                blf.position(font_id, posx+width+char_width *
+                             error_col, posy-char_height*error_row - char_height*0.75, posz)
+                blf.draw(font_id, '^'*len(error.token.lexeme))
+        # Draw cursor
+        blf.color(font_id, 0.1, 0.4, 0.7, 1.0)
+        blf.position(font_id, posx+width+self.draw_cursor_col*char_width-char_width/2,
+                     posy-char_height*self.cursor_row, posz)
+        blf.draw(font_id, '|')
 
 
 def color(font_id, color):
@@ -406,28 +568,30 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
     def modal(self, context: bpy.context, event: bpy.types.Event):
         context.area.tag_redraw()
         action = False
-        # Exit when they press enter
         if event.type == 'RET':
-            compiler = Compiler()
-            res = compiler.compile(self.formula, file_loading.file_data.macros)
-            if not res:
-                self.errors = compiler.errors
-                self.report(
-                    {'WARNING'}, 'Compile errors, could not create node tree')
-                return {'RUNNING_MODAL'}
-            # bpy.types.SpaceNodeEditor.draw_handler_remove(
-            #     self._handle, 'WINDOW')
-            # print(compiler.instructions)
-            # return {'FINISHED'}
-            bpy.types.SpaceNodeEditor.draw_handler_remove(
-                self._handle, 'WINDOW')
-            context.scene.math_formula_add.formula = self.formula
-            formula_history.append(self.formula)
-            # Deselect all the nodes before adding new ones
-            bpy.ops.node.select_all(action='DESELECT')
-            bpy.ops.node.mf_math_formula_add(
-                'INVOKE_DEFAULT', use_mouse_location=True)
-            return {'FINISHED'}
+            if event.shift:
+                # Ensure we go here if shift
+                if not self.lock:
+                    self.editor.new_line()
+                    self.lock = True
+            else:
+                # Exit when they press enter
+                compiler = Compiler()
+                formula = self.editor.get_text()
+                res = compiler.compile(formula, file_loading.file_data.macros)
+                if not res:
+                    self.editor.errors = compiler.errors
+                    self.report(
+                        {'WARNING'}, 'Compile errors, could not create node tree')
+                    return {'RUNNING_MODAL'}
+                bpy.types.SpaceNodeEditor.draw_handler_remove(
+                    self._handle, 'WINDOW')
+                context.scene.math_formula_add.formula = formula
+                # Deselect all the nodes before adding new ones
+                bpy.ops.node.select_all(action='DESELECT')
+                bpy.ops.node.mf_math_formula_add(
+                    'INVOKE_DEFAULT', use_mouse_location=True)
+                return {'FINISHED'}
         # Cancel when they press Esc or Rmb
         elif event.type in ('ESC', 'RIGHTMOUSE'):
             bpy.types.SpaceNodeEditor.draw_handler_remove(
@@ -443,8 +607,9 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         # Compile and check for errors
         elif not self.lock and event.alt and event.type == 'C':
             compiler = Compiler()
-            res = compiler.compile(self.formula, file_loading.file_data.macros)
-            self.errors = compiler.errors
+            res = compiler.compile(
+                self.editor.get_text(), file_loading.file_data.macros)
+            self.editor.errors = compiler.errors
             if res:
                 self.report({'INFO'}, 'No errors detected')
             else:
@@ -455,13 +620,13 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         # NAVIGATION
         elif event.type == 'MIDDLEMOUSE':
             self.old_mouse_loc = (event.mouse_region_x, event.mouse_region_y)
-            self.old_formula_loc = self.formula_loc
+            self.old_editor_loc = self.editor.pos
             self.middle_mouse = True
         elif event.type == 'MOUSEMOVE' and self.middle_mouse:
-            self.formula_loc = (
-                self.old_formula_loc[0] +
+            self.editor.pos = (
+                self.old_editor_loc[0] +
                 event.mouse_region_x - self.old_mouse_loc[0],
-                self.old_formula_loc[1] +
+                self.old_editor_loc[1] +
                 event.mouse_region_y - self.old_mouse_loc[1])
         elif event.type == 'WHEELUPMOUSE':
             prefs = context.preferences.addons['math_formula'].preferences
@@ -472,96 +637,45 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
 
         # CURSOR NAVIGATION
         elif event.type == 'LEFT_ARROW':
-            self.cursor_index = max(0, self.cursor_index - 1)
-            # We are now editing this one
-            self.formula_history_loc = 0
-            action = True
+            self.editor.cursor_left()
         elif event.type == 'RIGHT_ARROW':
-            self.cursor_index = min(len(self.formula), self.cursor_index + 1)
-            # We are now editing this one
-            self.formula_history_loc = 0
-            action = True
+            self.editor.cursor_right()
         elif event.type == 'HOME':
-            self.cursor_index = 0
-            # We are now editing this one
-            self.formula_history_loc = 0
-            action = True
+            self.editor.cursor_home()
         elif event.type == 'END':
-            self.cursor_index = len(self.formula)
-            # We are now editing this one
-            self.formula_history_loc = 0
-            action = True
-
-        # FORMULA HISTORY
+            self.editor.cursor_end()
         elif event.type == 'UP_ARROW':
-            self.formula_history_loc = min(
-                len(formula_history), self.formula_history_loc + 1)
-            action = True
+            self.editor.cursor_up()
         elif event.type == 'DOWN_ARROW':
-            self.formula_history_loc = max(0, self.formula_history_loc - 1)
-            action = True
+            self.editor.cursor_down()
 
         # INSERTION + DELETING
-        elif (not self.lock or event.is_repeat) and event.type == 'BACK_SPACE' and self.cursor_index != 0:
-            # Remove the char at the index
-            self.formula = self.formula[:self.cursor_index -
-                                        1] + self.formula[self.cursor_index:]
-            self.cursor_index = self.cursor_index - 1
+        elif (not self.lock or event.is_repeat) and event.type == 'BACK_SPACE':
+            self.editor.delete_before_cursor()
             # Prevent over sensitive keys
             self.lock = True
-            # We are now editing this one
-            self.formula_history_loc = 0
-            action = True
-        elif (not self.lock or event.is_repeat) and event.type == 'DEL' and self.cursor_index != len(self.formula):
-            # Remove the char at the index + 1
-            self.formula = self.formula[:self.cursor_index] + \
-                self.formula[self.cursor_index+1:]
-            # Prevent wrapping when cursor is at the front
-            self.cursor_index = max(0, self.cursor_index - 1)
+        elif (not self.lock or event.is_repeat) and event.type == 'DEL':
+            self.editor.delete_after_cursor()
             self.lock = True
-            # We are now editing this one
-            self.formula_history_loc = 0
-            action = True
         elif not self.lock and event.ctrl and event.type == 'V':
             # Paste from clipboard
-            clipboard = context.window_manager.clipboard
-            # Insert char at the index
-            self.formula = self.formula[:self.cursor_index] + \
-                clipboard + self.formula[self.cursor_index:]
-            self.cursor_index += len(clipboard)
+            self.editor.paste_after_cursor(context.window_manager.clipboard)
             self.lock = True
-            # We are now editing this one
-            self.formula_history_loc = 0
-            action = True
         elif event.unicode != "" and event.unicode.isprintable():
             # Only allow printable characters
-
-            # Insert char at the index
-            self.formula = self.formula[:self.cursor_index] + \
-                event.unicode + self.formula[self.cursor_index:]
-            self.cursor_index += 1
-            # We are now editing this one
-            self.formula_history_loc = 0
-            action = True
-        if action:
-            self.last_action = time.time()
+            self.editor.add_char_after_cursor(event.unicode)
         return {'RUNNING_MODAL'}
 
     def invoke(self, context: bpy.context, event: bpy.types.Event):
-        args = (self, context)
+        self.editor = Editor((event.mouse_region_x, event.mouse_region_y))
+        args = (self.editor, context)
         self._handle = bpy.types.SpaceNodeEditor.draw_handler_add(
-            draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
-        self.formula_loc = (event.mouse_region_x, event.mouse_region_y)
+            Editor.draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
         # Stores the location of the formula before dragging MMB
-        self.old_formula_loc = self.formula_loc
+        self.old_editor_loc = self.editor.pos
         self.old_mouse_loc = (0, 0)
-        self.cursor_index = 0
         self.lock = False
         self.middle_mouse = False
-        self.formula = ""
-        self.formula_history_loc = 0
-        self.errors: list[Error] = []
-        self.last_action = time.time()
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 

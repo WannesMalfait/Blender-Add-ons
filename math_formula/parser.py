@@ -95,7 +95,7 @@ class Error():
         return self.__str__()
 
     def __str__(self) -> str:
-        return f'Line: {self.token.line}: {self.message}'
+        return f'{self.message}'
 
 
 class Instruction():
@@ -144,15 +144,21 @@ class Parser():
         if self.panic_mode:
             return
         self.panic_mode = True
-        error = 'Error'
+        error = f'line:{token.line}:{token.col}: Error'
         if token.token_type == TokenType.EOL:
             error += ' at end:'
         elif token.token_type == TokenType.ERROR:
             pass
         else:
-            error += f' at "{token.lexeme}":'
-            if token.expanded_from is not None:
-                error += f' expanded from macro "{token.expanded_from.lexeme}": '
+            expanded = False
+            macro_token = token
+            while macro_token.expanded_from is not None:
+                macro_token = macro_token.expanded_from
+                expanded = True
+            if expanded:
+                error += f' at "{macro_token}" in macro "{token.lexeme}":'
+            else:
+                error += f' at "{macro_token.lexeme}":'
         # TODO: Better handling of errors
         self.errors.append(Error(token, f'{error} {message}'))
         self.had_error = True
@@ -183,8 +189,12 @@ class Parser():
                 self.current = self.scanner.scan_token()
             if self.current.token_type != TokenType.ERROR:
                 break
-            token, message = self.current.lexeme
-            self.error_at_current(f': {message}: {token}')
+            token = self.current
+            token_str, message = token.lexeme
+            self.error_at(Token(token_str, TokenType.ERROR,
+                                line=token.line,
+                                col=token.col,
+                                start=token.start), message)
 
     def get_rule(self, token_type: TokenType) -> ParseRule:
         return rules[token_type.value]
@@ -482,11 +492,14 @@ def dot(self: Parser, can_assign: bool) -> None:
         last_function = None
         for i in range(len(self.instructions)):
             if self.instructions[-i-1] == prev_instruction:
-                assert last_function is not None, 'Parser bug'
+                if last_function is None:
+                    self.error_at(
+                        identifier_token, 'Expected a function or a macro that expands to a function.')
+                    return
                 function, arg_count = last_function.data
                 last_function.data = (function, arg_count + 1)
                 break
-            if self.instructions[-i-1].instruction == InstructionType.FUNCTION:
+            elif self.instructions[-i-1].instruction == InstructionType.FUNCTION:
                 last_function = self.instructions[-i-1]
     else:
         self.instructions.append(Instruction(
@@ -628,9 +641,17 @@ class TypeChecker():
         self.errors: list[Error] = []
 
     def error_at(self, token: Token, msg: str) -> None:
-        error = f'Error at "{token.lexeme}":'
-        if token.expanded_from is not None:
-            error += f' expanded from macro "{token.expanded_from.lexeme}": '
+        error = f'line:{token.line}:{token.col}: Error'
+        expanded = False
+        macro_token = token
+        while macro_token.expanded_from is not None:
+            macro_token = macro_token.expanded_from
+            expanded = True
+        if expanded:
+            error = f'line:{macro_token.line}:{macro_token.col}: Error'
+            error += f' at "{token.lexeme}" in macro "{macro_token.lexeme}":'
+        else:
+            error += f' at "{macro_token.lexeme}":'
         self.errors.append(Error(token, f'{error} {msg}'))
 
     def add_operation(self, op_type: OpType, data: Union[ValueType, NodeFunction]):
@@ -698,7 +719,7 @@ class TypeChecker():
         if len(expected_arguments) < arg_count:
             self.error_at(token,
                           f'Expected at most {len(expected_arguments)} argument(s), but got {arg_count} arguments')
-            return False
+            return False, function
         assert len(self.value_stack) >= arg_count, 'Bug in type checker'
         arg_types = None
         for v in self.value_stack[-arg_count:]:

@@ -81,7 +81,9 @@ unless `force_update` is true"""
             self.report(
                 {'ERROR'}, 'Errors when loading macros. See console for more details.')
             for filename, file_errors in errors:
-                print(f'Errors in {filename}:\n {file_errors}')
+                print(f'Errors in {filename}')
+                for file_error in file_errors:
+                    print(file_error)
             # Ensure that we don't use wrong macros
             file_data.macros = {}
             return {'CANCELLED'}
