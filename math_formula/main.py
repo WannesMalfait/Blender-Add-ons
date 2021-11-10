@@ -1,6 +1,7 @@
 from .nodes.base import DataType, NodeFunction, Value, ValueType
 import bpy
 import blf
+import traceback
 from . import file_loading
 from .file_loading import fonts
 from .positioning import TreePositioner
@@ -473,8 +474,6 @@ class Editor():
 
         char_width = blf.dimensions(font_id, 'H')[0]
         char_height = blf.dimensions(font_id, 'Hq')[1]*1.3
-        # show_errors = time.time()-self.last_action > 2
-        # show_errors = False
         # Set the initial positions of the text
         posx = self.pos[0]
         posy = self.pos[1]
@@ -567,20 +566,37 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
     bl_label = "Type math formula then add nodes"
     bl_options = {'REGISTER'}
 
+    def internal_error(self, err: AssertionError, remove_handle: bool = True) -> None:
+        self.report(
+            {'ERROR'}, 'Internal error, please report as a bug (see console)')
+        print('\n\nERROR REPORT:\n')
+        traceback.print_tb(err.__traceback__)
+        print('Error triggered by following formula:')
+        print(self.editor.get_text())
+        print(
+            'Please report this at https://github.com/WannesMalfait/Blender-Add-ons/issues')
+        if remove_handle:
+            bpy.types.SpaceNodeEditor.draw_handler_remove(
+                self._handle, 'WINDOW')
+
     def modal(self, context: bpy.context, event: bpy.types.Event):
         context.area.tag_redraw()
-        action = False
         if event.type == 'RET':
             if event.shift:
                 # Ensure we go here if shift
-                if not self.lock:
+                if (not self.lock or event.is_repeat):
                     self.editor.new_line()
                     self.lock = True
             else:
                 # Exit when they press enter
                 compiler = Compiler()
                 formula = self.editor.get_text()
-                res = compiler.compile(formula, file_loading.file_data.macros)
+                try:
+                    res = compiler.compile(
+                        formula, file_loading.file_data.macros)
+                except Exception as err:
+                    self.internal_error(err)
+                    return {'CANCELLED'}
                 if not res:
                     self.editor.errors = compiler.errors
                     self.report(
@@ -591,8 +607,11 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 context.scene.math_formula_add.formula = formula
                 # Deselect all the nodes before adding new ones
                 bpy.ops.node.select_all(action='DESELECT')
-                bpy.ops.node.mf_math_formula_add(
-                    'INVOKE_DEFAULT', use_mouse_location=True)
+                try:
+                    bpy.ops.node.mf_math_formula_add(
+                        'INVOKE_DEFAULT', use_mouse_location=True)
+                except Exception as err:
+                    self.internal_error(err, remove_handle=False)
                 return {'FINISHED'}
         # Cancel when they press Esc or Rmb
         elif event.type in ('ESC', 'RIGHTMOUSE'):
@@ -609,15 +628,17 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         # Compile and check for errors
         elif not self.lock and event.alt and event.type == 'C':
             compiler = Compiler()
-            res = compiler.compile(
-                self.editor.get_text(), file_loading.file_data.macros)
+            try:
+                res = compiler.compile(
+                    self.editor.get_text(), file_loading.file_data.macros)
+            except Exception as err:
+                self.internal_error(err)
+                return {'CANCELLED'}
             self.editor.errors = compiler.errors
             if res:
                 self.report({'INFO'}, 'No errors detected')
             else:
                 self.report({'WARNING'}, 'Compilation failed')
-                print('Instructions: ', compiler.instructions)
-                print('Checked Program: ', compiler.checked_program)
 
         # NAVIGATION
         elif event.type == 'MIDDLEMOUSE':
