@@ -1,7 +1,11 @@
 from .nodes.base import DataType, NodeFunction, Value, ValueType
+from .nodes import functions as function_nodes
+from .nodes import geometry as geometry_nodes
+from .nodes import shading as shader_nodes
 import bpy
 import blf
 import traceback
+from collections import deque
 from . import file_loading
 from .file_loading import fonts
 from .positioning import TreePositioner
@@ -311,8 +315,62 @@ class Editor():
         self.draw_cursor_col: int = 0
         self.scanner = Scanner("")
         self.errors: list[Error] = []
+        self.suggestions: deque[str] = deque()
+
+    def try_auto_complete(self, tree_type: str) -> None:
+        # TODO: Make sugggestions bettter when prev token is a dot.
+        # This requires actual parsing to be able to tell what we are 'dotting'.
+        # Ideally something like 'tex_coord().' would suggest
+        # the outputs of tex_coord() like generated, object...
+        # while something like 'uv_sphere().' would suggest
+        # all the functions that have a geometry as first input.
+        # For something like 'sin().' it should give all the ones which
+        # can have a float or something that float can convert to.
+        token_under_cursor = None
+        for token in self.line_tokens[self.cursor_row]:
+            if token.start < self.draw_cursor_col <= token.start + len(token.lexeme):
+                token_under_cursor = token
+                break
+        if token_under_cursor is not None:
+            if len(self.suggestions) != 0:
+                suggestion = self.suggestions.popleft()
+                self.replace_token(token_under_cursor, suggestion)
+                self.suggestions.append(suggestion)
+                return
+
+            for name in file_loading.file_data.macros.keys():
+                if name.startswith(token.lexeme):
+                    self.suggestions.append(name)
+
+            for name in function_nodes.functions.keys():
+                if name.startswith(token.lexeme):
+                    self.suggestions.append(name)
+            names = None
+            if tree_type == 'GeometryNodeTree':
+                names = geometry_nodes.functions.keys()
+            else:
+                names = shader_nodes.functions.keys()
+            for name in names:
+                if name.startswith(token.lexeme):
+                    self.suggestions.append(name)
+            if len(self.suggestions) == 0:
+                return
+            suggestion = self.suggestions.popleft()
+            self.replace_token(token_under_cursor, suggestion)
+            self.suggestions.append(suggestion)
+
+    def replace_token(self, token: Token, text: str) -> None:
+        start = token.start
+        end = start + len(token.lexeme)
+        line = self.lines[self.cursor_row]
+        first = line[:start] + text
+        self.draw_cursor_col = len(first)
+        self.cursor_col = self.draw_cursor_col
+        self.lines[self.cursor_row] = first + line[end:]
+        self.rescan_line()
 
     def cursor_up(self) -> None:
+        self.suggestions.clear()
         if self.cursor_row == 0:
             return
         else:
@@ -324,6 +382,7 @@ class Editor():
                 len(self.lines[self.cursor_row]), self.cursor_col)
 
     def cursor_down(self) -> None:
+        self.suggestions.clear()
         if self.cursor_row == len(self.lines) - 1:
             return
         else:
@@ -335,6 +394,7 @@ class Editor():
                 len(self.lines[self.cursor_row]), self.cursor_col)
 
     def cursor_left(self) -> None:
+        self.suggestions.clear()
         if self.draw_cursor_col == 0:
             if self.cursor_row != 0:
                 self.cursor_row -= 1
@@ -344,6 +404,7 @@ class Editor():
         self.cursor_col = self.draw_cursor_col
 
     def cursor_right(self) -> None:
+        self.suggestions.clear()
         if self.draw_cursor_col == len(self.lines[self.cursor_row]):
             if self.cursor_row != len(self.lines) - 1:
                 self.cursor_row += 1
@@ -353,14 +414,17 @@ class Editor():
         self.cursor_col = self.draw_cursor_col
 
     def cursor_home(self) -> None:
+        self.suggestions.clear()
         self.draw_cursor_col = 0
         self.cursor_col = self.draw_cursor_col
 
     def cursor_end(self) -> None:
+        self.suggestions.clear()
         self.draw_cursor_col = len(self.lines[self.cursor_row])
         self.cursor_col = self.draw_cursor_col
 
     def delete_before_cursor(self) -> None:
+        self.suggestions.clear()
         if self.draw_cursor_col == 0:
             if self.cursor_row == 0:
                 self.cursor_col = 0
@@ -382,6 +446,7 @@ class Editor():
         self.rescan_line()
 
     def delete_after_cursor(self) -> None:
+        self.suggestions.clear()
         line = self.lines[self.cursor_row]
         self.cursor_col = self.draw_cursor_col
         if self.draw_cursor_col == len(line):
@@ -398,6 +463,7 @@ class Editor():
         self.rescan_line()
 
     def paste_after_cursor(self, text: str) -> None:
+        self.suggestions.clear()
         line = self.lines[self.cursor_row]
         if (index := text.find('\n')) != -1:
             self.lines[self.cursor_row] = line[:self.draw_cursor_col] + text[:index]
@@ -428,6 +494,7 @@ class Editor():
         self.cursor_col = self.draw_cursor_col
 
     def add_char_after_cursor(self, char: str) -> None:
+        self.suggestions.clear()
         line = self.lines[self.cursor_row]
         self.lines[self.cursor_row] = line[:self.draw_cursor_col] + \
             char + line[self.draw_cursor_col:]
@@ -436,6 +503,7 @@ class Editor():
         self.rescan_line()
 
     def new_line(self) -> None:
+        self.suggestions.clear()
         if self.draw_cursor_col != len(self.lines[self.cursor_row]):
             line = self.lines[self.cursor_row]
             self.lines[self.cursor_row] = line[:self.draw_cursor_col]
@@ -687,6 +755,12 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         elif event.unicode != "" and event.unicode.isprintable():
             # Only allow printable characters
             self.editor.add_char_after_cursor(event.unicode)
+
+        # AUTOCOMPLETE
+        elif not self.lock and event.type == 'TAB':
+            self.editor.try_auto_complete(
+                context.space_data.edit_tree.bl_idname)
+            self.lock = True
         return {'RUNNING_MODAL'}
 
     def invoke(self, context: bpy.context, event: bpy.types.Event):
