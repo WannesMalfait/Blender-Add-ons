@@ -1,13 +1,12 @@
 from .nodes.base import DataType, NodeFunction, Value, ValueType
-import time
 import bpy
 import blf
 from . import file_loading
 from .file_loading import fonts
 from .positioning import TreePositioner
 from .scanner import Scanner, Token, TokenType
-from .parser import Compiler, Error, InstructionType, OpType, string_to_data_type
-from bpy.types import Event, Node, NodeSocket, TexPaintSlot
+from .parser import Compiler, Error, OpType, string_to_data_type
+from bpy.types import Event, Node, NodeSocket
 
 
 def mf_check(context) -> bool:
@@ -404,6 +403,7 @@ class Editor():
             self.rescan_line()
             line = line[self.draw_cursor_col:]
             text = text[index+1:]
+            self.draw_cursor_col = len(self.lines[self.cursor_row])
             self.new_line()
             while True:
                 if text == "":
@@ -412,9 +412,11 @@ class Editor():
                     self.lines[self.cursor_row] = text[:index]
                     self.rescan_line()
                     text = text[index+1:]
+                    self.draw_cursor_col = len(self.lines[self.cursor_row])
                     self.new_line()
                 else:
                     self.lines[self.cursor_row] = text + line
+                    self.draw_cursor_col = 0
                     self.rescan_line()
                     break
         else:
