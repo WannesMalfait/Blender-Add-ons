@@ -634,11 +634,11 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
     bl_label = "Type math formula then add nodes"
     bl_options = {'REGISTER'}
 
-    def internal_error(self, err: AssertionError, remove_handle: bool = True) -> None:
+    def internal_error(self, remove_handle: bool = True) -> None:
         self.report(
             {'ERROR'}, 'Internal error, please report as a bug (see console)')
         print('\n\nERROR REPORT:\n')
-        traceback.print_tb(err.__traceback__)
+        traceback.print_exc()
         print('Error triggered by following formula:')
         print(self.editor.get_text())
         print(
@@ -662,8 +662,8 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 try:
                     res = compiler.compile(
                         formula, file_loading.file_data.macros)
-                except Exception as err:
-                    self.internal_error(err)
+                except:
+                    self.internal_error()
                     return {'CANCELLED'}
                 if not res:
                     self.editor.errors = compiler.errors
@@ -678,8 +678,8 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 try:
                     bpy.ops.node.mf_math_formula_add(
                         'INVOKE_DEFAULT', use_mouse_location=True)
-                except Exception as err:
-                    self.internal_error(err, remove_handle=False)
+                except:
+                    self.internal_error(remove_handle=False)
                 return {'FINISHED'}
         # Cancel when they press Esc or Rmb
         elif event.type in ('ESC', 'RIGHTMOUSE'):
@@ -699,8 +699,8 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             try:
                 res = compiler.compile(
                     self.editor.get_text(), file_loading.file_data.macros)
-            except Exception as err:
-                self.internal_error(err)
+            except:
+                self.internal_error()
                 return {'CANCELLED'}
             self.editor.errors = compiler.errors
             if res:

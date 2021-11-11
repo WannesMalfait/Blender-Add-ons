@@ -849,7 +849,11 @@ class TypeChecker():
                 for var in vars[1:]:
                     if var is None:
                         continue
-                    self.add_operation(OpType.GET_VAR, vars[0].var.name)
+                    if value.value.value == NodeSocket:
+                        self.add_operation(OpType.GET_VAR, vars[0].var.name)
+                    else:
+                        self.add_operation(
+                            OpType.PUSH_VALUE, value.value.value)
                     self.try_assign(var, value.value)
         return True
 
@@ -860,9 +864,11 @@ class TypeChecker():
         """
         assert InstructionType.IGNORE.value == 8, 'Exhaustive handling of instructions'
         ip = 0
+        no_errors = True
         while ip < len(program):
             instruction = program[ip]
             itype = instruction.instruction
+            panic = False
             if itype == InstructionType.VALUE:
                 assert isinstance(instruction.data,
                                   Value), 'Parser Bug: non-value data.'
@@ -879,11 +885,12 @@ class TypeChecker():
                 name = instruction.data
                 if not name in self.vars:
                     self.error_at(instruction.token, 'Unknown variable name.')
-                    return False
-                data_type = self.vars[name]
-                self.value_stack.append(TypeCheckValue(
-                    instruction.token, Value(data_type, NodeSocket), True, 0))
-                self.add_operation(OpType.GET_VAR, name)
+                    panic = True
+                else:
+                    data_type = self.vars[name]
+                    self.value_stack.append(TypeCheckValue(
+                        instruction.token, Value(data_type, NodeSocket), True, 0))
+                    self.add_operation(OpType.GET_VAR, name)
             elif itype == InstructionType.GET_OUTPUT:
                 value = self.value_stack.pop()
                 if isinstance(value, TypeCheckValue):
@@ -896,7 +903,7 @@ class TypeChecker():
                     else:
                         self.error_at(instruction.token,
                                       f'Previous expression only had one output. HINT: remove ".{instruction.token.lexeme}".')
-                        return False
+                        panic = True
                 found = False
                 for i, socket in enumerate(value.types):
                     if socket.name == instruction.data:
@@ -908,23 +915,28 @@ class TypeChecker():
                 if not found:
                     self.error_at(
                         instruction.token, 'Output name does not match any of the output socket names.')
-                    return False
+                    panic = True
             elif itype == InstructionType.PROPERTIES:
                 assert False, 'Parser Bug: Properties should have been handled already.'
             elif itype == InstructionType.FUNCTION:
                 if not self.type_check_function(instruction):
-                    return False
+                    panic = True
             elif itype == InstructionType.END_OF_STATEMENT:
                 self.value_stack = []
                 self.var_stack = []
                 self.add_operation(OpType.END_OF_STATEMENT, None)
             elif itype == InstructionType.ASSIGNMENT:
                 if not self.type_check_assignment(instruction):
-                    return False
+                    panic = True
             elif itype == InstructionType.IGNORE:
                 self.var_stack.append(None)
-            ip += 1
-        return True
+            if panic:
+                no_errors = False
+                while ip + 1 < len(program) and program[i+1].instruction != InstructionType.END_OF_STATEMENT:
+                    ip += 1
+            else:
+                ip += 1
+        return no_errors
 
 
 class Compiler():
