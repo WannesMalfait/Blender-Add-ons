@@ -10,7 +10,7 @@ from . import file_loading
 from .file_loading import fonts
 from .positioning import TreePositioner
 from .scanner import Scanner, Token, TokenType
-from .parser import Compiler, Error, OpType, string_to_data_type
+from .parser import InstructionType, Parser, Compiler, Error, OpType, string_to_data_type
 from bpy.types import Event, Node, NodeSocket
 
 
@@ -319,32 +319,69 @@ class Editor():
         self.suggestions: deque[str] = deque()
 
     def try_auto_complete(self, tree_type: str) -> None:
-        # TODO: Make sugggestions bettter when prev token is a dot.
-        # This requires actual parsing to be able to tell what we are 'dotting'.
-        # Ideally something like 'tex_coord().' would suggest
-        # the outputs of tex_coord() like generated, object...
-        # while something like 'uv_sphere().' would suggest
-        # all the functions that have a geometry as first input.
-        # For something like 'sin().' it should give all the ones which
-        # can have a float or something that float can convert to.
         token_under_cursor = None
+        prev_token = None
         for token in self.line_tokens[self.cursor_row]:
             if token.start < self.draw_cursor_col <= token.start + len(token.lexeme):
                 token_under_cursor = token
                 break
+            prev_token = token
         if token_under_cursor is not None:
             if len(self.suggestions) != 0:
                 suggestion = self.suggestions.popleft()
                 self.replace_token(token_under_cursor, suggestion)
                 self.suggestions.append(suggestion)
                 return
-
+            if prev_token is not None and prev_token.lexeme == '.' or token_under_cursor.lexeme == '.':
+                token_text = token_under_cursor.lexeme
+                text_start = token_under_cursor.start
+                if token_under_cursor.lexeme == '.':
+                    token_text = ''
+                    text_start += 1
+                parser = Parser(self.get_text()[
+                                :text_start], file_loading.file_data.macros, tree_type)
+                parser.advance()
+                while not parser.match(TokenType.EOL):
+                    parser.declaration()
+                parser.consume(TokenType.EOL, 'Expect end of expression.')
+                for i in range(len(parser.instructions)):
+                    if parser.instructions[-i-1].instruction == InstructionType.GET_OUTPUT:
+                        prev = parser.instructions[-i-2]
+                        if prev and prev.instruction == InstructionType.FUNCTION:
+                            assert isinstance(prev.data, tuple), 'Parser bug'
+                            function, _ = prev.data
+                            assert isinstance(
+                                function, NodeFunction), 'Parser bug'
+                            outputs = function.output_sockets()
+                            if len(outputs) == 1:
+                                # TODO: Make sugggestions depend on the type here.
+                                # Not very necessary but could be nice.
+                                pass
+                            else:
+                                for socket in function.output_sockets():
+                                    if socket.name.startswith(token_text):
+                                        self.suggestions.append(socket.name)
+                                if len(self.suggestions) == 0:
+                                    return
+                                else:
+                                    suggestion = self.suggestions.popleft()
+                                    if token_text == '':
+                                        self.text_after_cursor(suggestion)
+                                    else:
+                                        self.replace_token(
+                                            token_under_cursor, suggestion)
+                                    self.suggestions.append(suggestion)
+                                    return
+                        break
+                if token_text == '':
+                    # Don't try to suggest everything
+                    return
             for name in file_loading.file_data.macros.keys():
-                if name.startswith(token.lexeme):
+                if name.startswith(token_under_cursor.lexeme):
                     self.suggestions.append(name)
 
             for name in function_nodes.functions.keys():
-                if name.startswith(token.lexeme):
+                if name.startswith(token_under_cursor.lexeme):
                     self.suggestions.append(name)
             names = None
             if tree_type == 'GeometryNodeTree':
@@ -352,13 +389,21 @@ class Editor():
             else:
                 names = shader_nodes.functions.keys()
             for name in names:
-                if name.startswith(token.lexeme):
+                if name.startswith(token_under_cursor.lexeme):
                     self.suggestions.append(name)
             if len(self.suggestions) == 0:
                 return
             suggestion = self.suggestions.popleft()
             self.replace_token(token_under_cursor, suggestion)
             self.suggestions.append(suggestion)
+
+    def text_after_cursor(self, text: str) -> None:
+        line = self.lines[self.cursor_row]
+        self.lines[self.cursor_row] = line[:self.draw_cursor_col] + \
+            text + line[self.draw_cursor_col:]
+        self.draw_cursor_col += len(text)
+        self.cursor_col = self.draw_cursor_col
+        self.rescan_line()
 
     def replace_token(self, token: Token, text: str) -> None:
         start = token.start
