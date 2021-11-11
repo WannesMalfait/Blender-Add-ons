@@ -42,6 +42,8 @@ def load_macros(dir: str = None, force_update: bool = False) -> list[tuple[str, 
                     file_data.macros = pickle.load(f)
                     f.close()
                     return errors
+    else:
+        file_data.macros = {}
     for filename in filenames:
         if not filename.startswith('cache'):
             with open(os.path.join(dir, filename), 'r') as f:

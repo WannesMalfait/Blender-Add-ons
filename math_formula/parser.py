@@ -434,6 +434,7 @@ def call(self: Parser, can_assign: bool) -> None:
     if prev_instruction.instruction == InstructionType.PROPERTIES:
         props = [self.instructions.pop().data.value for _ in range(
             prev_instruction.data)]
+        props.reverse()
         # This is the function name now
         prev_instruction = self.instructions.pop()
     if prev_instruction.instruction != InstructionType.GET_VAR:
@@ -700,17 +701,17 @@ class TypeChecker():
             return [], function
         elif arg_count == 1:
             arg = self.value_stack.pop()
-            if arg.value.data_type == DataType.VEC3:
+            if arg.value.data_type in (DataType.VEC3, DataType.RGBA):
                 function = function_nodes.VectorMath(['MULTIPLY'])
             return [arg], function
         arg2 = self.value_stack.pop()
         arg1 = self.value_stack.pop()
-        if arg1.value.data_type == DataType.VEC3:
-            if arg2.value.data_type == DataType.VEC3:
+        if arg1.value.data_type in (DataType.VEC3, DataType.RGBA):
+            if arg2.value.data_type in (DataType.VEC3, DataType.RGBA):
                 function = function_nodes.VectorMath(['MULTIPLY'])
             else:
                 function = function_nodes.VectorMath(['SCALE'])
-        elif arg2.value.data_type == DataType.VEC3:
+        elif arg2.value.data_type in (DataType.VEC3, DataType.RGBA):
             function = function_nodes.VectorMath(['SCALE'])
             # Vector should be first input!
             self.add_operation(OpType.SWAP_2, None)
@@ -724,7 +725,7 @@ class TypeChecker():
         self.value_stack = self.value_stack[:-arg_count]
         vector_math = False
         for arg in arg_types:
-            if arg.value.data_type == DataType.VEC3:
+            if arg.value.data_type in (DataType.VEC3, DataType.RGBA):
                 vector_math = True
                 break
         if vector_math:
@@ -949,7 +950,7 @@ class TypeChecker():
                 self.var_stack.append(None)
             if panic:
                 no_errors = False
-                while ip + 1 < len(program) and program[i+1].instruction != InstructionType.END_OF_STATEMENT:
+                while ip + 1 < len(program) and program[ip+1].instruction != InstructionType.END_OF_STATEMENT:
                     ip += 1
             else:
                 ip += 1

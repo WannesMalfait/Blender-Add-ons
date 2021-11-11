@@ -79,6 +79,38 @@ class MeshUVSphere(NodeFunction):
         super().__init__(props)
 
 
+class MeshCube(NodeFunction):
+    _name = 'GeometryNodeMeshCube'
+    _input_sockets = [
+        Socket(0, 'size', DataType.VEC3),
+        Socket(1, 'vertices_x', DataType.INT),
+        Socket(2, 'vertices_y', DataType.INT),
+        Socket(3, 'vertices_z', DataType.INT),
+    ]
+    _output_sockets = [
+        Socket(0, 'mesh', DataType.GEOMETRY),
+    ]
+
+    def __init__(self, props) -> None:
+        super().__init__(props)
+
+
+class MeshGrid(NodeFunction):
+    _name = 'GeometryNodeMeshGrid'
+    _input_sockets = [
+        Socket(0, 'size_x', DataType.FLOAT),
+        Socket(1, 'size_x', DataType.FLOAT),
+        Socket(2, 'vertices_x', DataType.INT),
+        Socket(3, 'vertices_y', DataType.INT),
+    ]
+    _output_sockets = [
+        Socket(0, 'mesh', DataType.GEOMETRY),
+    ]
+
+    def __init__(self, props) -> None:
+        super().__init__(props)
+
+
 functions = {
     # Geometry
     'separate_geometry': SeparateGeometry,
@@ -88,4 +120,6 @@ functions = {
     'position': InputPosition,
     # Mesh Primitives
     'uv_sphere': MeshUVSphere,
+    'cube': MeshCube,
+    'grid': MeshGrid,
 }

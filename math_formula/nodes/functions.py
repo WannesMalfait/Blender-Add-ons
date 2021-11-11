@@ -1,6 +1,263 @@
 from .base import *
 
 
+# TEXTURE NODES:
+
+class WhiteNoise(NodeFunction):
+    _name = 'ShaderNodeTexWhiteNoise'
+
+    _input_sockets = [
+        Socket(0, 'vector', DataType.VEC3),
+        Socket(1, 'w', DataType.FLOAT),
+    ]
+
+    _output_sockets = [
+        Socket(0, 'value', DataType.FLOAT),
+        Socket(1, 'color', DataType.RGBA),
+    ]
+
+    _props = (
+        ('noise_dimensions', (
+            '1D',
+            '2D',
+            '3D',
+            '4D',
+        ),),
+    )
+
+    def __init__(self, props) -> None:
+        super().__init__(props)
+        noise_dimensions = None
+        sockets = []
+        if len(props) != 1:
+            noise_dimensions = '3D'
+        else:
+            noise_dimensions = props[0]
+        if noise_dimensions != '1D':
+            sockets = [self._input_sockets[0]]
+        if noise_dimensions in ('1D', '4D'):
+            sockets.append(self._input_sockets[1])
+        self.prop_values = [('noise_dimensions', noise_dimensions)]
+
+
+# class Voronoi(NodeFunction):
+#     _name = 'ShaderNodeTexVoronoi'
+
+#     _input_sockets = [
+#         Socket(0, 'vector', DataType.VEC3),
+#         Socket(1, 'w', DataType.FLOAT),
+#         Socket(2, 'scale', DataType.FLOAT),
+#         Socket(3, 'detail', DataType.FLOAT),
+#         Socket(4, 'roughness', DataType.FLOAT),
+#         Socket(5, 'distortion', DataType.FLOAT),
+#     ]
+
+#     _output_sockets = [
+#         Socket(0, 'fac', DataType.FLOAT),
+#         Socket(1, 'color', DataType.RGBA),
+#     ]
+
+#     _props = (
+#         ('voronoi_dimensions', (
+#             '1D',
+#             '2D',
+#             '3D',
+#             '4D',
+#         ),),
+#     )
+
+#     def __init__(self, props) -> None:
+#         super().__init__(props)
+#         voronoi_dimensions = None
+#         sockets = []
+#         if len(props) != 1:
+#             voronoi_dimensions = '3D'
+#         else:
+#             voronoi_dimensions = props[0]
+#         if voronoi_dimensions != '1D':
+#             sockets = [self._input_sockets[0]]
+#         if voronoi_dimensions in ('1D', '4D'):
+#             sockets.append(self._input_sockets[1])
+#         sockets += self._input_sockets[2:]
+#         self.prop_values = [('voronoi_dimensions', voronoi_dimensions)]
+
+
+class Noise(NodeFunction):
+    _name = 'ShaderNodeTexNoise'
+
+    _input_sockets = [
+        Socket(0, 'vector', DataType.VEC3),
+        Socket(1, 'w', DataType.FLOAT),
+        Socket(2, 'scale', DataType.FLOAT),
+        Socket(3, 'detail', DataType.FLOAT),
+        Socket(4, 'roughness', DataType.FLOAT),
+        Socket(5, 'distortion', DataType.FLOAT),
+    ]
+
+    _output_sockets = [
+        Socket(0, 'fac', DataType.FLOAT),
+        Socket(1, 'color', DataType.RGBA),
+    ]
+
+    _props = (
+        ('noise_dimensions', (
+            '1D',
+            '2D',
+            '3D',
+            '4D',
+        ),),
+    )
+
+    def __init__(self, props) -> None:
+        super().__init__(props)
+        noise_dimensions = None
+        sockets = []
+        if len(props) != 1:
+            noise_dimensions = '3D'
+        else:
+            noise_dimensions = props[0]
+        if noise_dimensions != '1D':
+            sockets = [self._input_sockets[0]]
+        if noise_dimensions in ('1D', '4D'):
+            sockets.append(self._input_sockets[1])
+        sockets += self._input_sockets[2:]
+        self.prop_values = [('noise_dimensions', noise_dimensions)]
+
+
+class Wave(NodeFunction):
+    _name = 'ShaderNodeTexWave'
+
+    _input_sockets = [
+        Socket(0, 'vector', DataType.VEC3),
+        Socket(1, 'scale', DataType.FLOAT),
+        Socket(2, 'distortion', DataType.FLOAT),
+        Socket(3, 'detail', DataType.FLOAT),
+        Socket(4, 'detail_scale', DataType.FLOAT),
+        Socket(5, 'detail_roughness', DataType.FLOAT),
+        Socket(6, 'phase_offset', DataType.FLOAT),
+    ]
+
+    _output_sockets = [
+        Socket(0, 'color', DataType.RGBA),
+        Socket(1, 'fac', DataType.FLOAT),
+    ]
+
+    _props = (
+        ('wave_type', (
+            'RINGS',
+            'BANDS',
+        ),),
+        ('bands_direction', (
+            'X',
+            'Y',
+            'Z',
+            'DIAGONAL',
+        ),),
+        ('wave_profile', (
+            'SIN',
+            'SAW',
+            'TRI',
+        ),),
+
+    )
+
+    def __init__(self, props) -> None:
+        super().__init__(props)
+        wave_type = 'RINGS'
+        bands_direction = 'X'
+        wave_profile = 'SIN'
+        if len(props) >= 1:
+            wave_type = props[0]
+        if len(props) >= 2:
+            bands_direction = props[1]
+        if len(props) >= 3:
+            wave_profile = props[2]
+        self.prop_values = [('wave_type', wave_type),
+                            ('bands_direction', bands_direction),
+                            ('wave_profile', wave_profile), ]
+
+
+class Gradient(NodeFunction):
+    _name = 'ShaderNodeTexGradient'
+
+    _input_sockets = [
+        Socket(0, 'vector', DataType.VEC3),
+    ]
+
+    _output_sockets = [
+        Socket(0, 'color', DataType.RGBA),
+        Socket(1, 'fac', DataType.FLOAT),
+    ]
+
+    _props = (
+        ('gradient_type', (
+            'LINEAR',
+            'QUADRATIC',
+            'EASING',
+            'DIAGONAL',
+            'SPHERICAL',
+            'QUADRATIC_SPHERE',
+            'RADIAL',
+        ),),
+    )
+
+    def __init__(self, props) -> None:
+        super().__init__(props)
+        gradient_type = None
+        if len(props) != 1:
+            gradient_type = 'LINEAR'
+        else:
+            gradient_type = props[0]
+        self.prop_values = [('gradient_type', gradient_type)]
+
+
+class Checker(NodeFunction):
+    _name = 'ShaderNodeTexChecker'
+
+    _input_sockets = [
+        Socket(0, 'vector', DataType.VEC3),
+        Socket(1, 'color1', DataType.RGBA),
+        Socket(2, 'color2', DataType.RGBA),
+        Socket(3, 'scale', DataType.FLOAT),
+    ]
+
+    _output_sockets = [
+        Socket(0, 'color', DataType.RGBA),
+        Socket(1, 'fac', DataType.FLOAT),
+    ]
+
+    def __init__(self, props) -> None:
+        super().__init__(props)
+
+
+class Clamp(NodeFunction):
+    _name = 'ShaderNodeClamp'
+    _input_sockets = [
+        Socket(0, 'value', DataType.FLOAT),
+        Socket(1, 'min', DataType.FLOAT),
+        Socket(2, 'max', DataType.FLOAT),
+    ]
+    _output_sockets = [
+        Socket(0, 'result', DataType.FLOAT)
+    ]
+
+    _props = (
+        ('clamp_type', (
+            'MINMAX',
+            'RANGE',
+        ),),
+    )
+
+    def __init__(self, props) -> None:
+        super().__init__(props)
+        clamp_type = None
+        if len(props) != 1:
+            clamp_type = 'MINMAX'
+        else:
+            clamp_type = props[0]
+        self.prop_values = [('clamp_type', clamp_type)]
+
+
 class CombineXYZ(NodeFunction):
     _name = 'ShaderNodeCombineXYZ'
     _input_sockets = [
@@ -262,6 +519,13 @@ class VectorMath(NodeFunction):
 
 
 functions = {
+    # 'voronoi': Voronoi,
+    'wave': Wave,
+    'white_noise': WhiteNoise,
+    'noise': Noise,
+    'checker': Checker,
+    'gradient': Gradient,
+    'clamp': Clamp,
     'combine_xyz': CombineXYZ,
     'separate_xyz': SeparateXYZ,
     'map_range': MapRange,
