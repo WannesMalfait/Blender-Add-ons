@@ -46,7 +46,7 @@ def load_macros(dir: str = None, force_update: bool = False) -> list[tuple[str, 
         if not filename.startswith('cache'):
             with open(os.path.join(dir, filename), 'r') as f:
                 compiler = Compiler()
-                success = compiler.compile(f.read(), file_data.macros)
+                success = compiler.compile(f.read(), file_data.macros, 'Any')
                 if not success:
                     errors.append((filename, compiler.errors))
                 f.close()

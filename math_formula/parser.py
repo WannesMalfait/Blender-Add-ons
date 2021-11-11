@@ -123,7 +123,7 @@ class ParseRule():
 
 class Parser():
 
-    def __init__(self, source: str, macro_storage: MacroType) -> None:
+    def __init__(self, source: str, macro_storage: MacroType, tree_type: str) -> None:
         self.scanner = Scanner(source)
         self.token_buffer: list[Token] = []
         self.current: Token = None
@@ -133,6 +133,7 @@ class Parser():
         self.instructions: list[Instruction] = []
         self.errors: list[Error] = []
         self.macro_storage = macro_storage
+        self.tree_type = tree_type
 
     def error_at_current(self, message: str) -> None:
         self.error_at(self.current, message)
@@ -332,7 +333,10 @@ class Parser():
 
 def make_int(self: Parser, can_assign: bool) -> None:
     value = int(self.previous.lexeme)
-    self.add_value_instruction(Value(DataType.INT, value))
+    if self.tree_type == 'ShaderNodeTree':
+        self.add_value_instruction(Value(DataType.FLOAT, float(value)))
+    else:
+        self.add_value_instruction(Value(DataType.INT, value))
 
 
 def make_float(self: Parser, can_assign: bool) -> None:
@@ -385,8 +389,11 @@ def string(self: Parser, can_assign: bool) -> None:
 
 
 def boolean(self: Parser, can_assign: bool) -> None:
-    self.add_value_instruction(
-        Value(DataType.BOOL, self.previous.lexeme == 'true'))
+    if self.tree_type == 'ShaderNodeTree':
+        self.error('Boolean sockets are not allowed in shader node trees.')
+    else:
+        self.add_value_instruction(
+            Value(DataType.BOOL, self.previous.lexeme == 'true'))
 
 
 def grouping(self: Parser, can_assign: bool) -> None:
@@ -433,7 +440,17 @@ def call(self: Parser, can_assign: bool) -> None:
         self.error('Expected callable object')
     func_name = prev_instruction.data
     function = None
-    for dict in (function_nodes.functions, geometry_nodes.functions, shader_nodes.functions):
+    dicts = [function_nodes.functions]
+    if self.tree_type == 'GeometryNodeTree':
+        dicts.append(geometry_nodes.functions)
+    elif self.tree_type == 'ShaderNodeTree':
+        dicts.append(shader_nodes.functions)
+    elif self.tree_type == 'Any':
+        dicts.append(shader_nodes.functions)
+        dicts.append(geometry_nodes.functions)
+    else:
+        assert False, 'All tree types should have been handled here.'
+    for dict in dicts:
         if func_name in dict:
             function_cls: NodeFunction = dict[func_name]
             if len(props) > len(function_cls._props):
@@ -945,9 +962,9 @@ class Compiler():
         self.errors: list[Error] = []
         self.checked_program: list[Operation] = []
 
-    def compile(self, source: str, macros: MacroType) -> bool:
+    def compile(self, source: str, macros: MacroType, tree_type: str) -> bool:
         self.instructions = []
-        parser = Parser(source, macros)
+        parser = Parser(source, macros, tree_type)
         parser.advance()
         while not parser.match(TokenType.EOL):
             parser.declaration()
@@ -966,7 +983,7 @@ class Compiler():
     @ staticmethod
     def get_tokens(source: str) -> list[Token]:
         tokens = []
-        parser = Parser(source, {})
+        parser = Parser(source, {}, '')
         scanner = parser.scanner
         while(token := scanner.scan_token()).token_type != TokenType.EOL:
             tokens.append(token)

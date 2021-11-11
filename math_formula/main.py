@@ -201,7 +201,8 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         variables: dict[str, NodeSocket] = {}
         # Parse the input string into a sequence of tokens
         compiler = Compiler()
-        success = compiler.compile(formula, file_loading.file_data.macros)
+        success = compiler.compile(
+            formula, file_loading.file_data.macros, tree.bl_idname)
         if not success:
             return {'CANCELLED'}
         checked_program = compiler.checked_program
@@ -661,7 +662,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 formula = self.editor.get_text()
                 try:
                     res = compiler.compile(
-                        formula, file_loading.file_data.macros)
+                        formula, file_loading.file_data.macros, context.space_data.edit_tree.bl_idname)
                 except:
                     self.internal_error()
                     return {'CANCELLED'}
@@ -698,7 +699,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             compiler = Compiler()
             try:
                 res = compiler.compile(
-                    self.editor.get_text(), file_loading.file_data.macros)
+                    self.editor.get_text(), file_loading.file_data.macros, context.space_data.edit_tree.bl_idname)
             except:
                 self.internal_error()
                 return {'CANCELLED'}
