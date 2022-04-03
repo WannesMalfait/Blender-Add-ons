@@ -1,0 +1,2 @@
+co = tex_coords();
+co.generated - co.object;

@@ -1,0 +1,13 @@
+ng asinh(x: float) -> y: float {
+    out y = log(x + sqrt(1+x*x), #e);
+}
+
+ng catenary(p1: vec3, p2: vec3, a: float) -> pos: vec3 {
+x1,y1,z1 = p1; x2,y2,z2 = p2;
+temp = (y1-y2)/(2*a*sinh((x1-x2)/(2*a)));
+cx = -0.5*(asinh(temp)*2*a - x1-x2);
+cy = y1 - a*cosh((x1-cx)/a);
+out pos = cy + a*cosh((x-cx)/a);
+}
+
+catenary({0,0,1}, {1,0.5,2});

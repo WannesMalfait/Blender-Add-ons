@@ -1,0 +1,19 @@
+fn rescaled_gen() -> coords: vec3 {
+    out coords = tex_coord().generated -0.5 * 2;
+}
+
+fn cart_to_polar(x: float, y: float) -> r: float, theta: float {
+    out r = sqrt(x*x + y*y);
+    out theta = atan2(y, x);
+}
+
+x= 10;
+fn test(x: float) -> y: float {
+    x = x + 5;
+    y = 5*x;
+    out y = y**10;
+}
+
+test(x);
+// x should still be 10 here.
+sin(x);

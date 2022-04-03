@@ -1,0 +1,8 @@
+ng "Complex Mult"(x: vec2, y: vec2) -> z: vec2 {
+    a,b = x; c,d = y;
+    // (a+bi)(c+di) = ac +adi + bci -bd = ac-bd + (ad + bc)i
+    out z = {a*c - b*d , a*d + b*c};
+}
+
+x = {1, 1}; y = {-1, 1};
+z = f"Complex Mult"(x,y);
