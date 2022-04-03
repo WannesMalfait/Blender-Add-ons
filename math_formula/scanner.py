@@ -1,21 +1,6 @@
 from enum import IntEnum, auto
 from typing import Union
 
-other_functions = {
-    # alias:
-    # (bl_idname without 'ShaderNode' or 'GeometryNode',
-    # props: (prop_name, value)
-    # num_args
-    'map': ('MapRange', ('interpolation_type', 'LINEAR'), 5),
-    'smoothstep': ('MapRange', ('interpolation_type', 'SMOOTHSTEP'), 5),
-    'sstep': ('MapRange', ('interpolation_type', 'SMOOTHSTEP'), 5),
-    'smootherstep': ('MapRange', ('interpolation_type', 'SMOOTHERSTEP'), 5),
-    'ssstep': ('MapRange', ('interpolation_type', 'SMOOTHERSTEP'), 5),
-    'clamp': ('Clamp', ('clamp_type', 'MINMAX'), 3),
-    'minmax': ('Clamp', ('clamp_type', 'MINMAX'), 3),
-    'clamprange': ('Clamp', ('clamp_type', 'RANGE'), 3),
-}
-
 
 # See: https://craftinginterpreters.com/scanning-on-demand.html
 # For the original source of this code
@@ -39,7 +24,6 @@ class TokenType(IntEnum):
     HAT = auto()
     GREATER = auto()
     LESS = auto()
-    DOLLAR = auto()
     COLON = auto()
     UNDERSCORE = auto()
 
@@ -47,6 +31,10 @@ class TokenType(IntEnum):
     STAR = auto()
     STAR_STAR = auto()
     ARROW = auto()
+    LESS_EQUAL = auto()
+    GREATER_EQUAL = auto()
+    EQUAL_EQUAL = auto()
+    DOT_DOT = auto()
 
     # Literals.
     IDENTIFIER = auto()
@@ -54,15 +42,18 @@ class TokenType(IntEnum):
     FLOAT = auto()
     PYTHON = auto()
     STRING = auto()
+    GROUP_NAME = auto()
 
     # Keywords
-    LET = auto()
+    OUT = auto()
     FUNCTION = auto()
     NODEGROUP = auto()
-    MACRO = auto()
-    SELF = auto()
+    LOOP = auto()
     TRUE = auto()
     FALSE = auto()
+    NOT = auto()
+    OR = auto()
+    AND = auto()
 
     ERROR = auto()
     EOL = auto()
@@ -78,8 +69,6 @@ class Token():
     - a number `line` which says which line of the text the token is in
     - a number `col` which says where in the line the token starts
     - a number `start` which says where in the text the token starts
-    - a number `times_expanded` which says how many times it has been expanded
-    - a token `expanded_from`  which indicates which macro it was expanded from if not None
     """
 
     def __init__(self, lexeme: str, token_type: TokenType, line: int = 0, col: int = 0, start: int = 0) -> None:
@@ -88,8 +77,6 @@ class Token():
         self.line = line
         self.col = col
         self.lexeme = lexeme
-        self.times_expanded: int = 0
-        self.expanded_from: Union[None, 'Token'] = None
 
     def __str__(self) -> str:
         return f'[{self.lexeme}, {self.token_type.name}]'
@@ -166,20 +153,24 @@ class Scanner():
     def keyword(self) -> Union[TokenType, None]:
         """ Checks if it's a keyword, otherwise it's treated as an identifier."""
         name = self.source[self.start: self.current]
-        if name == 'let':
-            return self.make_token(TokenType.LET)
+        if name == 'out':
+            return self.make_token(TokenType.OUT)
         if name == 'fn':
             return self.make_token(TokenType.FUNCTION)
         if name == 'ng':
             return self.make_token(TokenType.NODEGROUP)
-        if name == 'MACRO':
-            return self.make_token(TokenType.MACRO)
-        if name == 'self':
-            return self.make_token(TokenType.SELF)
+        if name == 'loop':
+            return self.make_token(TokenType.LOOP)
         if name == 'true':
             return self.make_token(TokenType.TRUE)
         if name == 'false':
             return self.make_token(TokenType.FALSE)
+        if name == 'not':
+            return self.make_token(TokenType.NOT)
+        if name == 'or':
+            return self.make_token(TokenType.OR)
+        if name == 'and':
+            return self.make_token(TokenType.AND)
         return self.make_token(TokenType.IDENTIFIER)
 
     def identifier(self) -> Token:
@@ -206,7 +197,7 @@ class Scanner():
     def python(self) -> Token:
         """ Get the string in between () """
         if self.peek() != '(':
-            # It's a single value like '!pi'.
+            # It's a single value like '#pi'.
             while self.peek().isalpha() or self.peek().isdecimal() or self.peek() == '_':
                 self.advance()
             return self.make_token(TokenType.PYTHON)
@@ -229,6 +220,12 @@ class Scanner():
             self.advance()
         return self.error_token('Expected string to be closed.')
 
+    def comment(self) -> Token:
+        while not self.is_at_end and not self.match('\n'):
+            self.advance()
+        # We just return the next token
+        return self.scan_token()
+
     def scan_token(self) -> Token:
         self.skip_whitespace()
         self.start = self.current
@@ -242,11 +239,19 @@ class Scanner():
             return self.error_token('Unrecognized token')
 
         if c == '_':
-            nextc = self.peek()
-            if nextc.isalpha() or nextc.isdecimal() or nextc == '_':
+            next = self.peek()
+            if next.isalpha() or next.isdecimal() or next == '_':
                 return self.identifier()
             return self.make_token(TokenType.UNDERSCORE)
-        elif c.isalpha():
+        if c == 'n':
+            # Check for node group names: n"A name for the group"
+            next = self.peek()
+            if next == "'" or next == '"':
+                self.advance()
+                token = self.string(next)
+                token.token_type = TokenType.GROUP_NAME
+                return token
+        if c.isalpha():
             return self.identifier()
         elif (c.isdecimal()):
             return self.number()
@@ -270,21 +275,21 @@ class Scanner():
             return self.make_token(TokenType.COMMA)
         elif c == '+':
             return self.make_token(TokenType.PLUS)
-        elif c == '/':
-            return self.make_token(TokenType.SLASH)
         elif c == '^':
             return self.make_token(TokenType.HAT)
-        elif c == '>':
-            return self.make_token(TokenType.GREATER)
-        elif c == '<':
-            return self.make_token(TokenType.LESS)
-        elif c == '=':
-            return self.make_token(TokenType.EQUAL)
-        elif c == '$':
-            return self.make_token(TokenType.DOLLAR)
         elif c == ':':
             return self.make_token(TokenType.COLON)
         # Check for two-character tokens
+        elif c == '/':
+            if self.match('/'):
+                return self.comment()
+            return self.make_token(TokenType.SLASH)
+        elif c == '>':
+            return self.make_token(TokenType.GREATER_EQUAL if self.match('=') else TokenType.GREATER)
+        elif c == '<':
+            return self.make_token(TokenType.LESS_EQUAL if self.match('=') else TokenType.LESS)
+        elif c == '=':
+            return self.make_token(TokenType.EQUAL_EQUAL if self.match('=') else TokenType.EQUAL)
         elif c == '*':
             return self.make_token(
                 TokenType.STAR_STAR if self.match('*') else TokenType.STAR)
@@ -292,7 +297,7 @@ class Scanner():
             # Check for floating point numbers like '.314'
             if self.peek().isdecimal():
                 return self.float()
-            return self.make_token(TokenType.DOT)
+            return self.make_token(TokenType.DOT_DOT if self.match('.') else TokenType.DOT)
         elif c == '-':
             # Check for negative numbers
             if self.match('.'):
@@ -310,88 +315,17 @@ class Scanner():
 
 
 if __name__ == '__main__':
-    def scanner_test(source: str, expected: list[Token]) -> None:
-        print('Testing:', source)
-        scanner = Scanner(source)
-        results = []
-        while(token := scanner.scan_token()).token_type != TokenType.EOL:
-            results.append(token)
-        if len(results) != len(expected):
-            print('TEST FAILED: lengths do not match')
-            print('Parse results:', results)
-            print('Expected:', expected)
-            return
-        for i, token in enumerate(expected):
-            if results[i] == token:
-                continue
-            print('TEST FAILED: token mismatch')
-            print('Parsed token:', results[i])
-            print('Expected:', token)
-            return
-        print('Test passed!')
+    import os
+    add_on_dir = os.path.dirname(
+        os.path.realpath(__file__))
 
-    scanner_tests = [
-        ('4*.5-v **2.17', [
-            Token('4', TokenType.INT),
-            Token('*', TokenType.STAR),
-            Token('.5', TokenType.FLOAT),
-            Token('-', TokenType.MINUS),
-            Token('v', TokenType.IDENTIFIER),
-            Token('**', TokenType.STAR_STAR),
-            Token('2.17', TokenType.FLOAT),
-        ]),
-        ('add(_,5)', [
-            Token('add', TokenType.IDENTIFIER),
-            Token('(', TokenType.LEFT_PAREN),
-            Token('_', TokenType.UNDERSCORE),
-            Token(',', TokenType.COMMA),
-            Token('5', TokenType.INT),
-            Token(')', TokenType.RIGHT_PAREN),
-        ]),
-        ('let z = sin(x*#(sqrt(pi)))', [
-            Token('let', TokenType.LET),
-            Token('z', TokenType.IDENTIFIER),
-            Token('=', TokenType.EQUAL),
-            Token('sin', TokenType.IDENTIFIER),
-            Token('(', TokenType.LEFT_PAREN),
-            Token('x', TokenType.IDENTIFIER),
-            Token('*', TokenType.STAR),
-            Token('#(sqrt(pi))', TokenType.PYTHON),
-            Token(')', TokenType.RIGHT_PAREN),
-        ]),
-        ('let string = "TESKJH49220P2%£¨2";', [
-            Token('let', TokenType.LET),
-            Token('string', TokenType.IDENTIFIER),
-            Token('=', TokenType.EQUAL),
-            Token('"TESKJH49220P2%£¨2"', TokenType.STRING),
-            Token(';', TokenType.SEMICOLON),
-        ]),
-        ('fn test(x: float) -> y: float {self.y = sin(x) * x;}', [
-            Token('fn', TokenType.FUNCTION),
-            Token('test', TokenType.IDENTIFIER),
-            Token('(', TokenType.LEFT_PAREN),
-            Token('x', TokenType.IDENTIFIER),
-            Token(':', TokenType.COLON),
-            Token('float', TokenType.IDENTIFIER),
-            Token(')', TokenType.RIGHT_PAREN),
-            Token('->', TokenType.ARROW),
-            Token('y', TokenType.IDENTIFIER),
-            Token(':', TokenType.COLON),
-            Token('float', TokenType.IDENTIFIER),
-            Token('{', TokenType.LEFT_BRACE),
-            Token('self', TokenType. SELF),
-            Token('.', TokenType.DOT),
-            Token('y', TokenType.IDENTIFIER),
-            Token('=', TokenType.EQUAL),
-            Token('sin', TokenType.IDENTIFIER),
-            Token('(', TokenType.LEFT_PAREN),
-            Token('x', TokenType.IDENTIFIER),
-            Token(')', TokenType.RIGHT_PAREN),
-            Token('*', TokenType.STAR),
-            Token('x', TokenType.IDENTIFIER),
-            Token(';', TokenType.SEMICOLON),
-            Token('}', TokenType.RIGHT_BRACE)
-        ])
-    ]
-    for source, expected in scanner_tests:
-        scanner_test(source, expected)
+    test_directory = os.path.join(add_on_dir, 'tests')
+    filenames = os.listdir(test_directory)
+    for filename in filenames:
+        print(f'Testing {filename}')
+        with open(os.path.join(test_directory, filename), 'r') as f:
+            scanner = Scanner(f.read())
+            tokens = []
+            while(token := scanner.scan_token()).token_type != TokenType.EOL:
+                tokens.append(token)
+            print(tokens)
