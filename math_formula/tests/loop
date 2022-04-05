@@ -1,14 +1,14 @@
 // Equivalent to doing 10.sin().sin().sin().sin()
 x = 10; 
-loop  1..4 {
+loop  1 -> 4 {
     x = sin(x);
 }
 
 // Using a value for each iteration.
 
-loop i= -1..1 {
-    loop j = -1..1 {
-        x= {i,j};
+loop i= -1 -> 1 {
+    loop j = -1 -> 1 {
+        x= {i,j}; // Creates a combine XYZ with values {i,j, 0}
     }
 }
 

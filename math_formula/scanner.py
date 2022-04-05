@@ -34,7 +34,6 @@ class TokenType(IntEnum):
     LESS_EQUAL = auto()
     GREATER_EQUAL = auto()
     EQUAL_EQUAL = auto()
-    DOT_DOT = auto()
 
     # Literals.
     IDENTIFIER = auto()
@@ -221,7 +220,7 @@ class Scanner():
         return self.error_token('Expected string to be closed.')
 
     def comment(self) -> Token:
-        while not self.is_at_end and not self.match('\n'):
+        while not self.is_at_end() and not self.match('\n'):
             self.advance()
         # We just return the next token
         return self.scan_token()
@@ -297,15 +296,10 @@ class Scanner():
             # Check for floating point numbers like '.314'
             if self.peek().isdecimal():
                 return self.float()
-            return self.make_token(TokenType.DOT_DOT if self.match('.') else TokenType.DOT)
+            return self.make_token(TokenType.DOT)
         elif c == '-':
-            # Check for negative numbers
-            if self.match('.'):
-                return self.float()
             if self.match('>'):
                 return self.make_token(TokenType.ARROW)
-            elif self.peek().isdecimal():
-                return self.number()
             return self.make_token(TokenType.MINUS)
         elif c == '#':
             return self.python()
@@ -322,7 +316,7 @@ if __name__ == '__main__':
     test_directory = os.path.join(add_on_dir, 'tests')
     filenames = os.listdir(test_directory)
     for filename in filenames:
-        print(f'Testing {filename}')
+        print(f'\nTesting: "{filename}"')
         with open(os.path.join(test_directory, filename), 'r') as f:
             scanner = Scanner(f.read())
             tokens = []
