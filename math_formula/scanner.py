@@ -34,6 +34,7 @@ class TokenType(IntEnum):
     LESS_EQUAL = auto()
     GREATER_EQUAL = auto()
     EQUAL_EQUAL = auto()
+    BANG_EQUAL = auto()
 
     # Literals.
     IDENTIFIER = auto()
@@ -301,6 +302,10 @@ class Scanner():
             if self.match('>'):
                 return self.make_token(TokenType.ARROW)
             return self.make_token(TokenType.MINUS)
+        elif c == '!':
+            if self.match('='):
+                return self.make_token(TokenType.BANG_EQUAL)
+            return self.error_token('Expected "=" after "!"')
         elif c == '#':
             return self.python()
         elif c == "'" or c == '"':
