@@ -168,6 +168,7 @@ class Parser():
         return DataType.UNKNOWN
 
     def parse_arg(self) -> ast_defs.arg:
+        self.consume(TokenType.IDENTIFIER, 'Expect argument name')
         token = self.previous
         name = token.lexeme
         var_type = self.parse_type()
@@ -184,7 +185,7 @@ class Parser():
         token = self.previous
         targets = []
         message = 'Expect variable name or "_" after "out".'
-        while not self.check(TokenType.EQUAL):
+        while not self.match(TokenType.EQUAL):
             if self.match(TokenType.IDENTIFIER):
                 targets.append(ast_defs.Name(
                     self.previous, self.previous.lexeme))
@@ -193,6 +194,7 @@ class Parser():
             else:
                 self.error_at_current(message)
             if not self.match(TokenType.COMMA):
+                self.consume(TokenType.EQUAL, 'Expected "=". ')
                 break
         if targets == []:
             self.error_at(token, message)
@@ -201,16 +203,78 @@ class Parser():
         self.curr_node = None
         return ast_defs.Out(token, targets, value)
 
+    def parse_func_structure(self) -> tuple[list[ast_defs.arg], list[ast_defs.stmt], list[ast_defs.arg]]:
+        self.consume(TokenType.LEFT_PAREN, 'Expect "(" after name.')
+        args = []
+        while not self.check(TokenType.RIGHT_PAREN):
+            args.append(self.parse_arg())
+            if not self.match(TokenType.COMMA):
+                break
+        self.consume(TokenType.RIGHT_PAREN, 'Expect closing ")".')
+        returns = []
+        if self.match(TokenType.ARROW):
+            returns.append(self.parse_arg())
+            while self.match(TokenType.COMMA):
+                returns.append(self.parse_arg())
+        self.consume(TokenType.LEFT_BRACE, 'Expect function body.')
+        body = []
+        while not self.match(TokenType.RIGHT_BRACE):
+            body.append(self.declaration())
+        self.curr_node = None
+        return args, body, returns
+
+    def function_def(self) -> ast_defs.FunctionDef:
+        if not(self.match(TokenType.IDENTIFIER) or self.match(TokenType.STRING)):
+            self.error('Expected function name.')
+        token = self.previous
+        name = token.lexeme
+        args, body, returns = self.parse_func_structure()
+        return ast_defs.FunctionDef(token, name, args, body, returns)
+
+    def nodegroup_def(self) -> ast_defs.NodegroupDef:
+        if not(self.match(TokenType.IDENTIFIER) or self.match(TokenType.STRING)):
+            self.error('Expected node group name.')
+        token = self.previous
+        name = token.lexeme
+        args, body, returns = self.parse_func_structure()
+        return ast_defs.NodegroupDef(token, name, args, body, returns)
+
+    def parse_int(self) -> int:
+        if self.match(TokenType.MINUS):
+            self.consume(TokenType.INT, 'Expected an integer')
+            return - int(self.previous.lexeme)
+        self.consume(TokenType.INT, 'Expected an integer')
+        return int(self.previous.lexeme)
+
+    def loop(self) -> ast_defs.Loop:
+        token = self.previous
+        var = None
+        if self.match(TokenType.IDENTIFIER):
+            var = ast_defs.Name(self.previous, self.previous.lexeme)
+            self.consume(TokenType.EQUAL, 'Expect "=" after loop variable.')
+        start = 1
+        end = self.parse_int()
+        if self.match(TokenType.ARROW):
+            # Explicit start and end values given
+            start = end
+            end = self.parse_int()
+        self.consume(TokenType.LEFT_BRACE, 'Expect loop body.')
+        body = []
+        while not self.match(TokenType.RIGHT_BRACE):
+            body.append(self.declaration())
+        self.curr_node = None
+        return ast_defs.Loop(token, var, start, end, body)
+
     def declaration(self) -> ast_defs.stmt:
         node: ast_defs.stmt = None
         if self.match(TokenType.OUT):
             node = self.out()
         elif self.match(TokenType.FUNCTION):
-            raise NotImplementedError()
+            node = self.function_def()
         elif self.match(TokenType.NODEGROUP):
-            raise NotImplementedError()
+            node = self.nodegroup_def()
         elif self.match(TokenType.LOOP):
-            raise NotImplementedError()
+            node = self.loop()
         else:
             node = self.statement()
 
@@ -293,7 +357,7 @@ def default(self: Parser, can_assign: bool) -> None:
 def identifier(self: Parser, can_assign: bool) -> None:
     identifier_token = self.previous
     name = identifier_token.lexeme
-    if can_assign and self.check(TokenType.EQUAL) or self.match(TokenType.COMMA):
+    if can_assign and (self.check(TokenType.EQUAL) or self.match(TokenType.COMMA)):
         targets = [ast_defs.Name(identifier_token, name)]
         while not self.check(TokenType.EQUAL):
             if self.match(TokenType.IDENTIFIER):
@@ -487,11 +551,11 @@ if __name__ == '__main__':
     import os
     add_on_dir = os.path.dirname(
         os.path.realpath(__file__))
-
     test_directory = os.path.join(add_on_dir, 'tests')
     filenames = os.listdir(test_directory)
     verbose = 1
     num_passed = 0
+    tot_tests = 0
     BOLD = '\033[1m'
     GREEN = '\033[92m'
     RED = '\033[91m'
@@ -499,6 +563,7 @@ if __name__ == '__main__':
     BLUE = '\033[96m'
     ENDC = '\033[0m'
     for filename in filenames:
+        tot_tests += 1
         print(f'Testing: {BOLD}{filename}{ENDC}:  ', end='')
         with open(os.path.join(test_directory, filename), 'r') as f:
             parser = Parser(f.read())
@@ -520,4 +585,4 @@ if __name__ == '__main__':
                         f'{YELLOW}Syntax errors{ENDC}:' if parser.had_error else f'{BLUE}No syntax errors{ENDC}')
                 if verbose > 1 and parser.had_error:
                     print(parser.errors)
-    print(f'Tests done: Passed: ({num_passed}/{len(filenames)})')
+    print(f'Tests done: Passed: ({num_passed}/{tot_tests})')

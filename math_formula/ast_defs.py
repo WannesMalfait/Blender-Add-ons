@@ -182,6 +182,14 @@ class FunctionDef(stmt):
 
 
 @dataclass
+class NodegroupDef(stmt):
+    name: str
+    args: list[arg]
+    body: list[stmt]
+    returns: list[arg]
+
+
+@dataclass
 class Out(stmt):
     targets: list[Union[None, Name]]
     value: expr
@@ -196,8 +204,8 @@ class Assign(stmt):
 @dataclass
 class Loop(stmt):
     var: Union[None, Name]
-    start: Constant
-    end: Constant
+    start: int
+    end: int
     body: list[stmt]
 
 

@@ -1,4 +1,4 @@
-ng "Complex Mult"(x: vec2, y: vec2) -> z: vec2 {
+ng "Complex Mult"(x: vec3, y: vec3) -> z: vec3 {
     a,b = x; c,d = y;
     // (a+bi)(c+di) = ac + adi + bci -bd = ac-bd + (ad + bc)i
     out z = {a*c - b*d , a*d + b*c};
