@@ -85,7 +85,7 @@ class Token():
         return self.__str__()
 
     def __eq__(self, o: object) -> bool:
-        if type(o) != Token:
+        if not isinstance(o, Token):
             return False
         return self.lexeme == o.lexeme and self.token_type == o.token_type
 
@@ -221,7 +221,7 @@ class Scanner():
         return self.error_token('Expected string to be closed.')
 
     def comment(self) -> Token:
-        while not self.is_at_end() and not self.match('\n'):
+        while not self.is_at_end() and not self.peek() == '\n':
             self.advance()
         # We just return the next token
         return self.scan_token()

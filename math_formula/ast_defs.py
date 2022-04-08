@@ -160,8 +160,8 @@ class Keyword(expr):
 @dataclass
 class Call(expr):
     func: Union[Name, Attribute]
-    args: list[expr]
-    keywords: list[Keyword]
+    pos_args: list[expr]
+    keyword_args: list[Keyword]
 
 # Statements
 
@@ -189,7 +189,7 @@ class Out(stmt):
 
 @dataclass
 class Assign(stmt):
-    targets: list[Union[None, Name]]
+    targets: expr
     value: expr
 
 

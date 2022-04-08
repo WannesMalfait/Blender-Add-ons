@@ -12,7 +12,7 @@ class Precedence(IntEnum):
     OR = auto()  # or
     AND = auto()  # and
     NOT = auto()    # not
-    COMPARISON = auto()  # < > <= >= ==
+    COMPARISON = auto()  # < > <= >= == !=
     TERM = auto()       # + -
     FACTOR = auto()     # * / %
     UNARY = auto()      # -
@@ -116,8 +116,9 @@ class Parser():
     def get_rule(self, token_type: TokenType) -> ParseRule:
         return rules[token_type.value]
 
-    def parse_precedence(self, precedence: Precedence) -> ast_defs.expr:
-        self.advance()
+    def parse_precedence(self, precedence: Precedence, skip_advance=False) -> ast_defs.expr:
+        if not skip_advance:
+            self.advance()
         prefix_rule = self.get_rule(self.previous.token_type).prefix
         if prefix_rule is None:
             self.error('Expect expression.')
@@ -130,7 +131,8 @@ class Parser():
             infix_rule(self, can_assign)
         if can_assign and self.match(TokenType.EQUAL):
             self.error('Invalid assignment target.')
-        assert self.curr_node is not None, "Parse precedence should always return something"
+        if self.curr_node is None:
+            self.error('Expected expression with a value.')
         return self.curr_node
 
     def check(self, token_type: TokenType) -> bool:
@@ -143,10 +145,12 @@ class Parser():
         return True
 
     def expression(self) -> ast_defs.expr:
-        return self.parse_precedence(Precedence.ASSIGNMENT)
+        # Assignment is not a valid expression
+        return self.parse_precedence(Precedence.OR)
 
     def statement(self) -> ast_defs.stmt:
-        node = self.expression()
+        # Assignment is a valid statement
+        node = self.parse_precedence(Precedence.ASSIGNMENT)
         # Get optional semicolon at end of expression
         self.match(TokenType.SEMICOLON)
         self.curr_node = None
@@ -180,7 +184,7 @@ class Parser():
         token = self.previous
         targets = []
         message = 'Expect variable name or "_" after "out".'
-        while not self.check(TokenType.EQUAL) or self.check(TokenType.SEMICOLON):
+        while not self.check(TokenType.EQUAL):
             if self.match(TokenType.IDENTIFIER):
                 targets.append(ast_defs.Name(
                     self.previous, self.previous.lexeme))
@@ -214,17 +218,36 @@ class Parser():
             self.synchronize()
         return node
 
-    def argument_list(self, closing_token: Token) -> int:
-        arg_count = 0
-        if not self.check(closing_token.token_type):
-            self.expression()
-            arg_count += 1
-            while self.match(TokenType.COMMA):
-                self.expression()
-                arg_count += 1
-        self.consume(closing_token.token_type,
-                     f'Expect "{closing_token.lexeme}" after arguments.')
-        return arg_count
+    def call_args(self) -> tuple[list[ast_defs.expr], list[ast_defs.Keyword]]:
+        pos_args = []
+        keyword_args = []
+        if not self.check(TokenType.RIGHT_PAREN):
+            while self.match(TokenType.COMMA) or self.previous.token_type == TokenType.LEFT_PAREN:
+                # Check for a keyword argument
+                if self.match(TokenType.IDENTIFIER):
+                    if self.check(TokenType.EQUAL):
+                        arg_token = self.previous
+                        self.advance()  # Get rid of the "="
+                        keyword_args.append(ast_defs.Keyword(
+                            arg_token, arg_token.lexeme, self.expression()))
+                        # Now all arguments should be keyword arguments
+                        error_msg = 'No positional arguments allowed after keyword argument.'
+                        while self.match(TokenType.COMMA):
+                            self.consume(TokenType.IDENTIFIER, error_msg)
+                            arg_token = self.previous
+                            self.consume(TokenType.EQUAL,
+                                         'Expect "=" after keyword.')
+                            keyword_args.append(ast_defs.Keyword(
+                                arg_token, arg_token.lexeme, self.expression()))
+                    else:
+                        # Not a keyword so normal argument
+                        pos_args.append(
+                            self.parse_precedence(Precedence.OR, True))
+                else:
+                    pos_args.append(self.expression())
+
+        self.consume(TokenType.RIGHT_PAREN, f'Expect ")" after arguments.')
+        return pos_args, keyword_args
 
     def synchronize(self) -> None:
         self.panic_mode = False
@@ -268,11 +291,27 @@ def default(self: Parser, can_assign: bool) -> None:
 
 
 def identifier(self: Parser, can_assign: bool) -> None:
-    if can_assign:
-        raise NotImplementedError()
     identifier_token = self.previous
     name = identifier_token.lexeme
-    self.curr_node = ast_defs.Name(identifier_token, name)
+    if can_assign and self.check(TokenType.EQUAL) or self.match(TokenType.COMMA):
+        targets = [ast_defs.Name(identifier_token, name)]
+        while not self.check(TokenType.EQUAL):
+            if self.match(TokenType.IDENTIFIER):
+                targets.append(ast_defs.Name(
+                    self.previous, self.previous.lexeme))
+            elif self.match(TokenType.UNDERSCORE):
+                targets.append(None)
+            else:
+                self.error_at_current(
+                    'Expect variable name or "_" separated by ",". ')
+            if not self.match(TokenType.COMMA):
+                break
+        self.consume(TokenType.EQUAL, 'Expect "="')
+        value = self.expression()
+        self.curr_node = ast_defs.Assign(
+            self.previous, targets, value)
+    else:
+        self.curr_node = ast_defs.Name(identifier_token, name)
 
 
 def string(self: Parser, can_assign: bool) -> None:
@@ -324,11 +363,20 @@ def make_vector(self: Parser, can_assign: bool) -> None:
 
 
 def group_name(self: Parser, can_assign: bool) -> None:
-    raise NotImplementedError()
+    token = self.previous
+    func = ast_defs.Name(token, token.lexeme[2:-1])
+    self.consume(TokenType.LEFT_PAREN, 'Expect "(" after node group name.')
+    pos_args, keyword_args = self.call_args()
+    self.curr_node = ast_defs.Call(token, func, pos_args, keyword_args)
 
 
 def call(self: Parser, can_assign: bool) -> None:
-    raise NotImplementedError()
+    token = self.previous
+    func = self.curr_node
+    if not (isinstance(func, ast_defs.Name) or isinstance(func, ast_defs.Attribute)):
+        self.error('Expected function name to call.')
+    pos_args, keyword_args = self.call_args()
+    self.curr_node = ast_defs.Call(token, func, pos_args, keyword_args)
 
 
 def dot(self: Parser, can_assign: bool) -> None:
@@ -442,11 +490,34 @@ if __name__ == '__main__':
 
     test_directory = os.path.join(add_on_dir, 'tests')
     filenames = os.listdir(test_directory)
+    verbose = 1
+    num_passed = 0
+    BOLD = '\033[1m'
+    GREEN = '\033[92m'
+    RED = '\033[91m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[96m'
+    ENDC = '\033[0m'
     for filename in filenames:
-        print(f'\nTesting: "{filename}"')
+        print(f'Testing: {BOLD}{filename}{ENDC}:  ', end='')
         with open(os.path.join(test_directory, filename), 'r') as f:
             parser = Parser(f.read())
             try:
-                print(ast_defs.dump(parser.parse(), indent='.'))
+                tree = parser.parse()
+                print(GREEN + 'No internal errors' + ENDC)
+                if verbose > 0:
+                    print(
+                        f'{YELLOW}Syntax errors{ENDC}' if parser.had_error else f'{BLUE}No syntax errors{ENDC}')
+                if verbose > 1 and parser.had_error:
+                    print(parser.errors)
+                if verbose > 2:
+                    print(ast_defs.dump(tree, indent='.'))
+                num_passed += 1
             except NotImplementedError:
-                print('Parsing failed')
+                print(RED + 'Internal errors' + ENDC)
+                if verbose > 0:
+                    print(
+                        f'{YELLOW}Syntax errors{ENDC}:' if parser.had_error else f'{BLUE}No syntax errors{ENDC}')
+                if verbose > 1 and parser.had_error:
+                    print(parser.errors)
+    print(f'Tests done: Passed: ({num_passed}/{len(filenames)})')
