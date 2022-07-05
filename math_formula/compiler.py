@@ -76,42 +76,42 @@ class Compiler():
                 assert False, "Unreachable code"
 
 
-# if __name__ == '__main__':
-#     import os
-#     add_on_dir = os.path.dirname(
-#         os.path.realpath(__file__))
-#     test_directory = os.path.join(add_on_dir, 'tests')
-#     filenames = os.listdir(test_directory)
-#     verbose = 1
-#     num_passed = 0
-#     tot_tests = 0
-#     BOLD = '\033[1m'
-#     GREEN = '\033[92m'
-#     RED = '\033[91m'
-#     YELLOW = '\033[93m'
-#     BLUE = '\033[96m'
-#     ENDC = '\033[0m'
-#     for filename in filenames:
-#         tot_tests += 1
-#         print(f'Testing: {BOLD}{filename}{ENDC}:  ', end='')
-#         with open(os.path.join(test_directory, filename), 'r') as f:
-#             compiler = Compiler()
-#             try:
-#                 success = compiler.compile(f.read(), 'GeometryNodeTree')
-#                 print(GREEN + 'No internal errors' + ENDC)
-#                 if verbose > 0:
-#                     print(
-#                         f'{YELLOW}Syntax errors{ENDC}' if success else f'{BLUE}No syntax errors{ENDC}')
-#                 if verbose > 1 and success:
-#                     print(compiler.errors)
-#                 if verbose > 2:
-#                     print(compiler.operations)
-#                 num_passed += 1
-#             except NotImplementedError:
-#                 print(RED + 'Internal errors' + ENDC)
-#                 # if verbose > 0:
-#                 #     print(
-#                 #         f'{YELLOW}Syntax errors{ENDC}:' if compiler.parser.had_error else f'{BLUE}No syntax errors{ENDC}')
-#                 # if verbose > 1 and compiler.parser.had_error:
-#                 #     print(compiler.operations)
-#     print(f'Tests done: Passed: ({num_passed}/{tot_tests})')
+if __name__ == '__main__':
+    import os
+    add_on_dir = os.path.dirname(
+        os.path.realpath(__file__))
+    test_directory = os.path.join(add_on_dir, 'tests')
+    filenames = os.listdir(test_directory)
+    verbose = 1
+    num_passed = 0
+    tot_tests = 0
+    BOLD = '\033[1m'
+    GREEN = '\033[92m'
+    RED = '\033[91m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[96m'
+    ENDC = '\033[0m'
+    for filename in filenames:
+        tot_tests += 1
+        print(f'Testing: {BOLD}{filename}{ENDC}:  ', end='')
+        with open(os.path.join(test_directory, filename), 'r') as f:
+            compiler = Compiler()
+            try:
+                success = compiler.compile(f.read(), 'GeometryNodeTree')
+                print(GREEN + 'No internal errors' + ENDC)
+                if verbose > 0:
+                    print(
+                        f'{YELLOW}Syntax errors{ENDC}' if success else f'{BLUE}No syntax errors{ENDC}')
+                if verbose > 1 and success:
+                    print(compiler.errors)
+                if verbose > 2:
+                    print(compiler.operations)
+                num_passed += 1
+            except NotImplementedError:
+                print(RED + 'Internal errors' + ENDC)
+                # if verbose > 0:
+                #     print(
+                #         f'{YELLOW}Syntax errors{ENDC}:' if compiler.parser.had_error else f'{BLUE}No syntax errors{ENDC}')
+                # if verbose > 1 and compiler.parser.had_error:
+                #     print(compiler.operations)
+    print(f'Tests done: Passed: ({num_passed}/{tot_tests})')
