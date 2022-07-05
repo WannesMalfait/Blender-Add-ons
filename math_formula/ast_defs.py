@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field, fields
 from typing import Union
-from scanner import Token
-from nodes.base import DataType, ValueType
+from math_formula.scanner import Token
+from math_formula.nodes.base import DataType, ValueType
 
 
 @dataclass
@@ -81,11 +81,11 @@ class NotEq(operator):
     ...
 
 
-class expr(Ast):
+class stmt(Ast):
     ...
 
 
-class stmt(Ast):
+class expr(stmt):
     ...
 
 
@@ -125,11 +125,6 @@ class Name(expr):
     id: str
 
 # Expressions
-
-
-@dataclass
-class Expr(stmt):
-    value: expr
 
 
 @dataclass

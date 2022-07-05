@@ -2,7 +2,7 @@ import os
 import pickle
 import blf
 from .scanner import Token
-from .parser import MacroType, Compiler
+# from .parser import MacroType, Compiler
 import bpy
 
 add_on_dir = os.path.dirname(
