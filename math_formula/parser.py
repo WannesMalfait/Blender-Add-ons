@@ -553,7 +553,7 @@ if __name__ == '__main__':
         os.path.realpath(__file__))
     test_directory = os.path.join(add_on_dir, 'tests')
     filenames = os.listdir(test_directory)
-    verbose = 3
+    verbose = 1
     num_passed = 0
     tot_tests = 0
     BOLD = '\033[1m'
