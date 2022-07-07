@@ -44,7 +44,7 @@ class Compiler():
         elif isinstance(expr, ast_defs.Constant):
             self.constant(expr)
         elif isinstance(expr, ast_defs.Vec3):
-            raise NotImplementedError
+            self.vec3(expr)
         elif isinstance(expr, ast_defs.Rgba):
             raise NotImplementedError
         elif isinstance(expr, ast_defs.Name):
@@ -59,20 +59,21 @@ class Compiler():
             print(expr, type(expr))
             assert False, "Unreachable code"
 
-    def compile_function(self, name: str, args: list[DataType]) -> DataType:
-        dtype = self.back_end.compile_function(self.operations, name, args)
+    def compile_function(self, name: str, args: list[DataType], stack_locs: list[int]):
+        dtype = self.back_end.compile_function(
+            self.operations, name, args, stack_locs)
         self.curr_type = dtype
 
     def unary_op(self, un_op: ast_defs.UnaryOp):
         op = un_op.op
         self.compile_expr(un_op.operand)
         dtype = self.curr_type
+        loc = len(self.operations) - 1
         if isinstance(op, ast_defs.Not):
-            self.compile_function('not', [dtype])
+            self.compile_function('not', [dtype], [loc])
         elif isinstance(op, ast_defs.USub):
             self.operations.append(Operation(OpType.PUSH_VALUE, -1))
-            # TODO: replace with INT when type matching works better.
-            self.compile_function('mul', [DataType.FLOAT, dtype])
+            self.compile_function('mul', [DataType.INT, dtype], [loc])
         else:
             assert False, "Unreachable code"
 
@@ -80,36 +81,43 @@ class Compiler():
         op = bin_op.op
         self.compile_expr(bin_op.left)
         l_dtype = self.curr_type
+        l_loc = len(self.operations)-1
         self.compile_expr(bin_op.right)
         r_dtype = self.curr_type
+        r_loc = len(self.operations) - 1
         if isinstance(op, ast_defs.And):
-            self.compile_function('and', [l_dtype, r_dtype])
+            self.compile_function('and', [l_dtype, r_dtype], [l_loc, r_loc])
         elif isinstance(op, ast_defs.Or):
-            self.compile_function('or', [l_dtype, r_dtype])
+            self.compile_function('or', [l_dtype, r_dtype], [l_loc, r_loc])
         elif isinstance(op, ast_defs.Add):
-            self.compile_function('add', [l_dtype, r_dtype])
+            self.compile_function('add', [l_dtype, r_dtype], [l_loc, r_loc])
         elif isinstance(op, ast_defs.Div):
-            self.compile_function('div', [l_dtype, r_dtype])
+            self.compile_function('div', [l_dtype, r_dtype], [l_loc, r_loc])
         elif isinstance(op, ast_defs.Mod):
-            self.compile_function('mod', [l_dtype, r_dtype])
+            self.compile_function('mod', [l_dtype, r_dtype], [l_loc, r_loc])
         elif isinstance(op, ast_defs.Mult):
-            self.compile_function('mul', [l_dtype, r_dtype])
+            self.compile_function('mul', [l_dtype, r_dtype], [l_loc, r_loc])
         elif isinstance(op, ast_defs.Pow):
-            self.compile_function('pow', [l_dtype, r_dtype])
+            self.compile_function('pow', [l_dtype, r_dtype], [l_loc, r_loc])
         elif isinstance(op, ast_defs.Sub):
-            self.compile_function('sub', [l_dtype, r_dtype])
+            self.compile_function('sub', [l_dtype, r_dtype], [l_loc, r_loc])
         elif isinstance(op, ast_defs.Eq):
-            self.compile_function('equal', [l_dtype, r_dtype])
+            self.compile_function('equal', [l_dtype, r_dtype], [l_loc, r_loc])
         elif isinstance(op, ast_defs.Gt):
-            self.compile_function('greater_than', [l_dtype, r_dtype])
+            self.compile_function(
+                'greater_than', [l_dtype, r_dtype], [l_loc, r_loc])
         elif isinstance(op, ast_defs.GtE):
-            self.compile_function('greater_equal', [l_dtype, r_dtype])
+            self.compile_function(
+                'greater_equal', [l_dtype, r_dtype], [l_loc, r_loc])
         elif isinstance(op, ast_defs.Lt):
-            self.compile_function('less_than', [l_dtype, r_dtype])
+            self.compile_function(
+                'less_than', [l_dtype, r_dtype], [l_loc, r_loc])
         elif isinstance(op, ast_defs.LtE):
-            self.compile_function('less_equal', [l_dtype, r_dtype])
+            self.compile_function(
+                'less_equal', [l_dtype, r_dtype], [l_loc, r_loc])
         elif isinstance(op, ast_defs.NotEq):
-            self.compile_function('not_equal', [l_dtype, r_dtype])
+            self.compile_function(
+                'not_equal', [l_dtype, r_dtype], [l_loc, r_loc])
         else:
             assert False, "Unreachable code"
 
@@ -118,6 +126,27 @@ class Compiler():
         self.operations.append(Operation(OpType.PUSH_VALUE, value))
         self.curr_type = dtype
 
+    def vec3(self, vec: ast_defs.Vec3):
+        if all(map(lambda x: isinstance(x, ast_defs.Constant), [vec.x, vec.y, vec.z])):
+            self.operations.append(Operation(OpType.PUSH_VALUE, [
+                self.back_end.convert(vec.x.value, vec.x.type, DataType.FLOAT),
+                self.back_end.convert(vec.y.value, vec.y.type, DataType.FLOAT),
+                self.back_end.convert(vec.z.value, vec.z.type, DataType.FLOAT),
+            ]))
+            self.curr_type = DataType.VEC3
+            return
+        self.compile_expr(vec.x)
+        x_type = self.curr_type
+        x_loc = len(self.operations) - 1
+        self.compile_expr(vec.y)
+        y_type = self.curr_type
+        y_loc = len(self.operations) - 1
+        self.compile_expr(vec.z)
+        z_type = self.curr_type
+        z_loc = len(self.operations) - 1
+        self.compile_function('vec3', [x_type, y_type, z_type], [
+                              x_loc, y_loc, z_loc])
+
 
 if __name__ == '__main__':
     import os
@@ -125,7 +154,7 @@ if __name__ == '__main__':
         os.path.realpath(__file__))
     test_directory = os.path.join(add_on_dir, 'tests')
     filenames = os.listdir(test_directory)
-    verbose = 2
+    verbose = 3
     num_passed = 0
     tot_tests = 0
     BOLD = '\033[1m'
@@ -144,7 +173,7 @@ if __name__ == '__main__':
                 print(GREEN + 'No internal errors' + ENDC)
                 if verbose > 0:
                     print(
-                        f'{YELLOW}Syntax errors{ENDC}' if success else f'{BLUE}No syntax errors{ENDC}')
+                        f'{YELLOW}Syntax errors{ENDC}' if not success else f'{BLUE}No syntax errors{ENDC}')
                 if verbose > 1 and success:
                     print(compiler.errors)
                 if verbose > 2:

@@ -415,7 +415,7 @@ def unary(self: Parser, can_assign: bool) -> None:
 
 def make_vector(self: Parser, can_assign: bool) -> None:
     bracket_token = self.previous
-    x = y = z = None
+    x = y = z = ast_defs.Constant(bracket_token, None, DataType.DEFAULT)
     if not self.match(TokenType.RIGHT_BRACE):
         x = self.expression()
         if self.match(TokenType.COMMA):

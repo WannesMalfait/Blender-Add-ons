@@ -21,6 +21,37 @@ class DataType(IntEnum):
     MATERIAL = auto()
 
 
+def can_convert(from_type: DataType, to_type: DataType):
+    if from_type == to_type:
+        return True
+    else:
+        return from_type.value <= DataType.VEC3.value and to_type.value <= DataType.VEC3.value
+
+
+# Penalty for converting from type a to type b
+# Higher means worse; 100 means never do this conversion
+dtype_conversion_penalties = (
+    (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+    (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+    (0, 0, 0, 1, 2, 4, 3, 100, 100, 100, 100, 100, 100, 100, 100),
+    (0, 0, 12, 0, 1, 3, 2, 100, 100, 100, 100, 100, 100, 100, 100),
+    (0, 0, 13, 12, 0, 2, 1, 100, 100, 100, 100, 100, 100, 100, 100),
+    (0, 0, 15, 14, 13, 0, 11, 100, 100, 100, 100, 100, 100, 100, 100),
+    (0, 0, 14, 13, 12, 1, 0, 100, 100, 100, 100, 100, 100, 100, 100),
+    (0, 0, 100, 100, 100, 100, 100, 0, 100, 100, 100, 100, 100, 100, 100),
+    (0, 0, 100, 100, 100, 100, 100, 100, 0, 100, 100, 100, 100, 100, 100),
+    (0, 0, 100, 100, 100, 100, 100, 100, 100, 0, 100, 100, 100, 100, 100),
+    (0, 0, 100, 100, 100, 100, 100, 100, 100, 100, 0, 100, 100, 100, 100),
+    (0, 0, 100, 100, 100, 100, 100, 100, 100, 100, 100, 0, 100, 100, 100),
+    (0, 0, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 0, 100, 100),
+    (0, 0, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 0, 100),
+    (0, 0, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 0),
+)
+assert DataType.MATERIAL.value == len(
+    dtype_conversion_penalties)-1, 'Correct table size'
+assert DataType.MATERIAL.value == len(
+    dtype_conversion_penalties[0])-1, 'Correct table size'
+
 string_to_data_type = {
     '_': DataType.UNKNOWN,
     '': DataType.DEFAULT,
@@ -104,6 +135,72 @@ class Operation():
 
 class BackEnd():
 
+    def convert(self, value: ValueType, from_type: DataType, to_type: DataType) -> ValueType:
+        '''Convert value of type from_type to to_type.'''
+        assert can_convert(
+            from_type, to_type), f'Invalid type, can\'t convert from {from_type} to {to_type} '
+        if from_type == DataType.DEFAULT:
+            if to_type == DataType.BOOL:
+                return True
+            if to_type == DataType.INT:
+                return 0
+            if to_type == DataType.FLOAT:
+                return 0.0
+            if to_type == DataType.VEC3:
+                return [0.0, 0.0, 0.0]
+            if to_type == DataType.RGBA:
+                return [0.0, 0.0, 0.0, 0.0]
+        if from_type == DataType.BOOL:
+            if to_type == DataType.INT:
+                return int(value)
+            if to_type == DataType.FLOAT:
+                return float(value)
+            if to_type == DataType.RGBA:
+                return [float(value) for _ in range(4)]
+            if to_type == DataType.VEC3:
+                return [float(value) for _ in range(3)]
+        if from_type == DataType.INT:
+            if to_type == DataType.BOOL:
+                return bool(value <= 0)
+            if to_type == DataType.FLOAT:
+                return float(value)
+            if to_type == DataType.RGBA:
+                return [float(value) for _ in range(4)]
+            if to_type == DataType.VEC3:
+                return [float(value) for _ in range(3)]
+        if from_type == DataType.FLOAT:
+            if to_type == DataType.BOOL:
+                return bool(value <= 0.0)
+            if to_type == DataType.INT:
+                return int(value)
+            if to_type == DataType.RGBA:
+                return [value for _ in range(4)]
+            if to_type == DataType.VEC3:
+                return [value for _ in range(3)]
+        if from_type == DataType.RGBA:
+            gray_scale = (
+                0.2126 * value[0]) + (0.7152 * value[1]) + (0.0722 * value[2])
+            if to_type == DataType.BOOL:
+                return bool(gray_scale)
+            if to_type == DataType.INT:
+                return int(gray_scale)
+            if to_type == DataType.FLOAT:
+                return gray_scale
+            if to_type == DataType.VEC3:
+                return [value[i] for i in range(3)]
+        if from_type == DataType.VEC3:
+            avg = (
+                value[0] + value[1] + value[2])/3.0
+            if to_type == DataType.BOOL:
+                return bool(avg)
+            if to_type == DataType.INT:
+                return int(avg)
+            if to_type == DataType.FLOAT:
+                return avg
+            if to_type == DataType.RGBA:
+                return value + [1]
+        return value
+
     def coerce_value(self, value: ValueType, type: DataType) -> tuple[ValueType, DataType]:
         '''Ensure that the value is of a type supported by the backend'''
         pass
@@ -113,14 +210,25 @@ class BackEnd():
         The options argument contains a list of possible function argument types.
         Returns the index of the best match.'''
 
-        # For now, assume there is some perfect match:
+        # Find the one with the least amount of penalty
+        # penalty = 0 means a perfect match
+        best_penalty = 100
+        best_index = 0
         for i, option in enumerate(options):
-            if option == args:
+            if len(option) != len(args):
+                continue
+            penalty = sum([dtype_conversion_penalties[args[i].value]
+                           [option[i].value] for i in range(len(option))])
+            if penalty == 0:
                 return i
-
+            if best_penalty > penalty:
+                best_penalty = penalty
+                best_index = i
+        if best_penalty < 100:
+            return best_index
         print(f'\nOPTIONS: {options}\nARGS: {args}')
         assert False, "No matching option found"
 
-    def compile_function(self, operations: list[Operation], name: str, args: list[DataType]) -> DataType:
+    def compile_function(self, operations: list[Operation], name: str, args: list[DataType], stack_locs: list[int]) -> DataType:
         ''' Compile function with given arguments and return the return type of the function'''
         pass

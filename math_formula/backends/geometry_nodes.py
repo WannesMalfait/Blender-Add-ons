@@ -60,12 +60,6 @@ class GeometryNodesBackEnd(BackEnd):
 
     def coerce_value(self, value: ValueType, type: DataType) -> tuple[ValueType, DataType]:
         # All the types are valid in Geometry nodes
-
-        # Temporary hack because overloading type matching isn't implemented yet
-        # TODO: remove when type matching works better.
-        if type == DataType.INT:
-            value = float(value)
-            type = DataType.FLOAT
         return value, type
 
     @staticmethod
@@ -73,7 +67,7 @@ class GeometryNodesBackEnd(BackEnd):
         node = nodes[instance.key]
         return [node.inputs[i][1] for i in instance.inputs]
 
-    def compile_function(self, operations: list[Operation], name: str, args: list[DataType]) -> DataType:
+    def compile_function(self, operations: list[Operation], name: str, args: list[DataType], stack_locs: list[int]) -> DataType:
         instance_options: list[NodeInstance] = []
         if name in geometry_nodes:
             instance_options += geometry_nodes[name]
@@ -83,6 +77,13 @@ class GeometryNodesBackEnd(BackEnd):
         index = self.find_best_match(options, args)
         func = instance_options[index]
         node = nodes[func.key]
+        # Ensure that actual values are converted to the appropriate type
+        # when needed. We change the operation to make them of the right
+        # type.
+        for i, loc in enumerate(stack_locs):
+            if (op := operations[loc]).op_type == OpType.PUSH_VALUE:
+                op.data = self.convert(
+                    op.data, args[i], node.inputs[func.inputs[i]][1])
         # Add the indices of the inputs that should be connected to
         # And the outputs of the node that can be used
         operations.append(Operation(OpType.PUSH_VALUE,
