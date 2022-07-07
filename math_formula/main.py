@@ -346,12 +346,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         context.area.tag_redraw()
         if event.type == 'RET':
             if event.shift:
-                # Ensure we go here if shift
-                if (not self.lock or event.is_repeat):
-                    self.editor.new_line()
-                    self.lock = True
-            else:
-                # Exit when they press enter
+                # Exit when they press shift + enter
                 # TODO: Change this based on tree type
                 compiler = Compiler(GeometryNodesBackEnd())
                 formula = self.editor.get_text()
@@ -376,6 +371,12 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 except:
                     self.internal_error(remove_handle=False)
                 return {'FINISHED'}
+            else:
+                # Just add a new line
+                if (not self.lock or event.is_repeat):
+                    self.editor.new_line()
+                    self.lock = True
+
         # Cancel when they press Esc or Rmb
         elif event.type in ('ESC', 'RIGHTMOUSE'):
             bpy.types.SpaceNodeEditor.draw_handler_remove(
