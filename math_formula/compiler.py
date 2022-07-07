@@ -34,6 +34,7 @@ class Compiler():
                 raise NotImplementedError
             else:
                 assert False, "Unreachable code"
+        return True
 
     def compile_expr(self, expr: ast_defs.expr):
         if isinstance(expr, ast_defs.UnaryOp):
@@ -124,7 +125,7 @@ if __name__ == '__main__':
         os.path.realpath(__file__))
     test_directory = os.path.join(add_on_dir, 'tests')
     filenames = os.listdir(test_directory)
-    verbose = 1
+    verbose = 2
     num_passed = 0
     tot_tests = 0
     BOLD = '\033[1m'

@@ -1,22 +1,8 @@
-import os
 import pickle
 import blf
 from .scanner import Token
 # from .parser import MacroType, Compiler
 import bpy
-
-add_on_dir = os.path.dirname(
-    os.path.realpath(__file__))
-
-font_directory = os.path.join(add_on_dir, 'fonts')
-macro_directory = os.path.join(add_on_dir, 'macros')
-fonts = {
-    'bfont': 0,
-    'regular': blf.load(os.path.join(font_directory, 'Anonymous_Pro.ttf')),
-    'italic': blf.load(os.path.join(font_directory, 'Anonymous_Pro_I.ttf')),
-    'bold': blf.load(os.path.join(font_directory, 'Anonymous_Pro_0.ttf')),
-    'bold_italic': blf.load(os.path.join(font_directory, 'Anonymous_Pro_BI.ttf')),
-}
 
 
 class FileData():

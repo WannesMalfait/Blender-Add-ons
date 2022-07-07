@@ -1,4 +1,4 @@
-from math_formula import parser, scanner, positioning, nodes
+from math_formula import main, parser, scanner, positioning, backends, editor, compiler
 import bpy
 import rna_keymap_ui
 
@@ -15,12 +15,13 @@ bl_info = {
 # Reload other modules as well
 if "bpy" in locals():
     import importlib
-    # importlib.reload(main)
+    importlib.reload(main)
     importlib.reload(parser)
     importlib.reload(scanner)
+    importlib.reload(compiler)
     importlib.reload(positioning)
-    # importlib.reload(file_loading)
-    importlib.reload(nodes)
+    importlib.reload(editor)
+    importlib.reload(backends)
 
 
 class MFMathFormula(bpy.types.AddonPreferences):
@@ -207,16 +208,16 @@ addon_keymaps = []
 kmi_defs = [
     # kmi_defs entry: (identifier, key, action, CTRL, SHIFT, ALT, props)
     # props entry: (property name, property value)
-    # (main.MF_OT_arrange_from_root.bl_idname,
-    #  'E', 'PRESS', False, False, True, None),
-    # (main.MF_OT_select_from_root.bl_idname,
-    #  'E', 'PRESS', True, True, False, (('select_children', True), ('select_parents', True))),
-    # (main.MF_OT_select_from_root.bl_idname,
-    #  'E', 'PRESS', True, False, False, (('select_children', True), ('select_parents', False))),
-    # (main.MF_OT_select_from_root.bl_idname,
-    #  'E', 'PRESS', False, True, False, (('select_children', False), ('select_parents', True))),
-    # (main.MF_OT_type_formula_then_add_nodes.bl_idname,
-    #  'F', 'PRESS', False, False, True, None),
+    (main.MF_OT_arrange_from_root.bl_idname,
+     'E', 'PRESS', False, False, True, None),
+    (main.MF_OT_select_from_root.bl_idname,
+     'E', 'PRESS', True, True, False, (('select_children', True), ('select_parents', True))),
+    (main.MF_OT_select_from_root.bl_idname,
+     'E', 'PRESS', True, False, False, (('select_children', True), ('select_parents', False))),
+    (main.MF_OT_select_from_root.bl_idname,
+     'E', 'PRESS', False, True, False, (('select_children', False), ('select_parents', True))),
+    (main.MF_OT_type_formula_then_add_nodes.bl_idname,
+     'F', 'PRESS', False, False, True, None),
 ]
 
 classes = (
@@ -229,7 +230,7 @@ classes = (
 
 def register():
     # file_loading.register()
-    # main.register()
+    main.register()
     for cls in classes:
         bpy.utils.register_class(cls)
 
@@ -252,7 +253,7 @@ def register():
 
 
 def unregister():
-    # main.unregister()
+    main.unregister()
     # file_loading.unregister()
     for cls in classes:
         bpy.utils.unregister_class(cls)

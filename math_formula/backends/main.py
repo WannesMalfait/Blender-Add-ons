@@ -21,6 +21,24 @@ class DataType(IntEnum):
     MATERIAL = auto()
 
 
+string_to_data_type = {
+    '_': DataType.UNKNOWN,
+    '': DataType.DEFAULT,
+    'bool': DataType.BOOL,
+    'int': DataType.INT,
+    'float': DataType.FLOAT,
+    'rgba': DataType.RGBA,
+    'vec3': DataType.VEC3,
+    'geo': DataType.GEOMETRY,
+    'str': DataType.STRING,
+    'shader': DataType.SHADER,
+    'obj': DataType.OBJECT,
+    'img': DataType.IMAGE,
+    'collection': DataType.COLLECTION,
+    'tex': DataType.TEXTURE,
+    'mat': DataType.MATERIAL,
+}
+
 ValueType = Any
 
 
@@ -38,14 +56,12 @@ class OpType(IntEnum):
     # on top of the stack is a list of the inputs for which arguments are
     # provided. Push the output onto the stack.
     CALL_FUNCTION = auto()
-    # Same as CALL_FUNCTION except the function is just a built-in node, and
-    # the data is a tuple containing the bl_name and the properties that should
-    # be set.
-    CALL_BUILTIN = auto()
     # Same as CALL_FUNCTION but a node group is created.
     CALL_NODEGROUP = auto()
-    # Create an input node for the given type. The value is stack.pop().
-    CREATE_INPUT = auto()
+    # Create the built-in node. Data is a tuple containing the bl_name and
+    # props to be set. The value at the top of the stack is a tuple containing
+    # a list of inputs and a list of outputs of the node that are used.
+    CALL_BUILTIN = auto()
     # Clear the stack.
     END_OF_STATEMENT = auto()
 

@@ -84,7 +84,9 @@ class GeometryNodesBackEnd(BackEnd):
         func = instance_options[index]
         node = nodes[func.key]
         # Add the indices of the inputs that should be connected to
-        operations.append(Operation(OpType.PUSH_VALUE, func.inputs))
+        # And the outputs of the node that can be used
+        operations.append(Operation(OpType.PUSH_VALUE,
+                                    (func.inputs, func.outputs)))
         operations.append(Operation(OpType.CALL_BUILTIN,
                                     (node.bl_name, func.props)))
         outs = [node.outputs[i][1] for i in func.outputs]
