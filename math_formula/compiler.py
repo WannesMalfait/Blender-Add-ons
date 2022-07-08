@@ -2,7 +2,6 @@ from math_formula.backends.geometry_nodes import GeometryNodesBackEnd
 from math_formula.backends.main import BackEnd, DataType, Operation, OpType
 from math_formula.parser import Parser, Error
 from math_formula import ast_defs
-from bpy.types import NodeSocket
 
 
 class Compiler():
@@ -11,6 +10,7 @@ class Compiler():
         self.errors: list[Error] = []
         self.curr_type: DataType = None
         self.back_end: BackEnd = back_end
+        self.vars: dict[str, DataType] = {}
 
     def compile(self, source: str) -> bool:
         parser = Parser(source)
@@ -34,6 +34,7 @@ class Compiler():
                 raise NotImplementedError
             else:
                 assert False, "Unreachable code"
+            self.operations.append(Operation(OpType.END_OF_STATEMENT, None))
         return True
 
     def compile_expr(self, expr: ast_defs.expr):
@@ -48,7 +49,7 @@ class Compiler():
         elif isinstance(expr, ast_defs.Rgba):
             raise NotImplementedError
         elif isinstance(expr, ast_defs.Name):
-            raise NotImplementedError
+            self.name(expr)
         elif isinstance(expr, ast_defs.Attribute):
             raise NotImplementedError
         elif isinstance(expr, ast_defs.Keyword):
@@ -146,6 +147,16 @@ class Compiler():
         z_loc = len(self.operations) - 1
         self.compile_function('vec3', [x_type, y_type, z_type], [
                               x_loc, y_loc, z_loc])
+
+    def name(self, name: ast_defs.Name):
+        # We should only end up here when we want to 'load' a variable.
+        # If the name doesn't exist yet, create a default value
+        if not name.id in self.vars:
+            dtype = self.back_end.create_input(
+                self.operations, name.id, None, DataType.DEFAULT)
+            self.vars[name.id] = dtype
+        self.operations.append(Operation(OpType.GET_VAR, name.id))
+        self.curr_type = self.vars[name.id]
 
 
 if __name__ == '__main__':

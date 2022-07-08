@@ -83,6 +83,9 @@ class OpType(IntEnum):
     # Get the output with the given index from the last value on the stack.
     # Put this value on top of the stack.
     GET_OUTPUT = auto()
+    # Set the ouput of the last added node to the given value. Data is a
+    # tuple of the output index and the value to be set.
+    SET_OUTPUT = auto()
     # Call the given function, all the arguments are on the stack. The value
     # on top of the stack is a list of the inputs for which arguments are
     # provided. Push the output onto the stack.
@@ -93,6 +96,8 @@ class OpType(IntEnum):
     # props to be set. The value at the top of the stack is a tuple containing
     # a list of inputs and a list of outputs of the node that are used.
     CALL_BUILTIN = auto()
+    # Set the label of the last added node to the given name.
+    RENAME_NODE = auto()
     # Clear the stack.
     END_OF_STATEMENT = auto()
 
@@ -204,6 +209,38 @@ class BackEnd():
     def coerce_value(self, value: ValueType, type: DataType) -> tuple[ValueType, DataType]:
         '''Ensure that the value is of a type supported by the backend'''
         pass
+
+    def create_input(self, operations: list[Operation], name: str, value: ValueType, dtype: DataType) -> DataType:
+        value, dtype = self.coerce_value(value, dtype)
+        if dtype == DataType.DEFAULT or dtype == DataType.UNKNOWN:
+            dtype = DataType.FLOAT
+            value = 0.0
+        # No inputs and one output to be used
+        operations.append(
+            Operation(OpType.PUSH_VALUE, ([], [0])))
+
+        if dtype == DataType.FLOAT:
+            operations.append(
+                Operation(OpType.CALL_BUILTIN, ('ShaderNodeValue', [])))
+            operations.append(
+                Operation(OpType.SET_OUTPUT, (0, value)))
+        elif dtype == DataType.BOOL:
+            Operation(OpType.CALL_BUILTIN,
+                      ('FunctionNodeInputBool', [('boolean', value)]))
+        elif dtype == DataType.INT:
+            Operation(OpType.CALL_BUILTIN,
+                      ('FunctionNodeInputInt', [('integer', value)]))
+        elif dtype == DataType.RGBA:
+            Operation(OpType.CALL_BUILTIN,
+                      ('FunctionNodeInputColor', [('color', value)]))
+        elif dtype == DataType.STRING:
+            Operation(OpType.CALL_BUILTIN,
+                      ('FunctionNodeInputString', [('string', value)]))
+        else:
+            raise NotImplementedError(f'Creating input of type {dtype}')
+        operations.append(Operation(OpType.RENAME_NODE, name))
+        operations.append(Operation(OpType.CREATE_VAR, name))
+        return dtype
 
     def find_best_match(self, options: list[list[DataType]], args: list[DataType]) -> int:
         '''Find the best function to use from the list of options.

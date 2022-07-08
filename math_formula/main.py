@@ -132,6 +132,8 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             space.cursor_location = tree.view_center
 
     def get_args(self, stack: list, num_args: int) -> list[ValueType]:
+        if num_args == 0:
+            return []
         args = stack[-num_args:]
         stack[:] = stack[:-num_args]
         return args
@@ -164,37 +166,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 node.inputs[input_index].default_value = arg
         return node
 
-    # @staticmethod
-    # def get_value_as_socket(value: ValueType, type: DataType, tree: bpy.types.NodeTree) -> tuple[bpy.types.Node, NodeSocket]:
-    #     node = None
-    #     node_prefix = 'ShaderNode'
-    #     if type == DataType.UNKNOWN or type == DataType.DEFAULT or type == DataType.FLOAT:
-    #         node = tree.nodes.new(node_prefix + 'Value')
-    #         if value is not None:
-    #             node.outputs[0].default_value = value
-    #         return node, node.outputs[0]
-
-    #     node_prefix = 'FunctionNode'
-    #     if type == DataType.BOOL:
-    #         node = tree.nodes.new(node_prefix + 'InputBool')
-    #         if value is not None:
-    #             node.boolean = value
-    #     elif type == DataType.INT:
-    #         node = tree.nodes.new(node_prefix + 'InputInt')
-    #         if value is not None:
-    #             node.integer = value
-    #     elif type == DataType.RGBA:
-    #         node = tree.nodes.new(node_prefix + 'InputColor')
-    #         if value is not None:
-    #             node.color = value
-    #     elif type == DataType.STRING:
-    #         node = tree.nodes.new(node_prefix + 'InputString')
-    #         if value is not None:
-    #             node.string = value
-    #     else:
-    #         assert False, 'Unreachable, problem in type checker'
-    #     return node, node.outputs[0]
-
     def execute(self, context: bpy.context):
         space = context.space_data
         # Safe because of poll function
@@ -216,20 +187,17 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         for operation in compiler.operations:
             op_type = operation.op_type
             op_data = operation.data
-            assert OpType.END_OF_STATEMENT.value == 7, 'Exhaustive handling of Operation types.'
+            assert OpType.END_OF_STATEMENT.value == 9, 'Exhaustive handling of Operation types.'
             if op_type == OpType.PUSH_VALUE:
                 stack.append(op_data)
             elif op_type == OpType.CREATE_VAR:
-                raise NotImplementedError
                 assert isinstance(
                     op_data, str), 'Variable name should be a string.'
                 socket = stack.pop()
                 assert isinstance(
-                    socket, NodeSocket), 'Bug in type checker, create var expects a node socket.'
+                    socket, NodeSocket), 'Create var expects a node socket.'
                 variables[op_data] = socket
-                # root_nodes.append(socket.node)
             elif op_type == OpType.GET_VAR:
-                raise NotImplementedError
                 assert isinstance(
                     op_data, str), 'Variable name should be a string.'
                 stack.append(variables[op_data])
@@ -242,6 +210,11 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 assert isinstance(
                     struct, list), 'Bug in type checker, get_output only works on structs.'
                 stack.append(struct[index])
+            elif op_type == OpType.SET_OUTPUT:
+                assert isinstance(
+                    op_data, tuple), 'Data should be tuple of index and value'
+                index, value = op_data
+                nodes[-1].outputs[index].default_value = value
             elif op_type == OpType.CALL_FUNCTION:
                 raise NotImplementedError
                 assert isinstance(
@@ -256,6 +229,8 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                     stack.append([node.outputs[socket.index]
                                   for socket in outputs])
                 nodes.append(node)
+            elif op_type == OpType.CALL_NODEGROUP:
+                raise NotImplementedError
             elif op_type == OpType.CALL_BUILTIN:
                 assert isinstance(op_data, tuple), 'Bug in compiler.'
                 name, node_props = op_data
@@ -271,8 +246,8 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 elif len(used_outputs) > 1:
                     stack.append([node.outputs[i] for i in used_outputs])
                 nodes.append(node)
-            elif op_type == OpType.CALL_NODEGROUP:
-                raise NotImplementedError
+            elif op_type == OpType.RENAME_NODE:
+                nodes[-1].label = op_data
             elif op_type == OpType.END_OF_STATEMENT:
                 stack = []
             else:
