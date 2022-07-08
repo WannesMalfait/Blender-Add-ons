@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field, fields
 from typing import Union
 from math_formula.scanner import Token
-from math_formula.nodes.base import DataType, ValueType
+from math_formula.backends.main import DataType, ValueType
 
 
 @dataclass
@@ -192,7 +192,7 @@ class Out(stmt):
 
 @dataclass
 class Assign(stmt):
-    targets: expr
+    targets: list[Union[None, Name]]
     value: expr
 
 
@@ -205,7 +205,7 @@ class Loop(stmt):
 
 
 # Code copied and adapted from pythons own ast module
-def dump(node, indent=None):
+def dump(node, node_type: type = Ast, indent=None):
     """
     Return a formatted dump of the tree in node.  This is mainly useful for
     debugging purposes. If indent is a non-negative
@@ -220,7 +220,7 @@ def dump(node, indent=None):
         else:
             prefix = ''
             sep = ', '
-        if isinstance(node, Ast):
+        if isinstance(node, node_type):
             cls = type(node)
             args = []
             allsimple = True
@@ -252,8 +252,9 @@ def dump(node, indent=None):
             return '[%s%s]' % (prefix, sep.join(_format(x, level)[0] for x in node)), False
         return repr(node), True
 
-    if not isinstance(node, Ast):
-        raise TypeError('expected Ast, got %r' % node.__class__.__name__)
+    if not isinstance(node, node_type):
+        raise TypeError('expected node_type, got %r' %
+                        node.__class__.__name__)
     if indent is not None and not isinstance(indent, str):
         indent = ' ' * indent
     return _format(node)[0]

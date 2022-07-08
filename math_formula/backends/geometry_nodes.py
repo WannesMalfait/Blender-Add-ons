@@ -1,5 +1,6 @@
 from math_formula.backends.builtin_nodes import nodes, instances
-from math_formula.backends.main import BackEnd, Operation, OpType, DataType, NodeInstance, ValueType
+from math_formula.backends.main import BackEnd
+from math_formula.backends.type_defs import *
 
 geometry_nodes = {
     'and': [NodeInstance('Boolean Math', [0, 1], [0], [('operation', 'AND')])],
@@ -59,7 +60,8 @@ geometry_nodes = {
 class GeometryNodesBackEnd(BackEnd):
 
     def coerce_value(self, value: ValueType, type: DataType) -> tuple[ValueType, DataType]:
-        # All the types are valid in Geometry nodes
+        if type.value >= DataType.SHADER or type.value == DataType.GEOMETRY:
+            raise TypeError('Can\'t coerce type to a Geometry Nodes value')
         return value, type
 
     @staticmethod
@@ -67,7 +69,7 @@ class GeometryNodesBackEnd(BackEnd):
         node = nodes[instance.key]
         return [node.inputs[i][1] for i in instance.inputs]
 
-    def compile_function(self, operations: list[Operation], name: str, args: list[DataType], stack_locs: list[int]) -> DataType:
+    def resolve_function(self, name: str, args: list[ty_expr]) -> tuple[NodeInstance, list[DataType]]:
         instance_options: list[NodeInstance] = []
         if name in geometry_nodes:
             instance_options += geometry_nodes[name]
@@ -77,21 +79,5 @@ class GeometryNodesBackEnd(BackEnd):
         index = self.find_best_match(options, args)
         func = instance_options[index]
         node = nodes[func.key]
-        # Ensure that actual values are converted to the appropriate type
-        # when needed. We change the operation to make them of the right
-        # type.
-        for i, loc in enumerate(stack_locs):
-            if (op := operations[loc]).op_type == OpType.PUSH_VALUE:
-                op.data = self.convert(
-                    op.data, args[i], node.inputs[func.inputs[i]][1])
-        # Add the indices of the inputs that should be connected to
-        # And the outputs of the node that can be used
-        operations.append(Operation(OpType.PUSH_VALUE,
-                                    (func.inputs, func.outputs)))
-        operations.append(Operation(OpType.CALL_BUILTIN,
-                                    (node.bl_name, func.props)))
         outs = [node.outputs[i][1] for i in func.outputs]
-        if len(outs) == 1:
-            return outs[0]
-        else:
-            return DataType.DEFAULT
+        return func, outs
