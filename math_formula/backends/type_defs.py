@@ -85,9 +85,8 @@ class OpType(IntEnum):
     CALL_FUNCTION = auto()
     # Same as CALL_FUNCTION but a node group is created.
     CALL_NODEGROUP = auto()
-    # Create the built-in node. Data is a tuple containing the bl_name and
-    # props to be set. The value at the top of the stack is a tuple containing
-    # a list of inputs and a list of outputs of the node that are used.
+    # Create the built-in node. Data is a NodeInstance with the key set to
+    # bl_name.
     CALL_BUILTIN = auto()
     # Set the label of the last added node to the given name.
     RENAME_NODE = auto()

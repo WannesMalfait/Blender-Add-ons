@@ -34,32 +34,24 @@ class Compiler():
         return True
 
     def compile_assign(self, assign: TyAssign):
-        raise NotImplementedError
         targets = assign.targets
-        if isinstance(assign.value, ast_defs.Constant):
+        if isinstance(assign.value, Const):
             # Assignment to a value, so we need to create an input
             # node.
             assert len(targets) == 1, 'No structured assignment yet'
             if (target := targets[0]) is None:
                 return
             value = assign.value.value
-            dtype = assign.value.type
+            dtype = assign.value.dtype[0]
             dtype = self.back_end.create_input(
                 self.operations, target.id, value, dtype)
-            self.curr_type = dtype
             return
         # Output will be some node socket, so just simple assignment
         self.compile_expr(assign.value)
-        dtype = self.curr_type
-        # TODO: handle functions with multiple outputs, assignment to multiple
-        # inputs here
-        if len(targets) != 1 or isinstance(dtype, list):
-            raise NotImplementedError('Structured assignments')
-        target = targets[0]
-        if target is None:
-            return
-        self.operations.append(Operation(OpType.CREATE_VAR, target.id))
-        self.curr_type = dtype
+        for target in targets:
+            if target is None:
+                continue
+            self.operations.append(Operation(OpType.CREATE_VAR, target.id))
 
     def compile_expr(self, expr: ty_expr):
         if isinstance(expr, Const):
@@ -125,9 +117,4 @@ if __name__ == '__main__':
                 num_passed += 1
             except NotImplementedError:
                 print(RED + 'Internal errors' + ENDC)
-                # if verbose > 0:
-                #     print(
-                #         f'{YELLOW}Syntax errors{ENDC}:' if compiler.parser.had_error else f'{BLUE}No syntax errors{ENDC}')
-                # if verbose > 1 and compiler.parser.had_error:
-                #     print(compiler.operations)
     print(f'Tests done: Passed: ({num_passed}/{tot_tests})')

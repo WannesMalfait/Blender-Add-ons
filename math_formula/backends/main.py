@@ -129,16 +129,16 @@ class BackEnd():
         best_penalty = 100
         best_index = 0
         for i, option in enumerate(options):
-            if len(option) != len(args):
+            if len(option) != len(arg_types):
                 continue
             penalty = sum([dtype_conversion_penalties[arg_types[i].value]
                            [option[i].value] for i in range(len(option))])
-            if penalty == 0:
-                best_index = i
-                break
+
             if best_penalty > penalty:
                 best_penalty = penalty
                 best_index = i
+            if best_penalty == 0:
+                break
         if best_penalty < 100:
             # Ensure that the arguments are of the correct type
             for arg, otype in zip(args, options[best_index]):
@@ -146,7 +146,7 @@ class BackEnd():
                     arg.value = self.convert(arg.value, arg.dtype[0], otype)
                 arg.dtype[0] = otype
             return best_index
-        print(f'\nOPTIONS: {options}\nARGS: {args}')
+        print(f'\nOPTIONS: {options}\nARGS: {arg_types}')
         raise TypeError(
             f'Couldn\'t find find instance of function with arguments {arg_types}')
 

@@ -371,9 +371,10 @@ def identifier(self: Parser, can_assign: bool) -> None:
             if not self.match(TokenType.COMMA):
                 break
         self.consume(TokenType.EQUAL, 'Expect "="')
+        equal_token = self.previous
         value = self.expression()
         self.curr_node = ast_defs.Assign(
-            self.previous, targets, value)
+            equal_token, targets, value)
     else:
         self.curr_node = ast_defs.Name(identifier_token, name)
 
