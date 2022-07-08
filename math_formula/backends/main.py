@@ -80,41 +80,39 @@ class BackEnd():
         '''Ensure that the value is of a type supported by the backend'''
         pass
 
-    def create_input(self, operations: list[Operation], name: str, value: ValueType, dtype: DataType) -> DataType:
-        value, dtype = self.coerce_value(value, dtype)
-        if dtype == DataType.DEFAULT or dtype == DataType.UNKNOWN:
-            dtype = DataType.FLOAT
-            value = 0.0
-        # No inputs and one output to be used
-        operations.append(
-            Operation(OpType.PUSH_VALUE, ([], [0])))
-
+    def create_input(self, operations: list[Operation], name: str, value: ValueType, dtype: DataType):
         if dtype == DataType.FLOAT:
             operations.append(
-                Operation(OpType.CALL_BUILTIN, ('ShaderNodeValue', [])))
-            operations.append(
-                Operation(OpType.SET_OUTPUT, (0, value)))
+                Operation(OpType.CALL_BUILTIN,
+                          NodeInstance('ShaderNodeValue', [], [0], [])))
+            if value:
+                operations.append(
+                    Operation(OpType.SET_OUTPUT, (0, value)))
         elif dtype == DataType.BOOL:
             operations.append(Operation(OpType.CALL_BUILTIN,
-                                        ('FunctionNodeInputBool', [('boolean', value)])))
+                                        NodeInstance('FunctionNodeInputBool', [], [0],
+                                                     [('boolean', value)] if value is not None else [])))
         elif dtype == DataType.INT:
             operations.append(Operation(OpType.CALL_BUILTIN,
-                                        ('FunctionNodeInputInt', [('integer', value)])))
+                                        NodeInstance('FunctionNodeInputInt', [], [0],
+                                                     [('integer', value)] if value is not None else [])))
         elif dtype == DataType.RGBA:
             operations.append(Operation(OpType.CALL_BUILTIN,
-                                        ('FunctionNodeInputColor', [('color', value)])))
+                                        NodeInstance('FunctionNodeInputColor', [], [0],
+                                                     [('color', value)] if value is not None else [])))
         elif dtype == DataType.VEC3:
             # TODO: This doesn't work for shaders
             operations.append(Operation(OpType.CALL_BUILTIN,
-                                        ('FunctionNodeInputVector', [('vector', value)])))
+                                        NodeInstance('FunctionNodeInputVector', [], [0],
+                                                     [('vector', value)] if value is not None else [])))
         elif dtype == DataType.STRING:
             operations.append(Operation(OpType.CALL_BUILTIN,
-                                        ('FunctionNodeInputString', [('string', value)])))
+                                        NodeInstance('FunctionNodeInputString', [], [0],
+                                                     [('string', value)] if value is not None else [])))
         else:
-            raise NotImplementedError(f'Creating input of type {dtype}')
+            raise NotImplementedError(f'Creating input of type {str(dtype)}')
         operations.append(Operation(OpType.RENAME_NODE, name))
         operations.append(Operation(OpType.CREATE_VAR, name))
-        return dtype
 
     def find_best_match(self, options: list[list[DataType]], args: list[ty_expr]) -> int:
         '''Find the best function to use from the list of options.
@@ -136,7 +134,8 @@ class BackEnd():
             penalty = sum([dtype_conversion_penalties[arg_types[i].value]
                            [option[i].value] for i in range(len(option))])
             if penalty == 0:
-                return i
+                best_index = i
+                break
             if best_penalty > penalty:
                 best_penalty = penalty
                 best_index = i

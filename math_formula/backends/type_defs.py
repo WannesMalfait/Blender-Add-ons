@@ -171,7 +171,7 @@ class Var(ty_expr):
 @dataclass
 class NodeCall(ty_expr):
     node: NodeInstance
-    args: ty_expr
+    args: list[ty_expr]
 
 
 @dataclass

@@ -213,7 +213,7 @@ class TypeChecker():
         # If the variable doesn't exist yet, create an empty
         if not name.id in self.vars:
             self.vars[name.id] = Var(
-                StackType.SOCKET, DataType.UNKNOWN, name.id, needs_instantion=True)
+                StackType.SOCKET, [DataType.UNKNOWN], name.id, needs_instantion=True)
         self.curr_node = self.vars[name.id]
 
 

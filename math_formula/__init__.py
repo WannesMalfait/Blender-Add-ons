@@ -1,4 +1,4 @@
-from math_formula import main, parser, scanner, positioning, backends, editor, compiler
+from math_formula import main, parser, scanner, positioning, backends, editor, compiler, type_checking
 import bpy
 import rna_keymap_ui
 
@@ -18,6 +18,7 @@ if "bpy" in locals():
     importlib.reload(main)
     importlib.reload(parser)
     importlib.reload(scanner)
+    importlib.reload(type_checking)
     importlib.reload(compiler)
     importlib.reload(positioning)
     importlib.reload(editor)

@@ -2,6 +2,7 @@ import bpy
 import traceback
 from bpy.types import Node, NodeSocket
 from math_formula.backends.main import ValueType, OpType
+from math_formula.backends.type_defs import NodeInstance
 from math_formula.positioning import TreePositioner
 from math_formula.editor import Editor
 from math_formula.compiler import Compiler
@@ -138,27 +139,13 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         stack[:] = stack[:-num_args]
         return args
 
-    # @staticmethod
-    # def add_func(context: bpy.context, args: list[ValueType], function: NodeFunction):
-    #     tree: bpy.types.NodeTree = context.space_data.edit_tree
-    #     node = tree.nodes.new(type=function.name())
-    #     for name, value in function.props():
-    #         setattr(node, name, value)
-    #     for i, socket in enumerate(function.input_sockets()):
-    #         arg = args[i]
-    #         if isinstance(arg, bpy.types.NodeSocket):
-    #             tree.links.new(arg, node.inputs[socket.index])
-    #         elif not arg is None:
-    #             node.inputs[socket.index].default_value = arg
-    #     return node
-
     @staticmethod
-    def add_builtin(context: bpy.context, name: str, props: list[tuple], args: list[ValueType], used_inputs: list[int]) -> bpy.types.Node:
+    def add_builtin(context: bpy.context, node_info: NodeInstance, args: list[ValueType]) -> bpy.types.Node:
         tree: bpy.types.NodeTree = context.space_data.edit_tree
-        node = tree.nodes.new(type=name)
-        for name, value in props:
+        node = tree.nodes.new(type=node_info.key)
+        for name, value in node_info.props:
             setattr(node, name, value)
-        for i, input_index in enumerate(used_inputs):
+        for i, input_index in enumerate(node_info.inputs):
             arg = args[i]
             if isinstance(arg, bpy.types.NodeSocket):
                 tree.links.new(arg, node.inputs[input_index])
@@ -232,19 +219,10 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             elif op_type == OpType.CALL_NODEGROUP:
                 raise NotImplementedError
             elif op_type == OpType.CALL_BUILTIN:
-                assert isinstance(op_data, tuple), 'Bug in compiler.'
-                name, node_props = op_data
-                used_indices = stack.pop()
-                assert isinstance(
-                    used_indices, tuple), 'Used inputs and outputs should be on top of the stack'
-                used_inputs, used_outputs = used_indices
-                args = self.get_args(stack, len(used_inputs))
-                node = self.add_builtin(
-                    context, name, node_props, args, used_inputs)
-                if len(used_outputs) == 1:
-                    stack.append(node.outputs[used_outputs[0]])
-                elif len(used_outputs) > 1:
-                    stack.append([node.outputs[i] for i in used_outputs])
+                assert isinstance(op_data, NodeInstance), 'Bug in compiler.'
+                args = self.get_args(stack, len(op_data.inputs))
+                node = self.add_builtin(context, op_data, args,)
+                stack += [node.outputs[o] for o in reversed(op_data.outputs)]
                 nodes.append(node)
             elif op_type == OpType.RENAME_NODE:
                 nodes[-1].label = op_data

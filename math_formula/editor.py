@@ -368,10 +368,8 @@ class Editor():
             for n, error in enumerate(self.errors):
                 blf.position(font_id, posx+width,
                              error_base_y - n*char_height, posz)
-                blf.draw(font_id, error.message)
+                blf.draw(font_id, str(error.message))
                 macro_token = error.token
-                while macro_token.expanded_from is not None:
-                    macro_token = macro_token.expanded_from
                 error_col = macro_token.col - 1
                 error_row = macro_token.line - 1
                 blf.position(font_id, posx+width+char_width *
