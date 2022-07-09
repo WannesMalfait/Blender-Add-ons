@@ -1,9 +1,7 @@
-import copy
 from math_formula.backends.geometry_nodes import GeometryNodesBackEnd
 from math_formula.backends.shader_nodes import ShaderNodesBackEnd
 from math_formula.backends.type_defs import *
 from math_formula.backends.main import BackEnd
-from math_formula.backends import builtin_nodes
 from math_formula.parser import Error
 from math_formula.type_checking import TypeChecker
 
@@ -94,9 +92,6 @@ class Compiler():
         # Add the implicit default arguments here
         for _ in range(len(expr.node.inputs) - len(expr.args)):
             self.operations.append(Operation(OpType.PUSH_VALUE, None))
-        # To add the node we need the bl_name instead.
-        expr.node = copy.copy(expr.node)
-        expr.node.key = builtin_nodes.nodes[expr.node.key].bl_name
         self.operations.append(Operation(OpType.CALL_BUILTIN, expr.node))
 
     def const(self, const: Const):

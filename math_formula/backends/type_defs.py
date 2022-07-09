@@ -101,8 +101,6 @@ class OpType(IntEnum):
 
 @dataclass
 class BuiltinNode:
-    # The name used by blender, e.g. 'ShaderNodeMapRange'
-    bl_name: str
     # The input sockets, name and data type
     inputs: list[tuple[str, DataType]]
     # The output sockets, name and data type

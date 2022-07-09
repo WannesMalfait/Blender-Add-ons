@@ -3,10 +3,10 @@ from math_formula.backends.main import BackEnd
 from math_formula.backends.type_defs import *
 
 shader_nodes = {
-    'tex_coords': [NodeInstance('Texture Coordinate', [], [0, 1, 2, 3, 4, 5, 6], [])],
-    'normal': [NodeInstance('Texture Coordinate', [], [1], [])],
-    'geometry': [NodeInstance('Geometry', [], [0, 1, 2, 3, 4, 5, 6, 7], [])],
-    'position': [NodeInstance('Geometry', [], [0], [])],
+    'tex_coords': [NodeInstance('ShaderNodeTexCoord', [], [0, 1, 2, 3, 4, 5, 6], [])],
+    'normal': [NodeInstance('ShaderNodeTexCoord', [], [1], [])],
+    'geometry': [NodeInstance('ShaderNodeNewGeometry', [], [0, 1, 2, 3, 4, 5, 6, 7], [])],
+    'position': [NodeInstance('ShaderNodeNewGeometry', [], [0], [])],
 }
 
 
