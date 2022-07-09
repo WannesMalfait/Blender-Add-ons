@@ -32,6 +32,10 @@ class Editor():
         self.errors: list[Error] = []
         self.suggestions: deque[str] = deque()
 
+    def replace_text(self, text: str):
+        self.__init__(self.pos)
+        self.paste_after_cursor(text)
+
     # def try_auto_complete(self, tree_type: str) -> None:
     #     token_under_cursor = None
     #     prev_token = None

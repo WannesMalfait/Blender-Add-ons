@@ -44,7 +44,7 @@ class MFMathFormula(bpy.types.AddonPreferences):
     node_distance: bpy.props.IntProperty(
         name="Distance between nodes",
         description="The distance placed between the nodes from the formula",
-        default=30,
+        default=10,
         min=0,
     )
     sibling_distance: bpy.props.IntProperty(
@@ -56,7 +56,7 @@ class MFMathFormula(bpy.types.AddonPreferences):
     subtree_distance: bpy.props.IntProperty(
         name="Distance between subtrees",
         description="The distance between two subtrees",
-        default=50,
+        default=40,
         min=0,
     )
     show_colors: bpy.props.BoolProperty(
@@ -162,30 +162,30 @@ class MF_Settings(bpy.types.PropertyGroup):
     )
 
 
-# class MF_PT_add_panel(bpy.types.Panel, main.MFBase):
-#     bl_idname = "NODE_PT_mf_add_math_formula"
-#     bl_space_type = 'NODE_EDITOR'
-#     bl_label = "Add Math Formula"
-#     bl_region_type = "UI"
-#     bl_category = "Math Formula"
+class MF_PT_add_panel(bpy.types.Panel, main.MFBase):
+    bl_idname = "NODE_PT_mf_add_math_formula"
+    bl_space_type = 'NODE_EDITOR'
+    bl_label = "Add Math Formula"
+    bl_region_type = "UI"
+    bl_category = "Math Formula"
 
-#     def draw(self, context: bpy.context):
+    def draw(self, context: bpy.context):
 
-#         # Helper variables
-#         layout = self.layout
-#         scene = context.scene
-#         props = scene.math_formula_add
+        # Helper variables
+        layout = self.layout
+        scene = context.scene
+        props = scene.math_formula_add
 
-#         col = layout.column(align=True)
-#         col.label(text="Addon Preferences has more settings")
-#         col.prop(props, 'formula')
-#         col.prop(props, 'add_frame')
-#         col.separator()
-#         col.operator(main.MF_OT_math_formula_add.bl_idname)
-#         if context.active_node is not None:
-#             col.operator(main.MF_OT_arrange_from_root.bl_idname)
-#         else:
-#             col.label(text="--no active node--")
+        col = layout.column(align=True)
+        col.label(text="Addon Preferences has more settings")
+        col.prop(props, 'formula')
+        col.prop(props, 'add_frame')
+        col.separator()
+        col.operator(main.MF_OT_math_formula_add.bl_idname)
+        if context.active_node is not None:
+            col.operator(main.MF_OT_arrange_from_root.bl_idname)
+        else:
+            col.label(text="--no active node--")
 
 
 # class MF_PT_file_panel(bpy.types.Panel, main.MFBase):
@@ -231,7 +231,7 @@ kmi_defs = [
 classes = (
     MFMathFormula,
     MF_Settings,
-    # MF_PT_add_panel,
+    MF_PT_add_panel,
     # MF_PT_file_panel,
 )
 
