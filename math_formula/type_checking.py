@@ -1,3 +1,4 @@
+from copy import copy
 from math_formula.backends.main import BackEnd
 from math_formula.parser import Parser, Error
 from math_formula import ast_defs
@@ -244,9 +245,18 @@ class TypeChecker():
         # We should only end up here when we want to 'load' a variable.
         # If the variable doesn't exist yet, create an empty
         if not name.id in self.vars:
-            self.vars[name.id] = Var(
+            var = Var(
                 StackType.SOCKET, [DataType.UNKNOWN], [], name.id, needs_instantion=True)
-        self.curr_node = self.vars[name.id]
+            self.vars[name.id] = var
+            self.curr_node = var
+            return
+        var = self.vars[name.id]
+        if var.needs_instantion:
+            # At this point it doesn't need it anymore
+            var = copy(var)
+            var.needs_instantion = False
+            self.vars[name.id] = var
+        self.curr_node = var
 
     def attribute(self, attr: ast_defs.Attribute):
         self.check_expr(attr.value)

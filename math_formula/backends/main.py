@@ -107,8 +107,12 @@ class BackEnd():
                                             NodeInstance('FunctionNodeInputVector', [], [0],
                                                          [('vector', value)] if value is not None else [])))
             else:
-                for v in value:
-                    operations.append(Operation(OpType.PUSH_VALUE, v))
+                if value is not None:
+                    for v in value:
+                        operations.append(Operation(OpType.PUSH_VALUE, v))
+                else:
+                    for _ in range(3):
+                        operations.append(Operation(OpType.PUSH_VALUE, None))
                 operations.append(Operation(OpType.CALL_BUILTIN,
                                             NodeInstance('ShaderNodeCombineXYZ', [0, 1, 2], [0], [])))
         elif dtype == DataType.STRING:
