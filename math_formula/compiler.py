@@ -87,10 +87,10 @@ class Compiler():
 
     def node_call(self, expr: NodeCall):
         for arg in expr.args:
+            self.compile_expr(arg)
             if arg.stype == StackType.STRUCT:
                 # Get the output we need.
                 self.operations.append(Operation(OpType.GET_OUTPUT, 0))
-            self.compile_expr(arg)
         # Add the implicit default arguments here
         for _ in range(len(expr.node.inputs) - len(expr.args)):
             self.operations.append(Operation(OpType.PUSH_VALUE, None))
