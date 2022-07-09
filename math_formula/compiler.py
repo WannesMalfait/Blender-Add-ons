@@ -1,18 +1,26 @@
 import copy
 from math_formula.backends.geometry_nodes import GeometryNodesBackEnd
+from math_formula.backends.shader_nodes import ShaderNodesBackEnd
 from math_formula.backends.type_defs import *
 from math_formula.backends.main import BackEnd
 from math_formula.backends import builtin_nodes
 from math_formula.parser import Error
 from math_formula.type_checking import TypeChecker
-from math_formula import ast_defs
 
 
 class Compiler():
-    def __init__(self, back_end: BackEnd) -> None:
+
+    @staticmethod
+    def choose_backend(tree_type: str) -> BackEnd:
+        if tree_type == 'GeometryNodeTree':
+            return GeometryNodesBackEnd()
+        elif tree_type == 'ShaderNodeTree':
+            return ShaderNodesBackEnd()
+
+    def __init__(self, tree_type: str) -> None:
         self.operations: list[Operation] = []
         self.errors: list[Error] = []
-        self.back_end: BackEnd = back_end
+        self.back_end: BackEnd = self.choose_backend(tree_type)
 
     def compile(self, source: str) -> bool:
         type_checker = TypeChecker(self.back_end)
@@ -126,7 +134,7 @@ if __name__ == '__main__':
         tot_tests += 1
         print(f'Testing: {BOLD}{filename}{ENDC}:  ', end='')
         with open(os.path.join(test_directory, filename), 'r') as f:
-            compiler = Compiler(GeometryNodesBackEnd())
+            compiler = Compiler('GeometryNodeTree')
             try:
                 success = compiler.compile(f.read())
                 print(GREEN + 'No internal errors' + ENDC)

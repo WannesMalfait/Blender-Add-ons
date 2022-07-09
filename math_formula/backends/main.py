@@ -80,7 +80,7 @@ class BackEnd():
         '''Ensure that the value is of a type supported by the backend'''
         pass
 
-    def create_input(self, operations: list[Operation], name: str, value: ValueType, dtype: DataType):
+    def create_input(self, operations: list[Operation], name: str, value: ValueType, dtype: DataType, input_vector=True):
         if dtype == DataType.FLOAT or dtype == DataType.UNKNOWN:
             operations.append(
                 Operation(OpType.CALL_BUILTIN,
@@ -101,10 +101,16 @@ class BackEnd():
                                         NodeInstance('FunctionNodeInputColor', [], [0],
                                                      [('color', value)] if value is not None else [])))
         elif dtype == DataType.VEC3:
-            # TODO: This doesn't work for shaders
-            operations.append(Operation(OpType.CALL_BUILTIN,
-                                        NodeInstance('FunctionNodeInputVector', [], [0],
-                                                     [('vector', value)] if value is not None else [])))
+            # Only geometry nodes has this input vector node
+            if input_vector:
+                operations.append(Operation(OpType.CALL_BUILTIN,
+                                            NodeInstance('FunctionNodeInputVector', [], [0],
+                                                         [('vector', value)] if value is not None else [])))
+            else:
+                for v in value:
+                    operations.append(Operation(OpType.PUSH_VALUE, v))
+                operations.append(Operation(OpType.CALL_BUILTIN,
+                                            NodeInstance('ShaderNodeCombineXYZ', [0, 1, 2], [0], [])))
         elif dtype == DataType.STRING:
             operations.append(Operation(OpType.CALL_BUILTIN,
                                         NodeInstance('FunctionNodeInputString', [], [0],

@@ -7,6 +7,7 @@ from math_formula.positioning import TreePositioner
 from math_formula.editor import Editor
 from math_formula.compiler import Compiler
 from math_formula.backends.geometry_nodes import GeometryNodesBackEnd
+from math_formula.backends.shader_nodes import ShaderNodesBackEnd
 
 
 def mf_check(context: bpy.context) -> bool:
@@ -166,8 +167,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         # Variables in the form of output sockets
         variables: dict[str, NodeSocket] = {}
         # Parse the input string into a sequence of tokens
-        # TODO: Change this to match the tree type
-        compiler = Compiler(GeometryNodesBackEnd())
+        compiler = Compiler(space.tree_type)
         success = compiler.compile(formula)
         if not success:
             return {'CANCELLED'}
@@ -309,8 +309,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         if event.type == 'RET':
             if event.ctrl:
                 # Exit when they press control + enter
-                # TODO: Change this based on tree type
-                compiler = Compiler(GeometryNodesBackEnd())
+                compiler = Compiler(context.space_data.tree_type)
                 formula = self.editor.get_text()
                 try:
                     res = compiler.compile(formula)
@@ -353,8 +352,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
 
         # Compile and check for errors
         elif not self.lock and event.alt and event.type == 'C':
-            # TODO: Change this based on tree type
-            compiler = Compiler(GeometryNodesBackEnd())
+            compiler = Compiler(context.space_data.tree_type)
             try:
                 res = compiler.compile(self.editor.get_text())
                 print(*compiler.operations, sep='\n')

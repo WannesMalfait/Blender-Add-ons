@@ -59,9 +59,13 @@ geometry_nodes = {
 
 class GeometryNodesBackEnd(BackEnd):
 
+    def create_input(self, operations: list[Operation], name: str, value: ValueType, dtype: DataType):
+        return super().create_input(operations, name, value, dtype, input_vector=True)
+
     def coerce_value(self, value: ValueType, type: DataType) -> tuple[ValueType, DataType]:
         if type.value >= DataType.SHADER or type.value == DataType.GEOMETRY:
-            raise TypeError('Can\'t coerce type to a Geometry Nodes value')
+            raise TypeError(
+                f'Can\'t coerce type {type._name_} to a Geometry Nodes value')
         return value, type
 
     @staticmethod
