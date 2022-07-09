@@ -355,7 +355,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             compiler = Compiler(context.space_data.tree_type)
             try:
                 res = compiler.compile(self.editor.get_text())
-                print(*compiler.operations, sep='\n')
+                print('\nCompiled program:\n', *compiler.operations, sep='\n')
             except:
                 self.internal_error()
                 return {'CANCELLED'}

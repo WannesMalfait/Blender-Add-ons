@@ -1,2 +1,3 @@
 time = time();
 time.frame/time.seconds;
+x = position().x;

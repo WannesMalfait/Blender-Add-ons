@@ -128,6 +128,10 @@ class TypeChecker():
             stype = StackType.EMPTY
         elif len(dtype) == 1:
             stype = StackType.SOCKET
+            if dtype[0] == DataType.VEC3:
+                out_names = ['x', 'y', 'z']
+            elif dtype[0] == DataType.RGBA:
+                out_names = ['r', 'g', 'b', 'a']
         else:
             stype = StackType.STRUCT
         self.curr_node = NodeCall(stype, dtype, out_names, node, args)
@@ -252,7 +256,14 @@ class TypeChecker():
         # See if the name is one of the outputs
         if not attr.attr in expr.out_names:
             return self.error(
-                f'"{attr.attr}" does not match one of the output names: {expr.out_names}')
+                f'"{attr.attr}" does not match one of the output names: {expr.out_names}', attr)
+        if expr.stype == StackType.SOCKET:
+            if expr.dtype[0] == DataType.VEC3:
+                # Need to add a separate XYZ node for this to work.
+                self.resolve_function('sep_xyz', [expr], attr)
+                expr = self.curr_node
+            elif expr.dtype[0] == DataType.RGBA:
+                raise NotImplementedError
         index = expr.out_names.index(attr.attr)
         dtype = expr.dtype[index]
         out_names = []

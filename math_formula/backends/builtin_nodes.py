@@ -1057,6 +1057,7 @@ instances = {
     'radians': [NodeInstance('Math', [0], [0], [('operation', 'RADIANS')])],
     'degrees': [NodeInstance('Math', [0], [0], [('operation', 'DEGREES')])],
     'vec3': [NodeInstance('Combine XYZ', [0, 1, 2], [0], [])],
+    'sep_xyz': [NodeInstance('Separate XYZ', [0], [0, 1, 2], [])],
     'cross': [NodeInstance('Vector Math', [0, 1], [0], [('operation', 'CROSS_PRODUCT')])],
     'project': [NodeInstance('Vector Math', [0, 1], [0], [('operation', 'PROJECT')])],
     'reflect': [NodeInstance('Vector Math', [0, 1], [0], [('operation', 'REFLECT')])],
