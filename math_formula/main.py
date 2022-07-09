@@ -182,7 +182,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                     op_data, str), 'Variable name should be a string.'
                 socket = stack.pop()
                 assert isinstance(
-                    socket, NodeSocket), 'Create var expects a node socket.'
+                    socket, (NodeSocket, list)), 'Create var expects a node socket or struct.'
                 variables[op_data] = socket
             elif op_type == OpType.GET_VAR:
                 assert isinstance(
@@ -227,7 +227,11 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 assert isinstance(op_data, NodeInstance), 'Bug in compiler.'
                 args = self.get_args(stack, len(op_data.inputs))
                 node = self.add_builtin(context, op_data, args,)
-                stack += [node.outputs[o] for o in reversed(op_data.outputs)]
+                outputs = op_data.outputs
+                if len(outputs) == 1:
+                    stack.append(node.outputs[outputs[0]])
+                elif len(outputs) > 1:
+                    stack.append([node.outputs[o] for o in reversed(outputs)])
                 nodes.append(node)
             elif op_type == OpType.RENAME_NODE:
                 nodes[-1].label = op_data

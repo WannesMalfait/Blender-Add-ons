@@ -159,6 +159,7 @@ class TyRepr(ty_ast):
 class ty_expr(ty_stmt):
     stype: StackType
     dtype: list[DataType]
+    out_names: list[str]
 
 
 @dataclass
@@ -176,6 +177,12 @@ class Var(ty_expr):
 class NodeCall(ty_expr):
     node: NodeInstance
     args: list[ty_expr]
+
+
+@dataclass
+class GetOutput(ty_expr):
+    value: ty_expr
+    index: int
 
 
 @dataclass

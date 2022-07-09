@@ -138,6 +138,7 @@ class MFMathFormula(bpy.types.AddonPreferences):
             box.prop(self, 'default_color')
             box.prop(self, 'keyword_color')
             box.prop(self, 'type_color')
+            box.prop(self, 'function_color')
             box.prop(self, 'error_color')
         col = layout.column()
         col.label(text="Keymaps:")

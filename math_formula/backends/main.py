@@ -81,7 +81,7 @@ class BackEnd():
         pass
 
     def create_input(self, operations: list[Operation], name: str, value: ValueType, dtype: DataType):
-        if dtype == DataType.FLOAT:
+        if dtype == DataType.FLOAT or dtype == DataType.UNKNOWN:
             operations.append(
                 Operation(OpType.CALL_BUILTIN,
                           NodeInstance('ShaderNodeValue', [], [0], [])))
@@ -153,6 +153,6 @@ class BackEnd():
         raise TypeError(
             f'Couldn\'t find find instance of function "{name}" with arguments {arg_types}')
 
-    def resolve_function(self, name: str, args: list[DataType]) -> tuple[NodeInstance, list[DataType]]:
+    def resolve_function(self, name: str, args: list[DataType]) -> tuple[NodeInstance, list[DataType], list[str]]:
         ''' Resolve name to a built-in node by type matching on the arguments.'''
         pass

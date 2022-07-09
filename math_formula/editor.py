@@ -345,6 +345,8 @@ class Editor():
                             1 < len(tokens) else token
                         if next_token.token_type == TokenType.LEFT_PAREN:
                             color(token_font_style, prefs.function_color)
+                        else:
+                            color(token_font_style, prefs.default_color)
                 elif TokenType.OUT.value <= token.token_type.value <= TokenType.AND.value:
                     color(token_font_style, prefs.keyword_color)
                 elif token.token_type in (TokenType.INT, TokenType.FLOAT):

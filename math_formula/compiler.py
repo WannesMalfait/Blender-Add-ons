@@ -46,10 +46,19 @@ class Compiler():
             dtype = self.back_end.create_input(
                 self.operations, target.id, value, dtype)
             return
-        if assign.value.stype == StackType.STRUCT:
-            self.operations.append(Operation(OpType.SPLIT_STRUCT, None))
         # Output will be some node socket, so just simple assignment
         self.compile_expr(assign.value)
+        if len(targets) > 1:
+            if assign.value.stype == StackType.STRUCT:
+                self.operations.append(Operation(OpType.SPLIT_STRUCT, None))
+            elif assign.value.dtype[0] == DataType.VEC3:
+                self.operations.append(Operation(OpType.CALL_BUILTIN,
+                                                 NodeInstance('ShaderNodeSeparateXYZ', [0], [0, 1, 2], [])))
+                self.operations.append(Operation(OpType.SPLIT_STRUCT, None))
+            elif assign.value.dtype[0] == DataType.RGBA:
+                raise NotImplementedError
+            else:
+                assert False, 'Unreachable, bug in type checker'
         for target in targets:
             if target is None:
                 continue
@@ -62,6 +71,8 @@ class Compiler():
             self.var(expr)
         elif isinstance(expr, NodeCall):
             self.node_call(expr)
+        elif isinstance(expr, GetOutput):
+            self.get_output(expr)
         else:
             print(expr, type(expr))
             assert False, "Unreachable code"
@@ -90,6 +101,10 @@ class Compiler():
             self.back_end.create_input(
                 self.operations, var.id, None, var.dtype[0])
         self.operations.append(Operation(OpType.GET_VAR, var.id))
+
+    def get_output(self, get_output: GetOutput):
+        self.compile_expr(get_output.value)
+        self.operations.append(Operation(OpType.GET_OUTPUT, get_output.index))
 
 
 if __name__ == '__main__':

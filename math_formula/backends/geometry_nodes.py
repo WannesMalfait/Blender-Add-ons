@@ -69,7 +69,7 @@ class GeometryNodesBackEnd(BackEnd):
         node = nodes[instance.key]
         return [node.inputs[i][1] for i in instance.inputs]
 
-    def resolve_function(self, name: str, args: list[ty_expr]) -> tuple[NodeInstance, list[DataType]]:
+    def resolve_function(self, name: str, args: list[ty_expr]) -> tuple[NodeInstance, list[DataType], list[str]]:
         instance_options: list[NodeInstance] = []
         if name in geometry_nodes:
             instance_options += geometry_nodes[name]
@@ -79,5 +79,6 @@ class GeometryNodesBackEnd(BackEnd):
         index = self.find_best_match(options, args, name)
         func = instance_options[index]
         node = nodes[func.key]
-        outs = [node.outputs[i][1] for i in func.outputs]
-        return func, outs
+        out_types = [node.outputs[i][1] for i in func.outputs]
+        out_names = [node.outputs[i][0] for i in func.outputs]
+        return func, out_types, out_names

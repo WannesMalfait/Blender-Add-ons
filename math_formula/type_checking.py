@@ -49,7 +49,7 @@ class TypeChecker():
         for i, target in enumerate(targets):
             if target is None:
                 continue
-            var = Var(StackType.SOCKET, [dtypes[i]], target.id, False)
+            var = Var(StackType.SOCKET, [dtypes[i]], [], target.id, False)
             self.vars[target.id] = var
             typed_targets[i] = var
         return typed_targets
@@ -82,7 +82,9 @@ class TypeChecker():
         elif len(targets) == 1 and expr.stype == StackType.STRUCT:
             # Assign the whole struct to the target.
             if (target := targets[0]) is not None:
-                var = Var(StackType.STRUCT, expr.dtype, target.id, False)
+                var = Var(StackType.STRUCT, expr.dtype,
+                          expr.out_names, target.id, False)
+                self.vars[target.id] = var
                 self.curr_node = TyAssign([var], expr)
             return
         # Assignment is fine, as long as there are more values than targets.
@@ -105,7 +107,7 @@ class TypeChecker():
         elif isinstance(expr, ast_defs.Name):
             self.name(expr)
         elif isinstance(expr, ast_defs.Attribute):
-            raise NotImplementedError
+            self.attribute(expr)
         elif isinstance(expr, ast_defs.Keyword):
             raise NotImplementedError
         elif isinstance(expr, ast_defs.Call):
@@ -116,9 +118,9 @@ class TypeChecker():
 
     def resolve_function(self, name: str, args: list[ty_expr], ast: ast_defs.Ast):
         # TODO: Remove assumption that this is a built in node.
-        node = dtype = None
+        node = dtype = out_names = None
         try:
-            node, dtype = self.back_end.resolve_function(
+            node, dtype, out_names = self.back_end.resolve_function(
                 name, args)
         except TypeError as err:
             return self.error(err, ast)
@@ -128,13 +130,16 @@ class TypeChecker():
             stype = StackType.SOCKET
         else:
             stype = StackType.STRUCT
-        self.curr_node = NodeCall(stype, dtype, node, args)
+        self.curr_node = NodeCall(stype, dtype, out_names, node, args)
 
     def func_call(self, call: ast_defs.Call):
+        function_name = ''
         if isinstance(call.func, ast_defs.Attribute):
-            # TODO: Implicit first argument
-            raise NotImplementedError
-        function_name = call.func.id
+            function_name = call.func.attr
+            # Add the implicit argument
+            call.pos_args.insert(0, call.func.value)
+        else:
+            function_name = call.func.id
         if call.keyword_args != []:
             # TODO: passing keyword arguments
             raise NotImplementedError
@@ -156,7 +161,7 @@ class TypeChecker():
         if isinstance(op, ast_defs.Not):
             self.resolve_function('not', [expr], un_op)
         elif isinstance(op, ast_defs.USub):
-            arg = Const(StackType.VALUE, [DataType.INT], -1)
+            arg = Const(StackType.VALUE, [DataType.INT], [], -1)
             self.resolve_function('mul', [arg, expr], un_op)
         else:
             assert False, "Unreachable code"
@@ -208,11 +213,11 @@ class TypeChecker():
             value, dtype = self.back_end.coerce_value(const.value, const.type)
         except TypeError as err:
             return self.error(err, const)
-        self.curr_node = Const(StackType.VALUE, [dtype], value)
+        self.curr_node = Const(StackType.VALUE, [dtype], [], value)
 
     def vec3(self, vec: ast_defs.Vec3):
         if all(map(lambda x: isinstance(x, ast_defs.Constant), [vec.x, vec.y, vec.z])):
-            self.curr_node = Const(StackType.VALUE, [DataType.VEC3], [
+            self.curr_node = Const(StackType.VALUE, [DataType.VEC3], ['x', 'y', 'z'], [
                 self.back_end.convert(vec.x.value, vec.x.type, DataType.FLOAT),
                 self.back_end.convert(vec.y.value, vec.y.type, DataType.FLOAT),
                 self.back_end.convert(vec.z.value, vec.z.type, DataType.FLOAT),
@@ -236,8 +241,27 @@ class TypeChecker():
         # If the variable doesn't exist yet, create an empty
         if not name.id in self.vars:
             self.vars[name.id] = Var(
-                StackType.SOCKET, [DataType.UNKNOWN], name.id, needs_instantion=True)
+                StackType.SOCKET, [DataType.UNKNOWN], [], name.id, needs_instantion=True)
         self.curr_node = self.vars[name.id]
+
+    def attribute(self, attr: ast_defs.Attribute):
+        self.check_expr(attr.value)
+        expr = self.curr_node
+        if not isinstance(expr, ty_expr) or expr.stype == StackType.EMPTY:
+            self.error('Expected some value to retrieve attribute from.', attr)
+        # See if the name is one of the outputs
+        if not attr.attr in expr.out_names:
+            return self.error(
+                f'"{attr.attr}" does not match one of the output names: {expr.out_names}')
+        index = expr.out_names.index(attr.attr)
+        dtype = expr.dtype[index]
+        out_names = []
+        if dtype == DataType.VEC3:
+            out_names = ['x', 'y', 'z']
+        elif dtype == DataType.RGBA:
+            out_names = ['r', 'g', 'b', 'a']
+        self.curr_node = GetOutput(
+            StackType.SOCKET, [dtype], out_names, expr, index)
 
 
 if __name__ == '__main__':
