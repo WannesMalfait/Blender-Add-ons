@@ -73,12 +73,17 @@ class OpType(IntEnum):
     CREATE_VAR = auto()
     # Get the variable with the given name, and push it onto the stack.
     GET_VAR = auto()
-    # Get the output with the given index from the last value on the stack.
-    # Put this value on top of the stack.
+    # Replace the last item on the stack with the element at the given index.
+    # The indexing is reversed.
+    # If stack looked like [x,y,[z,w]] then after GET_OUTPUT 1 it looks like
+    # [x,y,z]
     GET_OUTPUT = auto()
     # Set the ouput of the last added node to the given value. Data is a
     # tuple of the output index and the value to be set.
     SET_OUTPUT = auto()
+    # Split the last item on the stack into individual items. So if the
+    # stack looked like [x,y,[z,w,v]] it would become [x,y,z,w,v].
+    SPLIT_STRUCT = auto()
     # Call the given function, all the arguments are on the stack. The value
     # on top of the stack is a list of the inputs for which arguments are
     # provided. Push the output onto the stack.

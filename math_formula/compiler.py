@@ -46,6 +46,8 @@ class Compiler():
             dtype = self.back_end.create_input(
                 self.operations, target.id, value, dtype)
             return
+        if assign.value.stype == StackType.STRUCT:
+            self.operations.append(Operation(OpType.SPLIT_STRUCT, None))
         # Output will be some node socket, so just simple assignment
         self.compile_expr(assign.value)
         for target in targets:
@@ -66,6 +68,9 @@ class Compiler():
 
     def node_call(self, expr: NodeCall):
         for arg in expr.args:
+            if arg.stype == StackType.STRUCT:
+                # Get the output we need.
+                self.operations.append(Operation(OpType.GET_OUTPUT, 0))
             self.compile_expr(arg)
         # To add the node we need the bl_name instead.
         expr.node = copy.copy(expr.node)

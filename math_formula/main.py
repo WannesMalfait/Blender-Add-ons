@@ -174,7 +174,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         for operation in compiler.operations:
             op_type = operation.op_type
             op_data = operation.data
-            assert OpType.END_OF_STATEMENT.value == 9, 'Exhaustive handling of Operation types.'
+            assert OpType.END_OF_STATEMENT.value == 10, 'Exhaustive handling of Operation types.'
             if op_type == OpType.PUSH_VALUE:
                 stack.append(op_data)
             elif op_type == OpType.CREATE_VAR:
@@ -189,19 +189,24 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                     op_data, str), 'Variable name should be a string.'
                 stack.append(variables[op_data])
             elif op_type == OpType.GET_OUTPUT:
-                raise NotImplementedError
                 assert isinstance(
                     op_data, int), 'Bug in type checker, index should be int.'
                 index = op_data
-                struct = stack[-1]
+                struct = stack.pop()
                 assert isinstance(
-                    struct, list), 'Bug in type checker, get_output only works on structs.'
-                stack.append(struct[index])
+                    struct, list), 'Bug in type checker, GET_OUTPUT only works on structs.'
+                # Index order is reversed
+                stack.append(struct[-index-1])
             elif op_type == OpType.SET_OUTPUT:
                 assert isinstance(
                     op_data, tuple), 'Data should be tuple of index and value'
                 index, value = op_data
                 nodes[-1].outputs[index].default_value = value
+            elif op_type == OpType.SPLIT_STRUCT:
+                struct = stack.pop()
+                assert isinstance(
+                    struct, list), 'Bug in type checker, GET_OUTPUT only works on structs.'
+                stack += struct
             elif op_type == OpType.CALL_FUNCTION:
                 raise NotImplementedError
                 assert isinstance(

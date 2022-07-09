@@ -77,6 +77,12 @@ class TypeChecker():
             else:
                 return self.error('Too many assignment targets.', assign)
             return
+        elif len(targets) == 1 and expr.stype == StackType.STRUCT:
+            # Assign the whole struct to the target.
+            if (target := targets[0]) is not None:
+                var = Var(StackType.STRUCT, expr.dtype, target.id, False)
+                self.curr_node = TyAssign([var], expr)
+            return
         # Assignment is fine, as long as there are more values than targets.
         if len(targets) > len(expr.dtype):
             return self.error('Too many assignment targets.', assign)
