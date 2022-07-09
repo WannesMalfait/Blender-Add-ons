@@ -6,8 +6,6 @@ from math_formula.backends.type_defs import NodeInstance
 from math_formula.positioning import TreePositioner
 from math_formula.editor import Editor
 from math_formula.compiler import Compiler
-from math_formula.backends.geometry_nodes import GeometryNodesBackEnd
-from math_formula.backends.shader_nodes import ShaderNodesBackEnd
 
 
 def mf_check(context: bpy.context) -> bool:
@@ -285,6 +283,10 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             return {'RUNNING_MODAL'}
 
 
+formula_history = []
+formula_history_index = 0
+
+
 class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
     """Type the formula then add the nodes"""
     bl_idname = "node.mf_type_formula_then_add_nodes"
@@ -305,6 +307,8 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 self._handle, 'WINDOW')
 
     def modal(self, context: bpy.context, event: bpy.types.Event):
+        global formula_history_index
+        editor_action = False
         context.area.tag_redraw()
         if event.type == 'RET':
             if event.ctrl:
@@ -324,6 +328,8 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 bpy.types.SpaceNodeEditor.draw_handler_remove(
                     self._handle, 'WINDOW')
                 context.scene.math_formula_add.formula = formula
+                formula_history.append(formula)
+                formula_history_index += 1
                 # Deselect all the nodes before adding new ones
                 bpy.ops.node.select_all(action='DESELECT')
                 try:
@@ -337,6 +343,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 if (not self.lock or event.is_repeat):
                     self.editor.new_line()
                     self.lock = True
+                    editor_action = True
 
         # Cancel when they press Esc or Rmb
         elif event.type in ('ESC', 'RIGHTMOUSE'):
@@ -383,6 +390,17 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             prefs = context.preferences.addons['math_formula'].preferences
             prefs.font_size = max(8, prefs.font_size-1)
 
+        # FORMULA HISTORY NAVIGATION
+        elif not self.lock and event.ctrl and event.type == 'UP_ARROW':
+            self.editor.replace_text(
+                formula_history[formula_history_index])
+            formula_history_index = max(formula_history_index - 1, 0)
+        elif not self.lock and event.ctrl and event.type == 'DOWN_ARROW':
+            self.editor.replace_text(
+                formula_history[formula_history_index])
+            formula_history_index = min(
+                formula_history_index + 1, len(formula_history) - 1)
+
         # CURSOR NAVIGATION
         elif event.type == 'LEFT_ARROW':
             self.editor.cursor_left()
@@ -402,17 +420,24 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             self.editor.delete_before_cursor()
             # Prevent over sensitive keys
             self.lock = True
+            editor_action = True
         elif (not self.lock or event.is_repeat) and event.type == 'DEL':
             self.editor.delete_after_cursor()
             self.lock = True
+            editor_action = True
         elif not self.lock and event.ctrl and event.type == 'V':
             # Paste from clipboard
             self.editor.paste_after_cursor(context.window_manager.clipboard)
             self.lock = True
+            editor_action = True
         elif event.unicode != "" and event.unicode.isprintable():
             # Only allow printable characters
             self.editor.add_char_after_cursor(event.unicode)
+            editor_action = True
 
+        if editor_action:
+            # Now editing this one instead of just looking through the history
+            formula_history_index = len(formula_history) - 1
         # AUTOCOMPLETE
         # elif not self.lock and event.type == 'TAB':
         #     self.editor.try_auto_complete(
@@ -430,6 +455,9 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         self.old_mouse_loc = (0, 0)
         self.lock = False
         self.middle_mouse = False
+        if formula_history == []:
+            # Add the last formula as history
+            formula_history.append(context.scene.math_formula_add.formula)
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
