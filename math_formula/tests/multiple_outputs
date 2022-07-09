@@ -1,2 +1,2 @@
-co = tex_coords();
-co.generated - co.object;
+time = time();
+time.frame/time.seconds;

@@ -1033,7 +1033,7 @@ instances = {
              NodeInstance('Vector Math', [0], [0], [('operation', 'CEIL')])],
     'trunc': [NodeInstance('Math', [0], [0], [('operation', 'TRUNC')])],
     'fract': [NodeInstance('Math', [0], [0], [('operation', 'FRACT')]),
-              NodeInstance('Vector Math', [0], [0], [('operation', 'FRACT')])],
+              NodeInstance('Vector Math', [0], [0], [('operation', 'FRACTION')])],
     'mod': [NodeInstance('Math', [0, 1], [0], [('operation', 'MODULO')]),
             NodeInstance('Vector Math', [0, 1], [0], [('operation', 'MODULO')])],
     'wrap': [NodeInstance('Math', [0, 1, 2], [0], [('operation', 'WRAP')]),

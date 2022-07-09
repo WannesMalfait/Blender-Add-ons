@@ -313,7 +313,7 @@ class Editor():
         blf.color(font_id, 0.4, 0.5, 0.1, 1.0)
         blf.position(font_id, posx, posy+char_height, posz)
         blf.draw(
-            font_id, f"(Press ENTER to confirm, ESC to cancel)    (Line:{self.cursor_row+1} Col:{self.draw_cursor_col+1})")
+            font_id, f"(Press CTRL + ENTER to confirm, ESC to cancel)    (Line:{self.cursor_row+1} Col:{self.draw_cursor_col+1})")
 
         blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
         blf.position(font_id, posx, posy, posz)
@@ -335,10 +335,16 @@ class Editor():
                     line_posx += char_width
                 token_font_style = font_id
                 prev_token = tokens[i-1] if i > 0 else token
-                if token.token_type == TokenType.IDENTIFIER and prev_token.token_type == TokenType.COLON:
-                    # Check if it's a valid type
-                    color(token_font_style,
-                          prefs.type_color if token.lexeme in string_to_data_type else prefs.default_color)
+                if token.token_type == TokenType.IDENTIFIER:
+                    if prev_token.token_type == TokenType.COLON:
+                        # Check if it's a valid type
+                        color(token_font_style,
+                              prefs.type_color if token.lexeme in string_to_data_type else prefs.default_color)
+                    else:
+                        next_token = tokens[i+1] if i + \
+                            1 < len(tokens) else token
+                        if next_token.token_type == TokenType.LEFT_PAREN:
+                            color(token_font_style, prefs.function_color)
                 elif TokenType.OUT.value <= token.token_type.value <= TokenType.AND.value:
                     color(token_font_style, prefs.keyword_color)
                 elif token.token_type in (TokenType.INT, TokenType.FLOAT):

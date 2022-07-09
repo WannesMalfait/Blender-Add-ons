@@ -114,7 +114,7 @@ class BackEnd():
         operations.append(Operation(OpType.RENAME_NODE, name))
         operations.append(Operation(OpType.CREATE_VAR, name))
 
-    def find_best_match(self, options: list[list[DataType]], args: list[ty_expr]) -> int:
+    def find_best_match(self, options: list[list[DataType]], args: list[ty_expr], name: str) -> int:
         '''Find the best function to use from the list of options.
         The options argument contains a list of possible function argument types.
         Returns the index of the best match.'''
@@ -129,10 +129,13 @@ class BackEnd():
         best_penalty = 100
         best_index = 0
         for i, option in enumerate(options):
-            if len(option) != len(arg_types):
+            if len(option) < len(arg_types):
+                # If we pass more arguments than the function accepts
+                # it can never be a match. If we pass less arguments
+                # the rest are implicit default arguments.
                 continue
             penalty = sum([dtype_conversion_penalties[arg_types[i].value]
-                           [option[i].value] for i in range(len(option))])
+                           [option[i].value] for i in range(len(arg_types))])
 
             if best_penalty > penalty:
                 best_penalty = penalty
@@ -146,9 +149,9 @@ class BackEnd():
                     arg.value = self.convert(arg.value, arg.dtype[0], otype)
                 arg.dtype[0] = otype
             return best_index
-        print(f'\nOPTIONS: {options}\nARGS: {arg_types}')
+        # print(f'\nOPTIONS: {options}\nARGS: {arg_types}')
         raise TypeError(
-            f'Couldn\'t find find instance of function with arguments {arg_types}')
+            f'Couldn\'t find find instance of function "{name}" with arguments {arg_types}')
 
     def resolve_function(self, name: str, args: list[DataType]) -> tuple[NodeInstance, list[DataType]]:
         ''' Resolve name to a built-in node by type matching on the arguments.'''

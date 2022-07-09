@@ -72,6 +72,9 @@ class Compiler():
                 # Get the output we need.
                 self.operations.append(Operation(OpType.GET_OUTPUT, 0))
             self.compile_expr(arg)
+        # Add the implicit default arguments here
+        for _ in range(len(expr.node.inputs) - len(expr.args)):
+            self.operations.append(Operation(OpType.PUSH_VALUE, None))
         # To add the node we need the bl_name instead.
         expr.node = copy.copy(expr.node)
         expr.node.key = builtin_nodes.nodes[expr.node.key].bl_name
@@ -114,7 +117,7 @@ if __name__ == '__main__':
                 print(GREEN + 'No internal errors' + ENDC)
                 if verbose > 0:
                     print(
-                        f'{YELLOW}Syntax errors{ENDC}' if not success else f'{BLUE}No syntax errors{ENDC}')
+                        f'{YELLOW}Compiler errors{ENDC}' if not success else f'{BLUE}No compiler errors{ENDC}')
                 if verbose > 1 and success:
                     print(compiler.errors)
                 if verbose > 2:

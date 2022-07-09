@@ -14,6 +14,7 @@ class TypeChecker():
 
     def error(self, msg: str, node: ast_defs.Ast):
         self.errors.append(Error(node.token, msg))
+        raise TypeError
 
     def type_check(self, source: str) -> bool:
         parser = Parser(source)
@@ -23,23 +24,24 @@ class TypeChecker():
             return False
         statements = ast.body
         for statement in statements:
-            if isinstance(statement, ast_defs.expr):
-                self.check_expr(statement)
-            elif isinstance(statement, ast_defs.FunctionDef):
-                raise NotImplementedError
-            elif isinstance(statement, ast_defs.NodegroupDef):
-                raise NotImplementedError
-            elif isinstance(statement, ast_defs.Out):
-                raise NotImplementedError
-            elif isinstance(statement, ast_defs.Assign):
-                self.check_assign(statement)
-            elif isinstance(statement, ast_defs.Loop):
-                raise NotImplementedError
-            else:
-                assert False, "Unreachable code"
-            self.typed_repr.body.append(self.curr_node)
-            if self.errors != []:
+            try:
+                if isinstance(statement, ast_defs.expr):
+                    self.check_expr(statement)
+                elif isinstance(statement, ast_defs.FunctionDef):
+                    raise NotImplementedError
+                elif isinstance(statement, ast_defs.NodegroupDef):
+                    raise NotImplementedError
+                elif isinstance(statement, ast_defs.Out):
+                    raise NotImplementedError
+                elif isinstance(statement, ast_defs.Assign):
+                    self.check_assign(statement)
+                elif isinstance(statement, ast_defs.Loop):
+                    raise NotImplementedError
+                else:
+                    assert False, "Unreachable code"
+            except TypeError:
                 return False
+            self.typed_repr.body.append(self.curr_node)
         return True
 
     def assign_types(self, targets: list[Union[ast_defs.Name, None]], dtypes: list[DataType]) -> list[Union[Var, None]]:
@@ -107,7 +109,7 @@ class TypeChecker():
         elif isinstance(expr, ast_defs.Keyword):
             raise NotImplementedError
         elif isinstance(expr, ast_defs.Call):
-            raise NotImplementedError
+            self.func_call(expr)
         else:
             print(expr, type(expr))
             assert False, "Unreachable code"
@@ -127,6 +129,20 @@ class TypeChecker():
         else:
             stype = StackType.STRUCT
         self.curr_node = NodeCall(stype, dtype, node, args)
+
+    def func_call(self, call: ast_defs.Call):
+        if isinstance(call.func, ast_defs.Attribute):
+            # TODO: Implicit first argument
+            raise NotImplementedError
+        function_name = call.func.id
+        if call.keyword_args != []:
+            # TODO: passing keyword arguments
+            raise NotImplementedError
+        ty_args = [None for _ in range(len(call.pos_args))]
+        for i, pos_arg in enumerate(call.pos_args):
+            self.check_expr(pos_arg)
+            ty_args[i] = self.curr_node
+        self.resolve_function(function_name, ty_args, call)
 
     def unary_op(self, un_op: ast_defs.UnaryOp):
         op = un_op.op
@@ -187,6 +203,7 @@ class TypeChecker():
             assert False, "Unreachable code"
 
     def constant(self, const: ast_defs.Constant):
+        value = dtype = None
         try:
             value, dtype = self.back_end.coerce_value(const.value, const.type)
         except TypeError as err:
@@ -249,7 +266,7 @@ if __name__ == '__main__':
                 print(GREEN + 'No internal errors' + ENDC)
                 if verbose > 0:
                     print(
-                        f'{YELLOW}Syntax errors{ENDC}' if failed else f'{BLUE}No syntax errors{ENDC}')
+                        f'{YELLOW}Type errors{ENDC}' if failed else f'{BLUE}No type errors{ENDC}')
                 if verbose > 1 and failed:
                     print(type_checker.errors)
                 if verbose > 2:

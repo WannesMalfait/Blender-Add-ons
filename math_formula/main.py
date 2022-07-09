@@ -303,8 +303,8 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
     def modal(self, context: bpy.context, event: bpy.types.Event):
         context.area.tag_redraw()
         if event.type == 'RET':
-            if event.shift:
-                # Exit when they press shift + enter
+            if event.ctrl:
+                # Exit when they press control + enter
                 # TODO: Change this based on tree type
                 compiler = Compiler(GeometryNodesBackEnd())
                 formula = self.editor.get_text()

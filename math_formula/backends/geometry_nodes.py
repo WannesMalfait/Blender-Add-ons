@@ -76,7 +76,7 @@ class GeometryNodesBackEnd(BackEnd):
         if name in instances:
             instance_options += instances[name]
         options = [self.input_types(option) for option in instance_options]
-        index = self.find_best_match(options, args)
+        index = self.find_best_match(options, args, name)
         func = instance_options[index]
         node = nodes[func.key]
         outs = [node.outputs[i][1] for i in func.outputs]
