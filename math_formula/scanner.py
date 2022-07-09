@@ -277,6 +277,8 @@ class Scanner():
             return self.make_token(TokenType.PLUS)
         elif c == '^':
             return self.make_token(TokenType.HAT)
+        elif c == '%':
+            return self.make_token(TokenType.PERCENT)
         elif c == ':':
             return self.make_token(TokenType.COLON)
         # Check for two-character tokens
