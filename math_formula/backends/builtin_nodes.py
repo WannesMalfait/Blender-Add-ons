@@ -803,8 +803,8 @@ instances = {
               NodeInstance('ShaderNodeTexNoise', [1, 2, 3, 4, 5], [0, 1], [('noise_dimensions', '1D')]), ],
     'noise_2d': [NodeInstance('ShaderNodeTexNoise', [0, 2, 3, 4, 5], [0, 1], [('noise_dimensions', '2D')])],
     'noise_4d': [NodeInstance('ShaderNodeTexNoise', [0, 1, 2, 3, 4, 5], [0, 1], [('noise_dimensions', '4D')])],
-    'voronoi': [NodeInstance('ShaderNodeTexVoronoi', [0, 2, 5], [0, 1], [('voronoi_dimensions', '3D')]),
-                NodeInstance('ShaderNodeTexVoronoi', [1, 2, 5], [0, 1], [('voronoi_dimensions', '1D')]), ],
-    'voronoi_2d': [NodeInstance('ShaderNodeTexVoronoi', [0, 2, 5], [0, 1], [('voronoi_dimensions', '2D')])],
-    'voronoi_4d': [NodeInstance('ShaderNodeTexVoronoi', [0, 1, 2, 5], [0, 1], [('voronoi_dimensions', '4D')])],
+    'voronoi': [NodeInstance('ShaderNodeTexVoronoi', [0, 2, 5], [0, 1, 2], [('voronoi_dimensions', '3D')]),
+                NodeInstance('ShaderNodeTexVoronoi', [1, 2, 5], [0, 1, 3], [('voronoi_dimensions', '1D')]), ],
+    'voronoi_2d': [NodeInstance('ShaderNodeTexVoronoi', [0, 2, 5], [0, 1, 2], [('voronoi_dimensions', '2D')])],
+    'voronoi_4d': [NodeInstance('ShaderNodeTexVoronoi', [0, 1, 2, 5], [0, 1, 3], [('voronoi_dimensions', '4D')])],
 }
