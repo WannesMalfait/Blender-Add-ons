@@ -1,3 +1,7 @@
+v2.0.0-alpha.1
+- Add autocompletion by pressing tab
+- Fix bug with formulas like `5.sin()`
+
 v2.0.0-alpha
 - Complete rewrite to add support for the new fields system. Main changes include:
 - Typechecking to overload functions (e.g. math vs vector math)
