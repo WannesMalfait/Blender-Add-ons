@@ -1,4 +1,4 @@
-from math_formula.backends.builtin_nodes import nodes, instances
+from math_formula.backends.builtin_nodes import nodes, instances, levenshtein_distance
 from math_formula.backends.main import BackEnd
 from math_formula.backends.type_defs import *
 
@@ -79,6 +79,12 @@ class GeometryNodesBackEnd(BackEnd):
             instance_options += geometry_nodes[name]
         if name in instances:
             instance_options += instances[name]
+        if instance_options == []:
+            # Try to get a suggestion in case of a typo.
+            options = sorted(list(geometry_nodes.keys()) + list(instances.keys()),
+                             key=lambda x: levenshtein_distance(name, x))
+            raise TypeError(
+                f'No function named "{name}" found. Did you mean "{options[0]}" or "{options[1]}"?')
         options = [self.input_types(option) for option in instance_options]
         index = self.find_best_match(options, args, name)
         func = instance_options[index]

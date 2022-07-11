@@ -204,6 +204,29 @@ class Loop(stmt):
     body: list[stmt]
 
 
+def find(node: Ast, token: Token) -> Union[None, Ast]:
+    if node.token is not None and node.token.line == token.line and node.token.col == token.col:
+        return node
+    else:
+        for field in fields(node):
+            name = field.name
+            if name == 'token':
+                continue
+            try:
+                value = getattr(node, name)
+            except AttributeError:
+                continue
+            if isinstance(value, list):
+                for v in value:
+                    if isinstance(v, Ast):
+                        if (fnode := find(v, token)) is not None:
+                            return fnode
+            if not isinstance(value, Ast):
+                continue
+            if (fnode := find(value, token)) is not None:
+                return fnode
+
+
 # Code copied and adapted from pythons own ast module
 def dump(node, node_type: type = Ast, indent=None):
     """

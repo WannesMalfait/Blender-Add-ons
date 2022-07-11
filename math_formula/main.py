@@ -435,14 +435,16 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             self.editor.add_char_after_cursor(event.unicode)
             editor_action = True
 
+        # AUTOCOMPLETE
+        elif not self.lock and event.type == 'TAB':
+            self.editor.try_auto_complete(
+                context.space_data.edit_tree.bl_idname)
+            self.lock = True
+
         if editor_action:
             # Now editing this one instead of just looking through the history
             formula_history_index = len(formula_history) - 1
-        # AUTOCOMPLETE
-        # elif not self.lock and event.type == 'TAB':
-        #     self.editor.try_auto_complete(
-        #         context.space_data.edit_tree.bl_idname)
-        #     self.lock = True
+
         return {'RUNNING_MODAL'}
 
     def invoke(self, context: bpy.context, event: bpy.types.Event):

@@ -2,9 +2,14 @@ import os
 import blf
 import bpy
 from collections import deque
+from math_formula import ast_defs
+from math_formula.parser import Parser
 from math_formula.scanner import Scanner, Token, TokenType
 from math_formula.compiler import Error
 from math_formula.backends.main import string_to_data_type
+from math_formula.backends.builtin_nodes import instances, levenshtein_distance, nodes
+from math_formula.backends.geometry_nodes import geometry_nodes
+from math_formula.backends.shader_nodes import shader_nodes
 
 
 add_on_dir = os.path.dirname(
@@ -36,84 +41,102 @@ class Editor():
         self.__init__(self.pos)
         self.paste_after_cursor(text)
 
-    # def try_auto_complete(self, tree_type: str) -> None:
-    #     token_under_cursor = None
-    #     prev_token = None
-    #     for token in self.line_tokens[self.cursor_row]:
-    #         if token.start < self.draw_cursor_col <= token.start + len(token.lexeme):
-    #             token_under_cursor = token
-    #             break
-    #         prev_token = token
-    #     if token_under_cursor is not None:
-    #         if len(self.suggestions) != 0:
-    #             suggestion = self.suggestions.popleft()
-    #             self.replace_token(token_under_cursor, suggestion)
-    #             self.suggestions.append(suggestion)
-    #             return
-    #         if prev_token is not None and prev_token.lexeme == '.' or token_under_cursor.lexeme == '.':
-    #             token_text = token_under_cursor.lexeme
-    #             text_start = token_under_cursor.start
-    #             if token_under_cursor.lexeme == '.':
-    #                 token_text = ''
-    #                 text_start += 1
-    #             parser = Parser(self.get_text()[
-    #                             :text_start], file_loading.file_data.macros, tree_type)
-    #             parser.advance()
-    #             while not parser.match(TokenType.EOL):
-    #                 parser.declaration()
-    #             parser.consume(TokenType.EOL, 'Expect end of expression.')
-    #             for i in range(len(parser.instructions)):
-    #                 if parser.instructions[-i-1].instruction == InstructionType.GET_OUTPUT:
-    #                     prev = parser.instructions[-i-2]
-    #                     if prev and prev.instruction == InstructionType.FUNCTION:
-    #                         assert isinstance(prev.data, tuple), 'Parser bug'
-    #                         function, _ = prev.data
-    #                         assert isinstance(
-    #                             function, NodeFunction), 'Parser bug'
-    #                         outputs = function.output_sockets()
-    #                         if len(outputs) == 1:
-    #                             # TODO: Make sugggestions depend on the type here.
-    #                             # Not very necessary but could be nice.
-    #                             pass
-    #                         else:
-    #                             for socket in function.output_sockets():
-    #                                 if socket.name.startswith(token_text):
-    #                                     self.suggestions.append(socket.name)
-    #                             if len(self.suggestions) == 0:
-    #                                 return
-    #                             else:
-    #                                 suggestion = self.suggestions.popleft()
-    #                                 if token_text == '':
-    #                                     self.text_after_cursor(suggestion)
-    #                                 else:
-    #                                     self.replace_token(
-    #                                         token_under_cursor, suggestion)
-    #                                 self.suggestions.append(suggestion)
-    #                                 return
-    #                     break
-    #             if token_text == '':
-    #                 # Don't try to suggest everything
-    #                 return
-    #         for name in file_loading.file_data.macros.keys():
-    #             if name.startswith(token_under_cursor.lexeme):
-    #                 self.suggestions.append(name)
+    def attribute_suggestions(self, prev_token: Token, token_under_cursor: Token, tree_type: str):
+        if prev_token.token_type != TokenType.RIGHT_PAREN:
+            # Quick exit, since we don't have any special suggestions in this case
+            return
+        token_text = token_under_cursor.lexeme
+        text_start = token_under_cursor.start
+        dot_token = None
+        if token_under_cursor.lexeme == '.':
+            token_text = ''
+            text_start += 1
+            dot_token = token_under_cursor
+        else:
+            dot_token = prev_token
 
-    #         for name in function_nodes.functions.keys():
-    #             if name.startswith(token_under_cursor.lexeme):
-    #                 self.suggestions.append(name)
-    #         names = None
-    #         if tree_type == 'GeometryNodeTree':
-    #             names = geometry_nodes.functions.keys()
-    #         else:
-    #             names = shader_nodes.functions.keys()
-    #         for name in names:
-    #             if name.startswith(token_under_cursor.lexeme):
-    #                 self.suggestions.append(name)
-    #         if len(self.suggestions) == 0:
-    #             return
-    #         suggestion = self.suggestions.popleft()
-    #         self.replace_token(token_under_cursor, suggestion)
-    #         self.suggestions.append(suggestion)
+        text_start += sum([len(line) + 1
+                           for i, line in enumerate(self.lines) if i < self.cursor_row])
+        text = self.get_text()[:text_start]
+        parser = Parser(text)
+        ast = parser.parse()
+        # Find where we are in the ast.
+        # We know that we're always in the last statement, so we can speed up the search a little.
+        node = ast_defs.find(ast.body[-1], dot_token)
+        if node is None:
+            return
+        assert isinstance(
+            node, ast_defs.Attribute), 'Dot token should be from attribute node'
+        if not isinstance(node.value, ast_defs.Call):
+            return
+        func = node.value.func
+        func_name = ''
+        if isinstance(func, ast_defs.Attribute):
+            func_name = func.attr
+        else:
+            func_name = func.id
+        # Find which node this belongs to.
+        node_name = ''
+        if func_name in instances:
+            node_name = instances[func_name][0].key
+        elif tree_type == 'GeometryNodeTree' and func_name in geometry_nodes:
+            node_name = geometry_nodes[func_name][0].key
+        elif tree_type == 'ShaderNodeTree' and func_name in shader_nodes:
+            node_name = shader_nodes[func_name][0].key
+        if node_name == '':
+            return
+        # We don't know what specific 'instance' is being used so add all outputs
+        self.suggestions += [out[0]
+                             for out in nodes[node_name].outputs if out[0].startswith(token_text)]
+
+    def try_auto_complete(self, tree_type: str) -> None:
+        token_under_cursor = None
+        prev_token = None
+        for token in self.line_tokens[self.cursor_row]:
+            if token.start < self.draw_cursor_col <= token.start + len(token.lexeme):
+                token_under_cursor = token
+                break
+            prev_token = token
+        if token_under_cursor is not None:
+            if len(self.suggestions) != 0:
+                # Already calculated suggestions, so just use those.
+                suggestion = self.suggestions.popleft()
+                self.replace_token(token_under_cursor, suggestion)
+                self.suggestions.append(suggestion)
+                return
+            if prev_token is not None and prev_token.lexeme == '.' or token_under_cursor.lexeme == '.':
+                self.attribute_suggestions(
+                    prev_token, token_under_cursor, tree_type)
+            options = list(instances.keys())
+            if tree_type == 'GeometryNodeTree':
+                options += list(geometry_nodes.keys())
+            else:
+                options += list(shader_nodes.keys())
+            for name in options:
+                if name.startswith(token_under_cursor.lexeme):
+                    self.suggestions.append(name)
+            if len(self.suggestions) == 0:
+                # No exact matches, try with Levensthein distance
+                # Only do this if we have at least some text
+                if len(token_under_cursor.lexeme) < 4:
+                    return
+                options_with_dist = []
+                for option in options:
+                    d = levenshtein_distance(option, token_under_cursor.lexeme)
+                    # Only add the best options
+                    if d < 5:
+                        options_with_dist.append((option, d))
+                sorted_options = sorted(options_with_dist,
+                                        key=lambda x: x[1])
+                self.suggestions += list(map(lambda x: x[0], sorted_options))
+            if len(self.suggestions) == 0:
+                return
+            suggestion = self.suggestions.popleft()
+            if token_under_cursor.lexeme == '.':
+                self.text_after_cursor(suggestion)
+            else:
+                self.replace_token(token_under_cursor, suggestion)
+            self.suggestions.append(suggestion)
 
     def text_after_cursor(self, text: str) -> None:
         line = self.lines[self.cursor_row]

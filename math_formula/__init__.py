@@ -1,4 +1,4 @@
-from math_formula import main, parser, scanner, positioning, backends, editor, compiler, type_checking
+from math_formula import main, parser, scanner, positioning, backends, editor, compiler, type_checking, ast_defs
 import bpy
 import rna_keymap_ui
 
@@ -23,6 +23,7 @@ if "bpy" in locals():
     importlib.reload(positioning)
     importlib.reload(editor)
     importlib.reload(backends)
+    importlib.reload(ast_defs)
 
 
 class MFMathFormula(bpy.types.AddonPreferences):
