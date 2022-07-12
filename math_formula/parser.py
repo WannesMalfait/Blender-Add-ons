@@ -1,7 +1,7 @@
 import math
 from typing import Union
 from math_formula.scanner import TokenType, Token, Scanner
-from math_formula.nodes.base import string_to_data_type, DataType
+from math_formula.backends.type_defs import string_to_data_type, DataType
 from enum import IntEnum, auto
 from math_formula import ast_defs
 
