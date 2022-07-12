@@ -149,6 +149,20 @@ class ty_stmt(ty_ast):
 
 
 @dataclass
+class TyArg(ty_ast):
+    name: str
+    dtype: DataType
+    value: Union[None, ValueType]
+
+
+@dataclass
+class TyFunction(ty_ast):
+    inputs: list[TyArg]
+    outputs: list[TyArg]
+    body: list[ty_stmt]
+
+
+@dataclass
 class TyRepr(ty_ast):
     body: list[ty_stmt]
 
@@ -178,6 +192,12 @@ class NodeCall(ty_expr):
 
 
 @dataclass
+class FunctionCall(ty_expr):
+    function: TyFunction
+    args: list[ty_expr]
+
+
+@dataclass
 class GetOutput(ty_expr):
     value: ty_expr
     index: int
@@ -186,4 +206,10 @@ class GetOutput(ty_expr):
 @dataclass
 class TyAssign(ty_stmt):
     targets: list[Union[Var, None]]
+    value: ty_expr
+
+
+@dataclass
+class TyOut(ty_stmt):
+    targets: list[Union[int, None]]
     value: ty_expr

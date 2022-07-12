@@ -1,5 +1,5 @@
-fn rescaled_gen() -> coords: vec3 {
-    out coords = tex_coord().generated -0.5 * 2;
+fn rescaled_pos() -> pos: vec3 {
+    out pos = (position() - 0.5) * 2;
 }
 
 fn cart_to_polar(x: float, y: float) -> r: float, theta: float {

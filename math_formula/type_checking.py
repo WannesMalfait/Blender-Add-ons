@@ -1,4 +1,5 @@
 from copy import copy
+from msilib.schema import SelfReg
 from math_formula.backends.main import BackEnd
 from math_formula.parser import Parser, Error
 from math_formula import ast_defs
@@ -12,6 +13,11 @@ class TypeChecker():
         self.curr_node: ty_stmt = None
         self.back_end: BackEnd = back_end
         self.vars: dict[str, Var] = {}
+        # Can have multiple functions with same name, but different
+        # type signatures.
+        self.functions: dict[str, list[TyFunction]] = {}
+        # Only set when inside a function definition
+        self.function_outputs: list[TyArg] = []
 
     def error(self, msg: str, node: ast_defs.Ast):
         self.errors.append(Error(node.token, msg))
@@ -26,24 +32,121 @@ class TypeChecker():
         statements = ast.body
         for statement in statements:
             try:
-                if isinstance(statement, ast_defs.expr):
-                    self.check_expr(statement)
-                elif isinstance(statement, ast_defs.FunctionDef):
-                    raise NotImplementedError
-                elif isinstance(statement, ast_defs.NodegroupDef):
-                    raise NotImplementedError
-                elif isinstance(statement, ast_defs.Out):
-                    raise NotImplementedError
-                elif isinstance(statement, ast_defs.Assign):
-                    self.check_assign(statement)
-                elif isinstance(statement, ast_defs.Loop):
-                    raise NotImplementedError
-                else:
-                    assert False, "Unreachable code"
+                self.check_statement(statement)
             except TypeError:
                 return False
-            self.typed_repr.body.append(self.curr_node)
+            if self.curr_node is not None:
+                # Could be None for function definition
+                self.typed_repr.body.append(self.curr_node)
         return True
+
+    def check_statement(self, stmt: ast_defs.stmt, in_function=False):
+        if isinstance(stmt, ast_defs.expr):
+            self.check_expr(stmt)
+        elif isinstance(stmt, ast_defs.Assign):
+            self.check_assign(stmt)
+        elif isinstance(stmt, ast_defs.Loop):
+            raise NotImplementedError
+        elif isinstance(stmt, ast_defs.FunctionDef):
+            if in_function:
+                return self.error('No function definitions inside a function allowed', stmt)
+            self.check_function_def(stmt)
+        elif isinstance(stmt, ast_defs.NodegroupDef):
+            raise NotImplementedError
+        elif isinstance(stmt, ast_defs.Out):
+            if not in_function:
+                return self.error('Out statements only allowed inside functions', stmt)
+            self.check_out(stmt)
+        else:
+            assert False, "Unreachable code"
+
+    def out_types(self, targets: list[Union[TyArg, None]], dtypes: list[DataType], ast_targets: list[Union[None, ast_defs.Name]]):
+        for target, dtype, ast_target in zip(targets, dtypes, ast_targets):
+            if target is None:
+                continue
+            if not self.back_end.can_convert(dtype, target.dtype):
+                return self.error(
+                    f'Can\'t assign value of type {dtype._name_} to output of type {target.dtype._name_}', ast_target)
+
+    def check_out(self, out_stmt: ast_defs.Out):
+        # First check if all the target names are actually the output names.
+        out_names = [out.name for out in self.function_outputs]
+        out_targets = []
+        target_indices = []
+        for target in out_stmt.targets:
+            if target is None:
+                target_indices.append(None)
+                out_targets.append(None)
+                continue
+            if not target.id in out_names:
+                return self.error(f'Function output target "{target.id}" doesn\'t match one of the functions output names.', target)
+            index = out_names.index(target.id)
+            target_indices.append(index)
+            out_targets.append(self.function_outputs[index])
+        self.check_expr(out_stmt.value)
+        expr = self.curr_node
+        assert isinstance(
+            expr, ty_expr), 'Right hand side of assignment should be an expression'
+        if expr.stype == StackType.EMPTY:
+            return self.error(
+                'Right hand side of assignment should resolve to a value', out_stmt)
+        elif len(out_targets) > 1 and expr.stype != StackType.STRUCT:
+            if expr.dtype[0] == DataType.VEC3:
+                if len(out_targets) > 3:
+                    return self.error('Too many assignment targets.', out_stmt)
+                self.out_types(
+                    out_targets, [DataType.FLOAT for _ in range(3)], out_stmt.targets)
+            elif expr.dtype[0] == DataType.RGBA:
+                if len(out_targets) > 4:
+                    return self.error('Too many assignment targets.', out_stmt)
+                self.out_types(
+                    out_targets, [DataType.FLOAT for _ in range(4)], out_stmt.targets)
+            else:
+                return self.error('Too many assignment targets.', out_stmt)
+            return
+        # Assignment is fine, as long as there are more values than targets.
+        if len(out_targets) > len(expr.dtype):
+            return self.error('Too many assignment targets.', out_stmt)
+        self.out_types(out_targets, expr.dtype, out_stmt.targets)
+        self.curr_node = TyOut(target_indices, expr)
+
+    def check_arg(self, arg: ast_defs.arg) -> Union[None, ValueType]:
+        if arg.default is None:
+            return
+        self.check_expr(arg.default)
+        default_value = self.curr_node
+        if not isinstance(default_value, Const):
+            return self.error('Default value should be a value not an expression.', arg.default.token)
+        try:
+            return self.back_end.convert(default_value.value,
+                                         default_value.dtype[0], arg.type)
+        except:
+            return self.error(f'Can\'t convert {default_value} to value of type {arg.type._name_}')
+
+    def check_function_def(self, fun_def: ast_defs.FunctionDef):
+        inputs = []
+        outputs = []
+        for arg in fun_def.args:
+            inputs.append(TyArg(arg.arg, arg.type, self.check_arg(arg)))
+        for ret in fun_def.returns:
+            outputs.append(TyArg(ret.arg, ret.type, self.check_arg(ret)))
+        outer_vars = self.vars
+        self.vars = {}
+        for arg in fun_def.args:
+            var = Var(StackType.SOCKET, [arg.type], [], arg.arg, False)
+            self.vars[arg.arg] = var
+        body = []
+        self.function_outputs = outputs
+        for stmt in fun_def.body:
+            self.check_statement(stmt, in_function=True)
+            body.append(self.curr_node)
+        if fun_def.name in self.functions:
+            self.functions[fun_def.name].append(
+                TyFunction(inputs, outputs, body))
+        else:
+            self.functions[fun_def.name] = [TyFunction(inputs, outputs, body)]
+        self.vars = outer_vars
+        self.function_outputs = []
 
     def assign_types(self, targets: list[Union[ast_defs.Name, None]], dtypes: list[DataType]) -> list[Union[Var, None]]:
         typed_targets = [None for _ in range(len(targets))]
@@ -118,11 +221,9 @@ class TypeChecker():
             assert False, "Unreachable code"
 
     def resolve_function(self, name: str, args: list[ty_expr], ast: ast_defs.Ast):
-        # TODO: Remove assumption that this is a built in node.
-        node = dtype = out_names = None
         try:
-            node, dtype, out_names = self.back_end.resolve_function(
-                name, args)
+            func, dtype, out_names = self.back_end.resolve_function(
+                name, args, self.functions)
         except TypeError as err:
             return self.error(err, ast)
         if dtype == []:
@@ -135,7 +236,10 @@ class TypeChecker():
                 out_names = ['r', 'g', 'b', 'a']
         else:
             stype = StackType.STRUCT
-        self.curr_node = NodeCall(stype, dtype, out_names, node, args)
+        if isinstance(func, TyFunction):
+            self.curr_node = FunctionCall(stype, dtype, out_names, func, args)
+        else:
+            self.curr_node = NodeCall(stype, dtype, out_names, func, args)
 
     def func_call(self, call: ast_defs.Call):
         function_name = ''

@@ -1,18 +1,20 @@
 from math_formula.backends.type_defs import *
-
-
-def can_convert(from_type: DataType, to_type: DataType):
-    if from_type == to_type:
-        return True
-    else:
-        return from_type.value <= DataType.VEC3.value and to_type.value <= DataType.VEC3.value
+from math_formula.backends.builtin_nodes import levenshtein_distance, nodes
+from functools import reduce
 
 
 class BackEnd():
 
+    @staticmethod
+    def can_convert(from_type: DataType, to_type: DataType) -> bool:
+        if from_type == to_type:
+            return True
+        else:
+            return from_type.value <= DataType.VEC3.value and to_type.value <= DataType.VEC3.value
+
     def convert(self, value: ValueType, from_type: DataType, to_type: DataType) -> ValueType:
         '''Convert value of type from_type to to_type.'''
-        assert can_convert(
+        assert self.can_convert(
             from_type, to_type), f'Invalid type, can\'t convert from {from_type} to {to_type} '
         if from_type == DataType.DEFAULT or from_type == DataType.UNKNOWN:
             if to_type == DataType.BOOL:
@@ -163,6 +165,37 @@ class BackEnd():
         raise TypeError(
             f'Couldn\'t find find instance of function "{name}" with arguments {arg_types}')
 
-    def resolve_function(self, name: str, args: list[DataType]) -> tuple[NodeInstance, list[DataType], list[str]]:
+    @staticmethod
+    def input_types(instance: Union[NodeInstance, TyFunction]) -> list[DataType]:
+        if isinstance(instance, NodeInstance):
+            node = nodes[instance.key]
+            return [node.inputs[i][1] for i in instance.inputs]
+        else:
+            return [i.dtype for i in instance.inputs]
+
+    def _resolve_function(self, name: str, args: list[DataType], dicts: list[dict]) -> tuple[Union[TyFunction, NodeInstance], list[DataType], list[str]]:
+        instance_options: list[Union[NodeInstance, TyFunction]] = []
+        for dict in dicts:
+            if name in dict:
+                instance_options += dict[name]
+        if instance_options == []:
+            # Try to get a suggestion in case of a typo.
+            options = sorted(reduce(lambda a, b: a + b, map(lambda x: list(x.keys()), dicts)),
+                             key=lambda x: levenshtein_distance(name, x))
+            raise TypeError(
+                f'No function named "{name}" found. Did you mean "{options[0]}" or "{options[1]}"?')
+        options = [self.input_types(option) for option in instance_options]
+        index = self.find_best_match(options, args, name)
+        func = instance_options[index]
+        if isinstance(func, TyFunction):
+            out_types = [o.dtype for o in func.outputs]
+            out_names = [o.name for o in func.outputs]
+            return func, out_types, out_names
+        node = nodes[func.key]
+        out_types = [node.outputs[i][1] for i in func.outputs]
+        out_names = [node.outputs[i][0] for i in func.outputs]
+        return func, out_types, out_names
+
+    def resolve_function(self, name: str, args: list[DataType], functions: list[TyFunction]) -> tuple[Union[TyFunction, NodeInstance], list[DataType], list[str]]:
         ''' Resolve name to a built-in node by type matching on the arguments.'''
         pass

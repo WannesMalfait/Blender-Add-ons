@@ -24,27 +24,5 @@ class ShaderNodesBackEnd(BackEnd):
             type = DataType.FLOAT
         return value, type
 
-    @staticmethod
-    def input_types(instance: NodeInstance) -> list[DataType]:
-        node = nodes[instance.key]
-        return [node.inputs[i][1] for i in instance.inputs]
-
-    def resolve_function(self, name: str, args: list[ty_expr]) -> tuple[NodeInstance, list[DataType], list[str]]:
-        instance_options: list[NodeInstance] = []
-        if name in shader_nodes:
-            instance_options += shader_nodes[name]
-        if name in instances:
-            instance_options += instances[name]
-        if instance_options == []:
-            # Try to get a suggestion in case of a typo.
-            options = sorted(list(shader_nodes.keys()) + list(instances.keys()),
-                             key=lambda x: levenshtein_distance(name, x))
-            raise TypeError(
-                f'No function named "{name}" found. Did you mean "{options[0]}" or "{options[1]}"?')
-        options = [self.input_types(option) for option in instance_options]
-        index = self.find_best_match(options, args, name)
-        func = instance_options[index]
-        node = nodes[func.key]
-        out_types = [node.outputs[i][1] for i in func.outputs]
-        out_names = [node.outputs[i][0] for i in func.outputs]
-        return func, out_types, out_names
+    def resolve_function(self, name: str, args: list[ty_expr], functions: list[TyFunction]) -> tuple[Union[TyFunction, NodeInstance], list[DataType], list[str]]:
+        return self._resolve_function(name, args, [shader_nodes, instances, functions])
