@@ -81,17 +81,17 @@ class OpType(IntEnum):
     # Set the ouput of the last added node to the given value. Data is a
     # tuple of the output index and the value to be set.
     SET_OUTPUT = auto()
+    # Set the functions output at the given index to the value on top of the stack.
+    SET_FUNCTION_OUT = auto()
     # Split the last item on the stack into individual items. So if the
     # stack looked like [x,y,[z,w,v]] it would become [x,y,z,w,v].
     SPLIT_STRUCT = auto()
-    # Call the given function, all the arguments are on the stack. The value
-    # on top of the stack is a list of the inputs for which arguments are
-    # provided. Push the output onto the stack.
+    # Call the given function, all the arguments are on the stack. The data
+    # is a CompiledFunction
     CALL_FUNCTION = auto()
     # Same as CALL_FUNCTION but a node group is created.
     CALL_NODEGROUP = auto()
-    # Create the built-in node. Data is a NodeInstance with the key set to
-    # bl_name.
+    # Create the built-in node. Data is a NodeInstance.
     CALL_BUILTIN = auto()
     # Set the label of the last added node to the given name.
     RENAME_NODE = auto()
@@ -160,6 +160,7 @@ class TyFunction(ty_ast):
     inputs: list[TyArg]
     outputs: list[TyArg]
     body: list[ty_stmt]
+    used_outputs: list[bool]
 
 
 @dataclass
@@ -213,3 +214,10 @@ class TyAssign(ty_stmt):
 class TyOut(ty_stmt):
     targets: list[Union[int, None]]
     value: ty_expr
+
+
+@dataclass
+class CompiledFunction():
+    inputs: list[str]
+    body: list[Operation]
+    num_outputs: int

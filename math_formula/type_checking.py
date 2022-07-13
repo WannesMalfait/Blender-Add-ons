@@ -1,5 +1,4 @@
 from copy import copy
-from msilib.schema import SelfReg
 from math_formula.backends.main import BackEnd
 from math_formula.parser import Parser, Error
 from math_formula import ast_defs
@@ -18,6 +17,7 @@ class TypeChecker():
         self.functions: dict[str, list[TyFunction]] = {}
         # Only set when inside a function definition
         self.function_outputs: list[TyArg] = []
+        self.used_function_outputs: list[bool] = []
 
     def error(self, msg: str, node: ast_defs.Ast):
         self.errors.append(Error(node.token, msg))
@@ -81,6 +81,7 @@ class TypeChecker():
             if not target.id in out_names:
                 return self.error(f'Function output target "{target.id}" doesn\'t match one of the functions output names.', target)
             index = out_names.index(target.id)
+            self.used_function_outputs[index] = True
             target_indices.append(index)
             out_targets.append(self.function_outputs[index])
         self.check_expr(out_stmt.value)
@@ -137,16 +138,19 @@ class TypeChecker():
             self.vars[arg.arg] = var
         body = []
         self.function_outputs = outputs
+        self.used_function_outputs = [False for _ in range(len(outputs))]
         for stmt in fun_def.body:
             self.check_statement(stmt, in_function=True)
             body.append(self.curr_node)
         if fun_def.name in self.functions:
             self.functions[fun_def.name].append(
-                TyFunction(inputs, outputs, body))
+                TyFunction(inputs, outputs, body, self.used_function_outputs))
         else:
-            self.functions[fun_def.name] = [TyFunction(inputs, outputs, body)]
+            self.functions[fun_def.name] = [TyFunction(
+                inputs, outputs, body, self.used_function_outputs)]
         self.vars = outer_vars
         self.function_outputs = []
+        self.curr_node = None
 
     def assign_types(self, targets: list[Union[ast_defs.Name, None]], dtypes: list[DataType]) -> list[Union[Var, None]]:
         typed_targets = [None for _ in range(len(targets))]
@@ -396,7 +400,7 @@ if __name__ == '__main__':
         os.path.realpath(__file__))
     test_directory = os.path.join(add_on_dir, 'tests')
     filenames = os.listdir(test_directory)
-    verbose = 2
+    verbose = 3
     num_passed = 0
     tot_tests = 0
     BOLD = '\033[1m'
@@ -406,6 +410,8 @@ if __name__ == '__main__':
     BLUE = '\033[96m'
     ENDC = '\033[0m'
     for filename in filenames:
+        # if filename != 'functions':
+        #     continue
         tot_tests += 1
         print(f'Testing: {BOLD}{filename}{ENDC}:  ', end='')
         with open(os.path.join(test_directory, filename), 'r') as f:

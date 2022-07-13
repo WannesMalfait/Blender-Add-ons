@@ -124,7 +124,6 @@ class BackEnd():
         else:
             raise NotImplementedError(f'Creating input of type {str(dtype)}')
         operations.append(Operation(OpType.RENAME_NODE, name))
-        operations.append(Operation(OpType.CREATE_VAR, name))
 
     def find_best_match(self, options: list[list[DataType]], args: list[ty_expr], name: str) -> int:
         '''Find the best function to use from the list of options.

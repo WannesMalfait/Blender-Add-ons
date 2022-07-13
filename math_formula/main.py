@@ -157,7 +157,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         # Safe because of poll function
         tree: bpy.types.NodeTree = space.edit_tree
         props = context.scene.math_formula_add
-        # The formula that we parse. Should be in Reverse Polish Notation
+        # The formula that we parse.
         formula: str = props.formula
         stack: list[ValueType] = []
         # The nodes that we added
