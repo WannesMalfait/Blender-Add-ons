@@ -58,6 +58,8 @@ class Parser():
         self.advance()
         while not self.match(TokenType.EOL):
             module.body.append(self.declaration())
+            if self.panic_mode:
+                self.synchronize()
         return module
 
     def error_at_current(self, message: str) -> None:
@@ -218,8 +220,9 @@ class Parser():
                 returns.append(self.parse_arg())
         self.consume(TokenType.LEFT_BRACE, 'Expect function body.')
         body = []
-        while not self.match(TokenType.RIGHT_BRACE):
+        while not (self.check(TokenType.RIGHT_BRACE) or self.match(TokenType.EOL)):
             body.append(self.declaration())
+        self.consume(TokenType.RIGHT_BRACE, 'Expect closing "}".')
         self.curr_node = None
         return args, body, returns
 
@@ -260,8 +263,9 @@ class Parser():
             end = self.parse_int()
         self.consume(TokenType.LEFT_BRACE, 'Expect loop body.')
         body = []
-        while not self.match(TokenType.RIGHT_BRACE):
+        while not (self.check(TokenType.RIGHT_BRACE) or self.match(TokenType.EOL)):
             body.append(self.declaration())
+        self.consume(TokenType.RIGHT_BRACE, 'Expect closing "}".')
         self.curr_node = None
         return ast_defs.Loop(token, var, start, end, body)
 
@@ -277,9 +281,6 @@ class Parser():
             node = self.loop()
         else:
             node = self.statement()
-
-        if self.panic_mode:
-            self.synchronize()
         return node
 
     def call_args(self) -> tuple[list[ast_defs.expr], list[ast_defs.Keyword]]:
