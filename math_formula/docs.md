@@ -67,8 +67,8 @@ In blender, you can type python expressions in input fields. You can also do thi
 //   python expression.
 // - In the second example no divide node is created because `tau/4` is evaluated as a
 //   python expression.
-let example1 = sin(#tau/4)
-let example2 = sin(#(tau/4))
+example1 = sin(#tau/4)
+example2 = sin(#(tau/4))
 ```
 
 
@@ -84,20 +84,35 @@ tex_coord().object.scale(0.5).fract().sub(0.5).abs() ...
 ### Functions Node Groups and Macros
 You can define your own functions, node groups, and macros. Functions are exactly like node groups, but don't get turned into an actual node group when called. Macros on the other hand, are like an advanced "find and replace". They allow you to write commonly used expressions faster. In general if you want something with multiple nodes and arguments, using a function will be better.
 
-## Differences between Shader nodes and Geometry Nodes
+### Custom Implementations
+What if you want to add your own function? This is also possible with "custom implementations". In the preferences you'll find a link to the folder that contains these implementations. There are different types of files in the folder:
+- Files that start with "cache": These are used by the add-on to load them faster. You should not change these.
+- Files that end with "sh": These are implementations specific to shader nodes.
+- Files that end with "gn": These are implementations specific to geometry nodes.
+- Other files apply to both shader and geometry nodes.
 
-Although they have many nodes in common, the geometry nodes system seems to have more options at the moment. For example, there are no booleans or integer types in shader nodes, this means that some operations might not be 'possible' in shader nodes. In geometry nodes we can do `x < y` where `x` and `y` are vectors. There is currently no shader node that does this. 
-
-NOTE: In the future this problem will disappear for a large part, because of 'custom implementations'. These can be defined so that the correct implementation can be found by the add-on:
-```js
-// They would work something like this:
-fn and(a: float, b: float) -> c: float {
-    out c = a * b;
+What do these "implementations" look like? The general form is like this:
+```rs
+fn function_name(input: type, ..., input: type) -> output: type,..., output: type {
+    // function body.
 }
+```
 
-fn less_than(a: vec3, b: vec3) -> c: vec3 {
+Let's look at an example:
+```rs
+// In 00_general
+fn asinh(x: float) -> y: float {
+    // The function `asinh` takes a float "x" as input and returns a float "y".
+    out y = log(x + sqrt(1+x*x), #e); // Here we set the output "y" using the `out` keyword.
+}
+```
+
+When you create functions with names like 'add', or 'mul', the corresponding operator will also work with these implementations.
+```rs
+fn pow(a: vec3, b: float) -> c: float {
     ax,ay,az = a;
-    bx,by,bz = b;
-    out c = ax < bx and ay < by and az < bz;
+    out c = {ax**b, ay**b, az**b};
 }
+
+{1,2,3} ** 5; // This executes the function above
 ```
