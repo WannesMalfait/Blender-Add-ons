@@ -1,5 +1,6 @@
 v2.0.0-alpha.2
 - Add support for custom implementations. For example, the function `acosh()` is now well-defined.
+- Fix bug with autocomplete
 
 v2.0.0-alpha.1
 - Add autocompletion by pressing tab

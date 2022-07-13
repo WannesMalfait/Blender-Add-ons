@@ -42,9 +42,6 @@ class Editor():
         self.paste_after_cursor(text)
 
     def attribute_suggestions(self, prev_token: Token, token_under_cursor: Token, tree_type: str):
-        if prev_token.token_type != TokenType.RIGHT_PAREN:
-            # Quick exit, since we don't have any special suggestions in this case
-            return
         token_text = token_under_cursor.lexeme
         text_start = token_under_cursor.start
         dot_token = None
