@@ -272,7 +272,7 @@ class TypeChecker():
         if expr.stype == StackType.EMPTY:
             return self.error(un_op, 'Argument expression has no value.')
         if isinstance(op, ast_defs.Not):
-            self.resolve_function('not', [expr], un_op)
+            self.resolve_function('_not', [expr], un_op)
         elif isinstance(op, ast_defs.USub):
             arg = Const(StackType.VALUE, [DataType.INT], [], -1)
             self.resolve_function('mul', [arg, expr], un_op)
@@ -290,9 +290,9 @@ class TypeChecker():
         if left.stype == StackType.EMPTY or right.stype == StackType.EMPTY:
             return self.error(bin_op, 'Argument expression has no value.')
         if isinstance(op, ast_defs.And):
-            self.resolve_function('and', [left, right], bin_op)
+            self.resolve_function('_and', [left, right], bin_op)
         elif isinstance(op, ast_defs.Or):
-            self.resolve_function('or', [left, right], bin_op)
+            self.resolve_function('_or', [left, right], bin_op)
         elif isinstance(op, ast_defs.Add):
             self.resolve_function('add', [left, right], bin_op)
         elif isinstance(op, ast_defs.Div):

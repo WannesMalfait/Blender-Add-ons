@@ -1,11 +1,15 @@
-from math_formula.backends.builtin_nodes import nodes, instances
+from math_formula.backends.builtin_nodes import instances
 from math_formula.backends.main import BackEnd
 from math_formula.backends.type_defs import *
 
 geometry_nodes = {
-    'and': [NodeInstance('FunctionNodeBooleanMath', [0, 1], [0], [('operation', 'AND')])],
-    'or': [NodeInstance('FunctionNodeBooleanMath', [0, 1], [0], [('operation', 'OR')])],
-    'not': [NodeInstance('FunctionNodeBooleanMath', [0], [0], [('operation', 'NOT')])],
+    '_and': [NodeInstance('FunctionNodeBooleanMath', [0, 1], [0], [('operation', 'AND')])],
+    '_or': [NodeInstance('FunctionNodeBooleanMath', [0, 1], [0], [('operation', 'OR')])],
+    '_not': [NodeInstance('FunctionNodeBooleanMath', [0], [0], [('operation', 'NOT')])],
+    'round': [NodeInstance('FunctionNodeFloatToInt', [0], [0], [('rounding_mode', 'ROUND')])],
+    'floor': [NodeInstance('FunctionNodeFloatToInt', [0], [0], [('rounding_mode', 'FLOOR')])],
+    'ceil': [NodeInstance('FunctionNodeFloatToInt', [0], [0], [('rounding_mode', 'CEILING')])],
+    'trunc': [NodeInstance('FunctionNodeFloatToInt', [0], [0], [('rounding_mode', 'TRUNCATE')])],
     'less_than': [NodeInstance('FunctionNodeCompare', [0, 1], [0], [('operation', 'LESS_THAN')]),
                   NodeInstance('FunctionNodeCompare', [2, 3], [0],
                                [('operation', 'LESS_THAN'), ('data_type', 'INT')]),
