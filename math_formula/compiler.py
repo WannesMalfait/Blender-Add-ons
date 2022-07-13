@@ -1,8 +1,8 @@
-from doctest import OutputChecker
 from math_formula.backends.geometry_nodes import GeometryNodesBackEnd
 from math_formula.backends.shader_nodes import ShaderNodesBackEnd
 from math_formula.backends.type_defs import *
 from math_formula.backends.main import BackEnd
+from math_formula.file_loading import FileData
 from math_formula.parser import Error
 from math_formula.type_checking import TypeChecker
 
@@ -16,17 +16,26 @@ class Compiler():
         elif tree_type == 'ShaderNodeTree':
             return ShaderNodesBackEnd()
 
-    def __init__(self, tree_type: str) -> None:
+    def __init__(self, tree_type: str, file_data: FileData = None) -> None:
         self.operations: list[Operation] = []
         self.errors: list[Error] = []
         self.back_end: BackEnd = self.choose_backend(tree_type)
+        if file_data is not None:
+            self.type_checker = TypeChecker(
+                self.back_end, file_data.geometry_nodes if tree_type == 'GeometryNodeTree' else file_data.shader_nodes)
+        else:
+            self.type_checker = TypeChecker(self.back_end, {})
         self.curr_function: TyFunction = None
 
+    def check_functions(self, source: str) -> bool:
+        self.type_checker.type_check(source)
+        self.errors = self.type_checker.errors
+        return (self.errors == [])
+
     def compile(self, source: str) -> bool:
-        type_checker = TypeChecker(self.back_end)
-        succeeded = type_checker.type_check(source)
-        typed_ast = type_checker.typed_repr
-        self.errors = type_checker.errors
+        succeeded = self.type_checker.type_check(source)
+        typed_ast = self.type_checker.typed_repr
+        self.errors = self.type_checker.errors
         if not succeeded:
             return False
         statements = typed_ast.body
@@ -104,6 +113,16 @@ class Compiler():
             print(expr, type(expr))
             assert False, "Unreachable code"
 
+    def compile_function(self, func: TyFunction) -> CompiledFunction:
+        outer_ops = self.operations
+        self.operations = []
+        for stmt in func.body:
+            self.compile_statement(stmt)
+        compiled_body = self.operations
+        self.operations = outer_ops
+        return CompiledFunction(
+            [i.name for i in func.inputs], compiled_body, len(func.outputs))
+
     def func_call(self, expr: FunctionCall):
         for arg in expr.args:
             self.compile_expr(arg)
@@ -114,15 +133,8 @@ class Compiler():
         for i in range(len(expr.args), len(expr.function.inputs)):
             self.operations.append(
                 Operation(OpType.PUSH_VALUE, expr.function.inputs[i].value))
-        outer_ops = self.operations
-        self.operations = []
-        for stmt in expr.function.body:
-            self.compile_statement(stmt)
-        compiled_body = self.operations
-        self.operations = outer_ops
-        compiled_func = CompiledFunction(
-            [i.name for i in expr.function.inputs], compiled_body, len(expr.function.outputs))
-        self.operations.append(Operation(OpType.CALL_FUNCTION, compiled_func))
+        self.operations.append(
+            Operation(OpType.CALL_FUNCTION, self.compile_function(expr.function)))
 
     def node_call(self, expr: NodeCall):
         for arg in expr.args:

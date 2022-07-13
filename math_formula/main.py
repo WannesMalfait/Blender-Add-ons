@@ -1,8 +1,7 @@
 import bpy
 import traceback
-from bpy.types import Node, NodeSocket
-from math_formula.backends.main import ValueType, OpType
-from math_formula.backends.type_defs import NodeInstance
+from bpy.types import Node
+from math_formula import file_loading
 from math_formula.interpreter import Interpreter
 from math_formula.positioning import TreePositioner
 from math_formula.editor import Editor
@@ -140,7 +139,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         # The formula that we parse.
         formula: str = props.formula
         # Parse the input string into a sequence of operations
-        compiler = Compiler(space.tree_type)
+        compiler = Compiler(space.tree_type, file_loading.file_data)
         success = compiler.compile(formula)
         if not success:
             return {'CANCELLED'}
@@ -226,7 +225,8 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         if event.type == 'RET':
             if event.ctrl:
                 # Exit when they press control + enter
-                compiler = Compiler(context.space_data.tree_type)
+                compiler = Compiler(
+                    context.space_data.tree_type, file_loading.file_data)
                 formula = self.editor.get_text()
                 try:
                     res = compiler.compile(formula)
@@ -272,7 +272,8 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
 
         # Compile and check for errors
         elif not self.lock and event.alt and event.type == 'C':
-            compiler = Compiler(context.space_data.tree_type)
+            compiler = Compiler(context.space_data.tree_type,
+                                file_loading.file_data)
             try:
                 res = compiler.compile(self.editor.get_text())
                 print('\nCompiled program:\n', *compiler.operations, sep='\n')

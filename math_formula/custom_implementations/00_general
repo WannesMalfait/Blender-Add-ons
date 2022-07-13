@@ -1,0 +1,23 @@
+fn _and(a: float, b: float) -> c: float {
+    out c = a * b;
+}
+
+fn _or(a: float, b: float) -> c: float {
+    out c = max(a,b);
+}
+
+fn _not(a: float) -> b: float {
+    out b = 1 - a;
+}
+
+fn asinh(x: float) -> y: float {
+    out y = log(x + sqrt(1+x*x), #e);
+}
+
+fn acosh(x: float) -> y: float {
+    out y = log(x + sqrt(x*x -1), #e);
+}
+
+fn atanh(x: float) -> y: float {
+    out y = 0.5*log((1+x)/(1-x), #e);
+}

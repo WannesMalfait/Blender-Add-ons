@@ -1,4 +1,4 @@
-from math_formula import main, parser, scanner, positioning, backends, editor, compiler, type_checking, ast_defs, interpreter
+from math_formula import main, parser, scanner, positioning, backends, editor, compiler, type_checking, ast_defs, interpreter, file_loading
 import bpy
 import rna_keymap_ui
 
@@ -25,17 +25,18 @@ if "bpy" in locals():
     importlib.reload(backends)
     importlib.reload(ast_defs)
     importlib.reload(interpreter)
+    importlib.reload(file_loading)
 
 
 class MFMathFormula(bpy.types.AddonPreferences):
     bl_idname = __name__
 
-    # macro_folder: bpy.props.StringProperty(
-    #     name="Macro Folder",
-    #     description="The folder where macros should be laoded from",
-    #     default=file_loading.macro_directory,
-    #     subtype='DIR_PATH',
-    # )
+    custom_implementations_folder: bpy.props.StringProperty(
+        name="Custom implementations Folder",
+        description="The folder where custom implementations should be loaded from",
+        default=file_loading.custom_implementations_dir,
+        subtype='DIR_PATH',
+    )
 
     font_size: bpy.props.IntProperty(
         name="Font Size",
@@ -121,14 +122,14 @@ class MFMathFormula(bpy.types.AddonPreferences):
         col.prop(self, 'sibling_distance')
         col.prop(self, 'subtree_distance')
         col.separator()
-        # col.prop(self, 'macro_folder')
-        # col.label(
-        #     text=f'{len(file_loading.file_data.macros)} macros are currently loaded.')
-        # col.operator(file_loading.MF_OT_load_macros.bl_idname,
-        #              icon='FILE_PARENT')
-        # props = col.operator(file_loading.MF_OT_load_macros.bl_idname,
-        #                      icon='FILE_REFRESH', text='Reload Macros')
-        # props.force_update = True
+        col.prop(self, 'custom_implementations_folder')
+        col.label(
+            text=f'{file_loading.file_data.num_funcs()} custom implementations are currently loaded.')
+        col.operator(file_loading.MF_OT_load_custom_implementations.bl_idname,
+                     icon='FILE_PARENT')
+        props = col.operator(file_loading.MF_OT_load_custom_implementations.bl_idname,
+                             icon='FILE_REFRESH', text='Reload Custom Implementations')
+        props.force_update = True
         col.separator()
         col.prop(self, 'show_colors')
         if self.show_colors:
@@ -190,28 +191,28 @@ class MF_PT_add_panel(bpy.types.Panel, main.MFBase):
             col.label(text="--no active node--")
 
 
-# class MF_PT_file_panel(bpy.types.Panel, main.MFBase):
-#     bl_idname = "NODE_PT_mf_files"
-#     bl_space_type = 'NODE_EDITOR'
-#     bl_label = "Change File Settings"
-#     bl_region_type = "UI"
-#     bl_category = "Math Formula"
+class MF_PT_file_panel(bpy.types.Panel, main.MFBase):
+    bl_idname = "NODE_PT_mf_files"
+    bl_space_type = 'NODE_EDITOR'
+    bl_label = "Change File Settings"
+    bl_region_type = "UI"
+    bl_category = "Math Formula"
 
-#     def draw(self, context: bpy.context):
+    def draw(self, context: bpy.context):
 
-#         # Helper variables
-#         layout = self.layout
-#         scene = context.scene
-#         props = scene.math_formula_add
+        # Helper variables
+        layout = self.layout
+        scene = context.scene
+        props = scene.math_formula_add
 
-#         col = layout.column(align=True)
-#         col.label(
-#             text=f'{len(file_loading.file_data.macros)} macros are currently loaded.')
-#         col.operator(file_loading.MF_OT_load_macros.bl_idname,
-#                      icon='FILE_PARENT')
-#         props = col.operator(file_loading.MF_OT_load_macros.bl_idname,
-#                              icon='FILE_REFRESH', text='Reload Macros')
-#         props.force_update = True
+        col = layout.column(align=True)
+        col.label(
+            text=f'{file_loading.file_data.num_funcs()} custom implementations are currently loaded.')
+        col.operator(file_loading.MF_OT_load_custom_implementations.bl_idname,
+                     icon='FILE_PARENT')
+        props = col.operator(file_loading.MF_OT_load_custom_implementations.bl_idname,
+                             icon='FILE_REFRESH', text='Reload Custom Implementations')
+        props.force_update = True
 
 
 addon_keymaps = []
@@ -234,12 +235,12 @@ classes = (
     MFMathFormula,
     MF_Settings,
     MF_PT_add_panel,
-    # MF_PT_file_panel,
+    MF_PT_file_panel,
 )
 
 
 def register():
-    # file_loading.register()
+    file_loading.register()
     main.register()
     for cls in classes:
         bpy.utils.register_class(cls)
@@ -264,7 +265,7 @@ def register():
 
 def unregister():
     main.unregister()
-    # file_loading.unregister()
+    file_loading.unregister()
     for cls in classes:
         bpy.utils.unregister_class(cls)
 

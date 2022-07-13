@@ -6,7 +6,7 @@ from math_formula.backends.type_defs import *
 
 
 class TypeChecker():
-    def __init__(self, back_end: BackEnd) -> None:
+    def __init__(self, back_end: BackEnd, functions: dict[str, list[TyFunction]] = {}) -> None:
         self.typed_repr: TyRepr = TyRepr(body=[])
         self.errors: list[Error] = []
         self.curr_node: ty_stmt = None
@@ -14,7 +14,7 @@ class TypeChecker():
         self.vars: dict[str, Var] = {}
         # Can have multiple functions with same name, but different
         # type signatures.
-        self.functions: dict[str, list[TyFunction]] = {}
+        self.functions: dict[str, list[TyFunction]] = functions
         # Only set when inside a function definition
         self.function_outputs: list[TyArg] = []
         self.used_function_outputs: list[bool] = []
