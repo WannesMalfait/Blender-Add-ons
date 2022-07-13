@@ -3,6 +3,7 @@ import traceback
 from bpy.types import Node, NodeSocket
 from math_formula.backends.main import ValueType, OpType
 from math_formula.backends.type_defs import NodeInstance
+from math_formula.interpreter import Interpreter
 from math_formula.positioning import TreePositioner
 from math_formula.editor import Editor
 from math_formula.compiler import Compiler
@@ -131,27 +132,6 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         else:
             space.cursor_location = tree.view_center
 
-    def get_args(self, stack: list, num_args: int) -> list[ValueType]:
-        if num_args == 0:
-            return []
-        args = stack[-num_args:]
-        stack[:] = stack[:-num_args]
-        return args
-
-    @staticmethod
-    def add_builtin(context: bpy.context, node_info: NodeInstance, args: list[ValueType]) -> bpy.types.Node:
-        tree: bpy.types.NodeTree = context.space_data.edit_tree
-        node = tree.nodes.new(type=node_info.key)
-        for name, value in node_info.props:
-            setattr(node, name, value)
-        for i, input_index in enumerate(node_info.inputs):
-            arg = args[i]
-            if isinstance(arg, bpy.types.NodeSocket):
-                tree.links.new(arg, node.inputs[input_index])
-            elif not (arg is None):
-                node.inputs[input_index].default_value = arg
-        return node
-
     def execute(self, context: bpy.context):
         space = context.space_data
         # Safe because of poll function
@@ -159,85 +139,18 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         props = context.scene.math_formula_add
         # The formula that we parse.
         formula: str = props.formula
-        stack: list[ValueType] = []
-        # The nodes that we added
-        nodes: list[Node] = []
-        # Variables in the form of output sockets
-        variables: dict[str, NodeSocket] = {}
-        # Parse the input string into a sequence of tokens
+        # Parse the input string into a sequence of operations
         compiler = Compiler(space.tree_type)
         success = compiler.compile(formula)
         if not success:
             return {'CANCELLED'}
+        # Execute the compiled operations
+        interpreter = Interpreter(tree)
         for operation in compiler.operations:
-            op_type = operation.op_type
-            op_data = operation.data
-            assert OpType.END_OF_STATEMENT.value == 10, 'Exhaustive handling of Operation types.'
-            if op_type == OpType.PUSH_VALUE:
-                stack.append(op_data)
-            elif op_type == OpType.CREATE_VAR:
-                assert isinstance(
-                    op_data, str), 'Variable name should be a string.'
-                socket = stack.pop()
-                assert isinstance(
-                    socket, (NodeSocket, list)), 'Create var expects a node socket or struct.'
-                variables[op_data] = socket
-            elif op_type == OpType.GET_VAR:
-                assert isinstance(
-                    op_data, str), 'Variable name should be a string.'
-                stack.append(variables[op_data])
-            elif op_type == OpType.GET_OUTPUT:
-                assert isinstance(
-                    op_data, int), 'Bug in type checker, index should be int.'
-                index = op_data
-                struct = stack.pop()
-                assert isinstance(
-                    struct, list), 'Bug in type checker, GET_OUTPUT only works on structs.'
-                # Index order is reversed
-                stack.append(struct[-index-1])
-            elif op_type == OpType.SET_OUTPUT:
-                assert isinstance(
-                    op_data, tuple), 'Data should be tuple of index and value'
-                index, value = op_data
-                nodes[-1].outputs[index].default_value = value
-            elif op_type == OpType.SPLIT_STRUCT:
-                struct = stack.pop()
-                assert isinstance(
-                    struct, list), 'Bug in type checker, GET_OUTPUT only works on structs.'
-                stack += struct
-            elif op_type == OpType.CALL_FUNCTION:
-                raise NotImplementedError
-                assert isinstance(
-                    op_data, NodeFunction), 'Bug in type checker.'
-                function: NodeFunction = op_data
-                args = self.get_args(stack, len(function.input_sockets()))
-                node = self.add_func(context, args, function)
-                outputs = function.output_sockets()
-                if len(outputs) == 1:
-                    stack.append(node.outputs[outputs[0].index])
-                elif len(outputs) > 1:
-                    stack.append([node.outputs[socket.index]
-                                  for socket in outputs])
-                nodes.append(node)
-            elif op_type == OpType.CALL_NODEGROUP:
-                raise NotImplementedError
-            elif op_type == OpType.CALL_BUILTIN:
-                assert isinstance(op_data, NodeInstance), 'Bug in compiler.'
-                args = self.get_args(stack, len(op_data.inputs))
-                node = self.add_builtin(context, op_data, args,)
-                outputs = op_data.outputs
-                if len(outputs) == 1:
-                    stack.append(node.outputs[outputs[0]])
-                elif len(outputs) > 1:
-                    stack.append([node.outputs[o] for o in reversed(outputs)])
-                nodes.append(node)
-            elif op_type == OpType.RENAME_NODE:
-                nodes[-1].label = op_data
-            elif op_type == OpType.END_OF_STATEMENT:
-                stack = []
-            else:
-                print(f'Need implementation of {op_type}')
-                raise NotImplementedError
+            interpreter.operation(operation)
+        # The nodes that we added
+        nodes: list[Node] = interpreter.nodes
+
         if props.add_frame and nodes != []:
             # Add all nodes in a frame
             frame = tree.nodes.new(type='NodeFrame')
