@@ -1,5 +1,8 @@
 v2.0.0-alpha.2
+- Add support for adding functions using the `fn` keyword.
+- Add support for adding node groups using the `ng` keyword.
 - Add support for custom implementations. For example, the function `acosh()` is now well-defined.
+- Fix bug with names with spaces
 - Fix bug with autocomplete
 
 v2.0.0-alpha.1

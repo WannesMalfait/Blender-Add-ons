@@ -101,9 +101,10 @@ fn function_name(input: type, ..., input: type) -> output: type,..., output: typ
 Let's look at an example:
 ```rs
 // In 00_general
-fn asinh(x: float) -> y: float {
-    // The function `asinh` takes a float "x" as input and returns a float "y".
-    out y = log(x + sqrt(1+x*x), #e); // Here we set the output "y" using the `out` keyword.
+fn _and(a: float, b: float) -> c: float {
+    // This defines the "and" operation for two floats.
+    // The reason for the underscore is that `and` is a reserved keyword.
+    out c = a * b;
 }
 ```
 
@@ -116,3 +117,14 @@ fn pow(a: vec3, b: float) -> c: float {
 
 {1,2,3} ** 5; // This executes the function above
 ```
+
+If you want to create a node group instead of a function, you can simply replace the `fn` with `ng`
+```rs
+// In 00_general
+ng asinh(x: float) -> y: float {
+    // The node group `asinh` takes a float "x" as input and returns a float "y".
+    out y = log(x + sqrt(1+x*x), #e); // Here we set the output "y" using the `out` keyword.
+}
+```
+
+**NOTE:** The node group is only created when the "function" is called.
