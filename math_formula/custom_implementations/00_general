@@ -21,3 +21,51 @@ fn acosh(x: float) -> y: float {
 fn atanh(x: float) -> y: float {
     out y = 0.5*log((1+x)/(1-x), #e);
 }
+
+fn cart_to_polar(x: float, y: float) -> r: float, theta: float {
+    out r = sqrt(x*x + y*y);
+    out theta = atan2(y,x);
+}
+
+fn cart_to_polar(v: vec3) -> v: vec3 {
+    x,y = v;
+    r, theta = cart_to_polar(x,y);
+    out v = {r, theta};
+}
+
+fn polar_to_cart(r: float, theta: float) -> x: float, y: float {
+    out x = r*cos(theta);
+    out y = r*sin(theta);
+}
+
+fn polar_to_cart(v: vec3) -> v: vec3 {
+    r,theta = v;
+    x, y = polar_to_cart(r, theta)
+    out v = {x, y};
+}
+
+fn cart_to_spherical(x: float, y: float, z: float) -> r: float, theta: float, phi: float {
+    r = length({x,y,z})
+    out r = r;
+    out theta = atan2(y,x);
+    out phi = acos(z/r);
+}
+
+fn cart_to_spherical(v: vec3) -> v: vec3 {
+    x,y,z = v;
+    r,theta,phi = cart_to_spherical(x,y,z);
+    out v = {r,theta,phi};
+}
+
+fn spherical_to_cart(r: float, theta: float, phi: float) -> x: float, y: float, z:float  {
+    rxy = r * sin(phi);
+    out x = rxy * cos(theta);
+    out y = rxy * sin(theta);
+    out z = r * cos(phi);
+}
+
+fn spherical_to_cart(v: vec3) -> v: vec3 {
+    r,theta,phi = v;
+    x,y,z = spherical_to_cart(r,theta,phi);
+    out v = {x,y,z};
+}
