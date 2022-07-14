@@ -10,19 +10,19 @@ fn _not(a: float) -> b: float {
     out b = 1 - a;
 }
 
-fn asinh(x: float) -> y: float {
+ng asinh(x: float) -> y: float {
     out y = log(x + sqrt(1+x*x), #e);
 }
 
-fn acosh(x: float) -> y: float {
+ng acosh(x: float) -> y: float {
     out y = log(x + sqrt(x*x -1), #e);
 }
 
-fn atanh(x: float) -> y: float {
+ng atanh(x: float) -> y: float {
     out y = 0.5*log((1+x)/(1-x), #e);
 }
 
-fn cart_to_polar(x: float, y: float) -> r: float, theta: float {
+ng cart_to_polar(x: float, y: float) -> r: float, theta: float {
     out r = sqrt(x*x + y*y);
     out theta = atan2(y,x);
 }
@@ -33,7 +33,7 @@ fn cart_to_polar(v: vec3) -> v: vec3 {
     out v = {r, theta};
 }
 
-fn polar_to_cart(r: float, theta: float) -> x: float, y: float {
+ng polar_to_cart(r: float, theta: float) -> x: float, y: float {
     out x = r*cos(theta);
     out y = r*sin(theta);
 }
@@ -44,7 +44,7 @@ fn polar_to_cart(v: vec3) -> v: vec3 {
     out v = {x, y};
 }
 
-fn cart_to_spherical(x: float, y: float, z: float) -> r: float, theta: float, phi: float {
+ng cart_to_spherical(x: float, y: float, z: float) -> r: float, theta: float, phi: float {
     r = length({x,y,z})
     out r = r;
     out theta = atan2(y,x);
@@ -57,7 +57,7 @@ fn cart_to_spherical(v: vec3) -> v: vec3 {
     out v = {r,theta,phi};
 }
 
-fn spherical_to_cart(r: float, theta: float, phi: float) -> x: float, y: float, z:float  {
+ng spherical_to_cart(r: float, theta: float, phi: float) -> x: float, y: float, z:float  {
     rxy = r * sin(phi);
     out x = rxy * cos(theta);
     out y = rxy * sin(theta);

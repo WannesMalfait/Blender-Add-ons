@@ -122,6 +122,15 @@ class Compiler():
         return CompiledFunction(
             [i.name for i in func.inputs], compiled_body, len(func.outputs))
 
+    def compile_node_group(self, func: TyFunction) -> CompiledNodeGroup:
+        outer_ops = self.operations
+        self.operations = []
+        for stmt in func.body:
+            self.compile_statement(stmt)
+        compiled_body = self.operations
+        self.operations = outer_ops
+        return CompiledNodeGroup(func.name, func.inputs, func.outputs, compiled_body)
+
     def func_call(self, expr: FunctionCall):
         for arg in expr.args:
             self.compile_expr(arg)
@@ -132,6 +141,10 @@ class Compiler():
         for i in range(len(expr.args), len(expr.function.inputs)):
             self.operations.append(
                 Operation(OpType.PUSH_VALUE, expr.function.inputs[i].value))
+        if expr.function.is_node_group:
+            self.operations.append(
+                Operation(OpType.CALL_NODEGROUP, self.compile_node_group(expr.function)))
+            return
         self.operations.append(
             Operation(OpType.CALL_FUNCTION, self.compile_function(expr.function)))
 

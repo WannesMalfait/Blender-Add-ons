@@ -13,6 +13,7 @@ class DummyNode():
         self.dimensions = DummyVec2()
         self.location = DummyVec2()
         self.bl_idname = "DummyNode"
+        self.bl_width_default = self.bl_height_default = 0
 
 
 class PositionNode():
@@ -24,7 +25,12 @@ class PositionNode():
         self.left_sibling: PositionNode = left_sibling
         self.right_sibling: PositionNode = right_sibling
         self.width = self.node.dimensions.x
+        if self.width == 0:
+            # Not always great, but better than nothing
+            self.width = self.node.bl_width_default + 10
         self.height = self.node.dimensions.y
+        if self.height == 0:
+            self.height = self.node.bl_height_default + 10
         self.prelim_y = 0
         self.modifier = 0
         self.depth = depth

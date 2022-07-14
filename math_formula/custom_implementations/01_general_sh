@@ -6,13 +6,13 @@ fn greater_equal(a: float, b: float) -> c: float {
     out c = not (a < b);
 }
 
-fn less_than(a: vec3, b: vec3) -> c: float {
+ng less_than(a: vec3, b: vec3) -> c: float {
     ax,ay,az = a;
     bx,by,bz = b;
     out c = ax < bx and ay < by and az < bz;
 }
 
-fn greater_than(a: vec3, b: vec3) -> c: float {
+ng greater_than(a: vec3, b: vec3) -> c: float {
     ax,ay,az = a;
     bx,by,bz = b;
     out c = ax > bx and ay > by and az > bz;

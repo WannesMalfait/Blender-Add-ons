@@ -175,6 +175,8 @@ class TyFunction(ty_ast):
     outputs: list[TyArg]
     body: list[ty_stmt]
     used_outputs: list[bool]
+    is_node_group: bool
+    name: str
 
 
 @dataclass
@@ -235,3 +237,11 @@ class CompiledFunction():
     inputs: list[str]
     body: list[Operation]
     num_outputs: int
+
+
+@dataclass
+class CompiledNodeGroup():
+    name: str
+    inputs: list[TyArg]
+    outputs: list[TyArg]
+    body: list[Operation]

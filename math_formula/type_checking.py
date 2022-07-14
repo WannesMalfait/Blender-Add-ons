@@ -52,7 +52,9 @@ class TypeChecker():
                 return self.error('No function definitions inside a function allowed', stmt)
             self.check_function_def(stmt)
         elif isinstance(stmt, ast_defs.NodegroupDef):
-            raise NotImplementedError
+            if in_function:
+                return self.error('No node group definitions inside a function allowed', stmt)
+            self.check_function_def(stmt)
         elif isinstance(stmt, ast_defs.Out):
             if not in_function:
                 return self.error('Out statements only allowed inside functions', stmt)
@@ -124,7 +126,7 @@ class TypeChecker():
         except:
             return self.error(f'Can\'t convert {default_value} to value of type {arg.type._name_}')
 
-    def check_function_def(self, fun_def: ast_defs.FunctionDef):
+    def check_function_def(self, fun_def: Union[ast_defs.FunctionDef, ast_defs.NodegroupDef]):
         inputs = []
         outputs = []
         for arg in fun_def.args:
@@ -142,12 +144,13 @@ class TypeChecker():
         for stmt in fun_def.body:
             self.check_statement(stmt, in_function=True)
             body.append(self.curr_node)
+        is_nodegroup = isinstance(fun_def, ast_defs.NodegroupDef)
         if fun_def.name in self.functions:
             self.functions[fun_def.name].append(
-                TyFunction(inputs, outputs, body, self.used_function_outputs))
+                TyFunction(inputs, outputs, body, self.used_function_outputs, is_nodegroup, fun_def.name))
         else:
             self.functions[fun_def.name] = [TyFunction(
-                inputs, outputs, body, self.used_function_outputs)]
+                inputs, outputs, body, self.used_function_outputs, is_nodegroup, fun_def.name)]
         self.vars = outer_vars
         self.function_outputs = []
         self.curr_node = None

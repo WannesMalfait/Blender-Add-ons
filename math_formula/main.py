@@ -149,6 +149,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             interpreter.operation(operation)
         # The nodes that we added
         nodes: list[Node] = interpreter.nodes
+        self.node_group_trees: list[bpy.types.NodeTree] = interpreter.node_group_trees
 
         if props.add_frame and nodes != []:
             # Add all nodes in a frame
@@ -157,7 +158,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             for node in nodes:
                 node.parent = frame
             frame.update()
-        self.root_nodes = []
+        self.root_nodes = [[] for _ in range(len(self.node_group_trees) + 1)]
         for node in nodes:
             invalid = False
             for socket in node.outputs:
@@ -167,11 +168,22 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             if invalid:
                 continue
             else:
-                self.root_nodes.append(node)
+                self.root_nodes[0].append(node)
+        for i, tree in enumerate(self.node_group_trees):
+            for node in tree.nodes:
+                invalid = False
+                for socket in node.outputs:
+                    if socket.is_linked:
+                        invalid = True
+                        break
+                if invalid:
+                    continue
+                else:
+                    self.root_nodes[i + 1].append(node)
         return {'FINISHED'}
 
     def modal(self, context: bpy.context, event: bpy.types.Event):
-        if self.root_nodes[0].dimensions.x == 0:
+        if self.root_nodes[0][0].dimensions.x == 0:
             return {'RUNNING_MODAL'}
         space = context.space_data
         links = space.edit_tree.links
@@ -179,14 +191,18 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             0, 0)
         node_positioner = TreePositioner(context)
         cursor_loc = node_positioner.place_nodes(
-            self.root_nodes, links, cursor_loc=cursor_loc)
+            self.root_nodes[0], links, cursor_loc=cursor_loc)
+        for i, tree in enumerate(self.node_group_trees):
+            node_positioner = TreePositioner(context)
+            node_positioner.place_nodes(
+                self.root_nodes[i+1], tree.links, cursor_loc=(-100, 100))
 
         return {'FINISHED'}
 
     def invoke(self, context: bpy.context, event: bpy.types.Event):
         self.store_mouse_cursor(context, event)
         self.execute(context)
-        if self.root_nodes == []:
+        if self.root_nodes == [[]]:
             return {'FINISHED'}
         else:
             # Hacky way to force an update such that node dimensions are correct
