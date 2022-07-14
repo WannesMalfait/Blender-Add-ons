@@ -231,6 +231,8 @@ class Parser():
             self.error('Expected function name.')
         token = self.previous
         name = token.lexeme
+        if token.token_type == TokenType.STRING:
+            name = name[1:-1]
         args, body, returns = self.parse_func_structure()
         return ast_defs.FunctionDef(token, name, args, body, returns)
 
@@ -239,6 +241,8 @@ class Parser():
             self.error('Expected node group name.')
         token = self.previous
         name = token.lexeme
+        if token.token_type == TokenType.STRING:
+            name = name[1:-1]
         args, body, returns = self.parse_func_structure()
         return ast_defs.NodegroupDef(token, name, args, body, returns)
 

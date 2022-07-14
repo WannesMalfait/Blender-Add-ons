@@ -253,6 +253,8 @@ class Scanner():
             if next == "'" or next == '"':
                 self.advance()
                 token = self.string(next)
+                if token.token_type == TokenType.ERROR:
+                    return token
                 token.token_type = TokenType.GROUP_NAME
                 return token
         if c.isalpha():

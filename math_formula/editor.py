@@ -107,7 +107,10 @@ class Editor():
             if len(self.suggestions) != 0:
                 # Already calculated suggestions, so just use those.
                 suggestion = self.suggestions.popleft()
-                self.replace_token(token_under_cursor, suggestion)
+                if ' ' in suggestion:
+                    self.replace_token(token_under_cursor, f"n'{suggestion}'")
+                else:
+                    self.replace_token(token_under_cursor, suggestion)
                 self.suggestions.append(suggestion)
                 return
             if prev_token is not None and prev_token.lexeme == '.' or token_under_cursor.lexeme == '.':
@@ -395,6 +398,8 @@ class Editor():
                     color(token_font_style, prefs.error_color)
                 elif token.token_type == TokenType.STRING:
                     color(token_font_style, prefs.string_color)
+                elif token.token_type == TokenType.GROUP_NAME:
+                    color(token_font_style, prefs.function_color)
                 else:
                     color(token_font_style, prefs.default_color)
                 blf.size(token_font_style, font_size, font_dpi)
