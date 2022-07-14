@@ -1,4 +1,4 @@
-from math_formula.backends.main import DataType, BuiltinNode, NodeInstance
+from math_formula.backends.type_defs import DataType, BuiltinNode, NodeInstance
 
 
 def levenshtein_distance(x: str, y: str) -> int:

@@ -2,6 +2,7 @@ import os
 import blf
 import bpy
 from collections import deque
+from math_formula import file_loading
 from math_formula import ast_defs
 from math_formula.parser import Parser
 from math_formula.scanner import Scanner, Token, TokenType
@@ -81,6 +82,14 @@ class Editor():
         elif tree_type == 'ShaderNodeTree' and func_name in shader_nodes:
             node_name = shader_nodes[func_name][0].key
         if node_name == '':
+            ty_func = None
+            if tree_type == 'GeometryNodeTree' and func_name in file_loading.file_data.geometry_nodes:
+                ty_func = file_loading.file_data.geometry_nodes[func_name][0]
+            elif tree_type == 'ShaderNodeTree' and func_name in file_loading.file_data.shader_nodes:
+                ty_func = file_loading.file_data.shader_nodes[func_name][0]
+            if ty_func is not None:
+                self.suggestions += [
+                    out.name for out in ty_func.outputs if out.name.startswith(token_text)]
             return
         # We don't know what specific 'instance' is being used so add all outputs
         self.suggestions += [out[0]
@@ -107,8 +116,10 @@ class Editor():
             options = list(instances.keys())
             if tree_type == 'GeometryNodeTree':
                 options += list(geometry_nodes.keys())
+                options += list(file_loading.file_data.geometry_nodes.keys())
             else:
                 options += list(shader_nodes.keys())
+                options += list(file_loading.file_data.shader_nodes.keys())
             for name in options:
                 if name.startswith(token_under_cursor.lexeme):
                     self.suggestions.append(name)

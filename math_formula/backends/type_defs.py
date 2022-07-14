@@ -133,6 +133,20 @@ class Operation():
         return self.__str__()
 
 
+class FileData():
+    def __init__(self) -> None:
+        self.geometry_nodes: dict[str, list[TyFunction]] = {}
+        self.shader_nodes: dict[str, list[TyFunction]] = {}
+
+    def num_funcs(self) -> int:
+        tot = 0
+        for value in self.geometry_nodes.values():
+            tot += len(value)
+        for value in self.shader_nodes.values():
+            tot += len(value)
+        return tot
+
+
 class StackType(IntEnum):
     VALUE = 0
     SOCKET = auto()

@@ -2,7 +2,6 @@ from math_formula.backends.geometry_nodes import GeometryNodesBackEnd
 from math_formula.backends.shader_nodes import ShaderNodesBackEnd
 from math_formula.backends.type_defs import *
 from math_formula.backends.main import BackEnd
-from math_formula.file_loading import FileData
 from math_formula.parser import Error
 from math_formula.type_checking import TypeChecker
 

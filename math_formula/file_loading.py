@@ -1,23 +1,9 @@
 import pickle
 import os
 import bpy
-from math_formula.backends.type_defs import TyFunction
+from math_formula.backends.type_defs import FileData
 from math_formula.compiler import Compiler
 from math_formula.parser import Error
-
-
-class FileData():
-    def __init__(self) -> None:
-        self.geometry_nodes: dict[str, list[TyFunction]] = {}
-        self.shader_nodes: dict[str, list[TyFunction]] = {}
-
-    def num_funcs(self) -> int:
-        tot = 0
-        for value in self.geometry_nodes.values():
-            tot += len(value)
-        for value in self.shader_nodes.values():
-            tot += len(value)
-        return tot
 
 
 add_on_dir = os.path.dirname(
