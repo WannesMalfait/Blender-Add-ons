@@ -146,8 +146,9 @@ class TypeChecker():
             body.append(self.curr_node)
         is_nodegroup = isinstance(fun_def, ast_defs.NodegroupDef)
         if fun_def.name in self.functions:
-            self.functions[fun_def.name].append(
-                TyFunction(inputs, outputs, body, self.used_function_outputs, is_nodegroup, fun_def.name))
+            # Insert at the start, because newer definitions have higher priority
+            self.functions[fun_def.name].insert(0,
+                                                TyFunction(inputs, outputs, body, self.used_function_outputs, is_nodegroup, fun_def.name))
         else:
             self.functions[fun_def.name] = [TyFunction(
                 inputs, outputs, body, self.used_function_outputs, is_nodegroup, fun_def.name)]

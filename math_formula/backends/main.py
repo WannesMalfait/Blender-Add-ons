@@ -136,8 +136,8 @@ class BackEnd():
 
         # Find the one with the least amount of penalty
         # penalty = 0 means a perfect match
-        # penalty >= 100 means no match, or match that is extremely bad
-        best_penalty = 100
+        # penalty >= 1000 means no match, or match that is extremely bad
+        best_penalty = 1000
         best_index = 0
         for i, option in enumerate(options):
             if len(option) < len(arg_types):
@@ -153,7 +153,7 @@ class BackEnd():
                 best_index = i
             if best_penalty == 0:
                 break
-        if best_penalty < 100:
+        if best_penalty < 1000:
             # Ensure that the arguments are of the correct type
             for arg, otype in zip(args, options[best_index]):
                 if isinstance(arg, Const):
