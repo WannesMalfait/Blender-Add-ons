@@ -1,0 +1,34 @@
+fn ndot(a: vec3, b: vec3) -> c: float
+{
+    ax, ay = a; bx, by = b;
+    out c = ax*bx - ay*by;
+}
+
+ng sdRhombus(pos: vec3, dimensions: vec3) -> dist: float
+{
+    p = abs(pos); b = dimensions;
+    h = clamp(ndot(b-2*p,b)/dot(b,b), -1, 1);
+    d = length(p - 0.5*b*{1-h,1+h});
+    px, py = p;
+    bx, by = b;
+    out dist = d * sign(px*by + py * bx - bx*by);
+}
+
+ng sdCapsule(pos: vec3, a: vec3, b: vec3, r: float) -> dist: float
+{
+    pa = pos - a; ba = b - a;
+    h = clamp(dot(pa, ba)/dot(ba, ba));
+    out dist = length(pa - ba * h) - r;
+}
+
+ng sdSphere(pos: vec3, r: float) -> dist: float
+{
+    out dist = length(pos) - r;
+}
+
+ng sdBox(pos: vec3, dimensions: vec3) -> dist: float
+{
+    q = abs(pos) - dimensions;
+    qx, qy, qz = q;
+    out dist = length(max(q, 0)) + min(max(qx, max(qy, qz)), 0);
+}
