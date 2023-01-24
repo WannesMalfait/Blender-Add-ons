@@ -1,4 +1,5 @@
-from math_formula import main, parser, scanner, positioning, backends, editor, compiler, type_checking, ast_defs, interpreter, file_loading
+# type: ignore
+from . import main, mf_parser, scanner, positioning, backends, editor, compiler, type_checking, ast_defs, interpreter, file_loading
 import bpy
 import rna_keymap_ui
 
@@ -16,7 +17,7 @@ bl_info = {
 if "bpy" in locals():
     import importlib
     importlib.reload(main)
-    importlib.reload(parser)
+    importlib.reload(mf_parser)
     importlib.reload(scanner)
     importlib.reload(type_checking)
     importlib.reload(compiler)
@@ -114,7 +115,7 @@ class MFMathFormula(bpy.types.AddonPreferences):
         subtype='COLOR',
     )
 
-    def draw(self: bpy.types.Operator, context):
+    def draw(self: bpy.types.AddonPreferences, context: bpy.types.Context):
         layout = self.layout
         col = layout.column()
         col.prop(self, 'font_size')
@@ -172,7 +173,7 @@ class MF_PT_add_panel(bpy.types.Panel, main.MFBase):
     bl_region_type = "UI"
     bl_category = "Math Formula"
 
-    def draw(self, context: bpy.context):
+    def draw(self, context: bpy.types.Context):
 
         # Helper variables
         layout = self.layout
@@ -198,7 +199,7 @@ class MF_PT_file_panel(bpy.types.Panel, main.MFBase):
     bl_region_type = "UI"
     bl_category = "Math Formula"
 
-    def draw(self, context: bpy.context):
+    def draw(self, context: bpy.types.Context):
 
         # Helper variables
         layout = self.layout

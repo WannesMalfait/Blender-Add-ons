@@ -1,6 +1,7 @@
-from math_formula.backends.type_defs import *
-from math_formula.backends.builtin_nodes import levenshtein_distance, nodes
 from functools import reduce
+from typing import overload, Literal
+from backends.type_defs import *
+from backends.builtin_nodes import levenshtein_distance, nodes
 
 
 class BackEnd():
@@ -11,6 +12,30 @@ class BackEnd():
             return True
         else:
             return from_type.value <= DataType.VEC3.value and to_type.value <= DataType.VEC3.value
+
+    @overload
+    def convert(self, value: ValueType,
+                from_type: DataType, to_type: Literal[DataType.BOOL]) -> bool: ...
+
+    @overload
+    def convert(self, value: ValueType,
+                from_type: DataType, to_type: Literal[DataType.INT]) -> int: ...
+
+    @overload
+    def convert(self, value: ValueType,
+                from_type: DataType, to_type: Literal[DataType.FLOAT]) -> float: ...
+
+    @overload
+    def convert(self, value: ValueType,
+                from_type: DataType, to_type: Literal[DataType.VEC3]) -> list[float]: ...
+
+    @overload
+    def convert(self, value: ValueType,
+                from_type: DataType, to_type: Literal[DataType.RGBA]) -> list[float]: ...
+
+    @overload
+    def convert(self, value: ValueType, from_type: DataType,
+                to_type: DataType) -> ValueType: ...
 
     def convert(self, value: ValueType, from_type: DataType, to_type: DataType) -> ValueType:
         '''Convert value of type from_type to to_type.'''
@@ -28,6 +53,7 @@ class BackEnd():
             if to_type == DataType.RGBA:
                 return [0.0, 0.0, 0.0, 0.0]
         if from_type == DataType.BOOL:
+            assert isinstance(value, bool)
             if to_type == DataType.INT:
                 return int(value)
             if to_type == DataType.FLOAT:
@@ -37,6 +63,7 @@ class BackEnd():
             if to_type == DataType.VEC3:
                 return [float(value) for _ in range(3)]
         if from_type == DataType.INT:
+            assert isinstance(value, int)
             if to_type == DataType.BOOL:
                 return bool(value <= 0)
             if to_type == DataType.FLOAT:
@@ -46,6 +73,7 @@ class BackEnd():
             if to_type == DataType.VEC3:
                 return [float(value) for _ in range(3)]
         if from_type == DataType.FLOAT:
+            assert isinstance(value, float)
             if to_type == DataType.BOOL:
                 return bool(value <= 0.0)
             if to_type == DataType.INT:
@@ -55,6 +83,7 @@ class BackEnd():
             if to_type == DataType.VEC3:
                 return [value for _ in range(3)]
         if from_type == DataType.RGBA:
+            assert isinstance(value, list)
             gray_scale = (
                 0.2126 * value[0]) + (0.7152 * value[1]) + (0.0722 * value[2])
             if to_type == DataType.BOOL:
@@ -66,6 +95,7 @@ class BackEnd():
             if to_type == DataType.VEC3:
                 return [value[i] for i in range(3)]
         if from_type == DataType.VEC3:
+            assert isinstance(value, list)
             avg = (
                 value[0] + value[1] + value[2])/3.0
             if to_type == DataType.BOOL:
@@ -80,9 +110,9 @@ class BackEnd():
 
     def coerce_value(self, value: ValueType, type: DataType) -> tuple[ValueType, DataType]:
         '''Ensure that the value is of a type supported by the backend'''
-        pass
+        ...
 
-    def create_input(self, operations: list[Operation], name: str, value: ValueType, dtype: DataType, input_vector=True):
+    def create_input(self, operations: list[Operation], name: str, value: ValueType | None, dtype: DataType, input_vector=True):
         if dtype == DataType.FLOAT or dtype == DataType.UNKNOWN:
             operations.append(
                 Operation(OpType.CALL_BUILTIN,
@@ -110,6 +140,8 @@ class BackEnd():
                                                          [('vector', value)] if value is not None else [])))
             else:
                 if value is not None:
+                    assert isinstance(
+                        value, list), 'Vec3 should be list of floats'
                     for v in value:
                         operations.append(Operation(OpType.PUSH_VALUE, v))
                 else:
@@ -172,7 +204,7 @@ class BackEnd():
         else:
             return [i.dtype for i in instance.inputs]
 
-    def _resolve_function(self, name: str, args: list[DataType], dicts: list[dict]) -> tuple[Union[TyFunction, NodeInstance], list[DataType], list[str]]:
+    def _resolve_function(self, name: str, args: list[ty_expr], dicts: list[dict]) -> tuple[Union[TyFunction, NodeInstance], list[DataType], list[str]]:
         instance_options: list[Union[NodeInstance, TyFunction]] = []
         for dict in dicts:
             if name in dict:
@@ -195,6 +227,6 @@ class BackEnd():
         out_names = [node.outputs[i][0] for i in func.outputs]
         return func, out_types, out_names
 
-    def resolve_function(self, name: str, args: list[DataType], functions: list[TyFunction]) -> tuple[Union[TyFunction, NodeInstance], list[DataType], list[str]]:
+    def resolve_function(self, name: str, args: list[ty_expr], functions: dict[str, list[TyFunction]]) -> tuple[Union[TyFunction, NodeInstance], list[DataType], list[str]]:
         ''' Resolve name to a built-in node by type matching on the arguments.'''
-        pass
+        ...

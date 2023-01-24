@@ -2,15 +2,15 @@ import os
 import blf
 import bpy
 from collections import deque
-from math_formula import file_loading
-from math_formula import ast_defs
-from math_formula.parser import Parser
-from math_formula.scanner import Scanner, Token, TokenType
-from math_formula.compiler import Error
-from math_formula.backends.main import string_to_data_type
-from math_formula.backends.builtin_nodes import instances, levenshtein_distance, nodes
-from math_formula.backends.geometry_nodes import geometry_nodes
-from math_formula.backends.shader_nodes import shader_nodes
+from . import file_loading
+from . import ast_defs
+from .mf_parser import Parser
+from .scanner import Scanner, Token, TokenType
+from .compiler import Error
+from .backends.main import string_to_data_type
+from .backends.builtin_nodes import instances, levenshtein_distance, nodes
+from .backends.geometry_nodes import geometry_nodes
+from .backends.shader_nodes import shader_nodes
 
 
 add_on_dir = os.path.dirname(
@@ -113,9 +113,10 @@ class Editor():
                     self.replace_token(token_under_cursor, suggestion)
                 self.suggestions.append(suggestion)
                 return
-            if prev_token is not None and prev_token.lexeme == '.' or token_under_cursor.lexeme == '.':
-                self.attribute_suggestions(
-                    prev_token, token_under_cursor, tree_type)
+            if prev_token is not None:
+                if prev_token.lexeme == '.' or token_under_cursor.lexeme == '.':
+                    self.attribute_suggestions(
+                        prev_token, token_under_cursor, tree_type)
             options = list(instances.keys())
             if tree_type == 'GeometryNodeTree':
                 options += list(geometry_nodes.keys())
@@ -325,16 +326,16 @@ class Editor():
         # Expects a 1-based index
         self.scanner.line = line + 1
         self.line_tokens[line] = []
-        while(token := self.scanner.scan_token()).token_type != TokenType.EOL:
+        while (token := self.scanner.scan_token()).token_type != TokenType.EOL:
             self.line_tokens[line].append(token)
 
     def get_text(self) -> str:
         return '\n'.join(self.lines)
 
-    def draw_callback_px(self, context: bpy.context):
+    def draw_callback_px(self, context: bpy.types.Context):
         prefs = context.preferences.addons['math_formula'].preferences
         font_id = fonts['regular']
-        font_size = prefs.font_size
+        font_size = prefs.font_size  # type: ignore
         font_dpi = 72
         blf.size(font_id, font_size, font_dpi)
 
@@ -377,31 +378,33 @@ class Editor():
                     if prev_token.token_type == TokenType.COLON:
                         # Check if it's a valid type
                         color(token_font_style,
-                              prefs.type_color if token.lexeme in string_to_data_type else prefs.default_color)
+                              prefs.type_color if token.lexeme in string_to_data_type else prefs.default_color)  # type: ignore
                     else:
                         next_token = tokens[i+1] if i + \
                             1 < len(tokens) else token
                         if next_token.token_type == TokenType.LEFT_PAREN:
-                            color(token_font_style, prefs.function_color)
+                            color(token_font_style,
+                                  prefs.function_color)  # type: ignore
                         else:
-                            color(token_font_style, prefs.default_color)
+                            color(token_font_style,
+                                  prefs.default_color)  # type: ignore
                 elif TokenType.OUT.value <= token.token_type.value <= TokenType.AND.value:
-                    color(token_font_style, prefs.keyword_color)
+                    color(token_font_style, prefs.keyword_color)  # type: ignore
                 elif token.token_type in (TokenType.INT, TokenType.FLOAT):
-                    color(token_font_style, prefs.number_color)
+                    color(token_font_style, prefs.number_color)  # type: ignore
                 elif token.token_type == TokenType.PYTHON:
                     token_font_style = fonts['bold']
-                    color(token_font_style, prefs.python_color)
+                    color(token_font_style, prefs.python_color)  # type: ignore
                 elif token.token_type == TokenType.ERROR:
-                    text, error = token.lexeme
                     token_font_style = fonts['italic']
-                    color(token_font_style, prefs.error_color)
+                    color(token_font_style, prefs.error_color)  # type: ignore
                 elif token.token_type == TokenType.STRING:
-                    color(token_font_style, prefs.string_color)
+                    color(token_font_style, prefs.string_color)  # type: ignore
                 elif token.token_type == TokenType.GROUP_NAME:
-                    color(token_font_style, prefs.function_color)
+                    color(token_font_style,
+                          prefs.function_color)  # type: ignore
                 else:
-                    color(token_font_style, prefs.default_color)
+                    color(token_font_style, prefs.default_color)  # type: ignore
                 blf.size(token_font_style, font_size, font_dpi)
 
                 # Draw manually to ensure equal spacing and no kerning.
@@ -411,7 +414,7 @@ class Editor():
                     line_posx += char_width
                 prev = start + len(text)
             # Errors
-            color(font_id, prefs.error_color)
+            color(font_id, prefs.error_color)  # type: ignore
             error_base_y = posy-char_height*(len(self.lines) + 1)
             for n, error in enumerate(self.errors):
                 blf.position(font_id, posx+width,

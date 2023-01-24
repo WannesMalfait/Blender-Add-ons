@@ -1,19 +1,21 @@
 import bpy
+from typing import cast
 from bpy.types import Node, NodeSocket
-from math_formula.backends.type_defs import CompiledNodeGroup, DataType, Operation, OpType, ValueType, NodeInstance, CompiledFunction
+from .backends.type_defs import CompiledNodeGroup, DataType, Operation, OpType, ValueType, NodeInstance, CompiledFunction
 
 
 class Interpreter():
 
     def __init__(self, tree: bpy.types.NodeTree) -> None:
         self.tree = tree
-        self.stack: list[ValueType] = []
+        self.stack: list[ValueType | NodeSocket | list[NodeSocket]] = []
         # The nodes that we added
         self.nodes: list[Node] = []
         self.node_group_trees: list[bpy.types.NodeTree] = []
         # Variables in the form of output sockets
-        self.variables: dict[str, NodeSocket] = {}
-        self.function_outputs: list = []
+        self.variables: dict[str, ValueType |
+                             NodeSocket | list[NodeSocket]] = {}
+        self.function_outputs: list[NodeSocket | None] = []
 
     def operation(self, operation: Operation):
         op_type = operation.op_type
@@ -27,6 +29,8 @@ class Interpreter():
             socket = self.stack.pop()
             assert isinstance(
                 socket, (NodeSocket, list)), 'Create var expects a node socket or struct.'
+            if isinstance(socket, list):
+                socket = cast(list[NodeSocket], socket)
             self.variables[op_data] = socket
         elif op_type == OpType.GET_VAR:
             assert isinstance(
@@ -45,10 +49,12 @@ class Interpreter():
             assert isinstance(
                 op_data, tuple), 'Data should be tuple of index and value'
             index, value = op_data
-            self.nodes[-1].outputs[index].default_value = value
+            self.nodes[-1].outputs[index].default_value = value  # type: ignore
         elif op_type == OpType.SET_FUNCTION_OUT:
             assert isinstance(op_data, int), 'Data should be an index'
-            self.function_outputs[op_data] = self.stack.pop()
+            socket = self.stack.pop()
+            assert isinstance(socket, NodeSocket)
+            self.function_outputs[op_data] = socket
         elif op_type == OpType.SPLIT_STRUCT:
             struct = self.stack.pop()
             assert isinstance(
@@ -64,7 +70,8 @@ class Interpreter():
             for name, arg in zip(op_data.inputs, args):
                 self.variables[name] = arg
             outer_function_outputs = self.function_outputs
-            self.function_outputs = [None for _ in range(op_data.num_outputs)]
+            self.function_outputs = [None
+                                     for _ in range(op_data.num_outputs)]
             outer_stack = self.stack
             self.stack = []
             # Execute function
@@ -73,9 +80,14 @@ class Interpreter():
             # Restore state outside function
             self.stack = outer_stack
             if len(self.function_outputs) == 1:
-                self.stack.append(self.function_outputs[0])
+                output = self.function_outputs[0]
+                assert isinstance(output, NodeSocket)
+                self.stack.append(output)
             elif len(self.function_outputs) > 1:
-                self.stack.append(list(reversed(self.function_outputs)))
+                for output in self.function_outputs:
+                    assert isinstance(output, NodeSocket)
+                self.stack.append(
+                    list(reversed(self.function_outputs)))  # type: ignore
             self.function_outputs = outer_function_outputs
             self.variables = outer_vars
         elif op_type == OpType.CALL_NODEGROUP:
@@ -118,10 +130,10 @@ class Interpreter():
             if isinstance(arg, bpy.types.NodeSocket):
                 tree.links.new(arg, node.inputs[input_index])
             elif not (arg is None):
-                node.inputs[input_index].default_value = arg
+                node.inputs[input_index].default_value = arg  # type: ignore
         return node
 
-    @staticmethod
+    @ staticmethod
     def data_type_to_socket_type(dtype: DataType) -> str:
         if dtype == DataType.BOOL:
             return 'NodeSocketBool'
@@ -149,6 +161,8 @@ class Interpreter():
             return 'NodeSocketTexture'
         elif dtype == DataType.MATERIAL:
             return 'NodeSocketMaterial'
+        else:
+            assert False, 'Unreachable'
 
     def execute_node_group(self, node_group: CompiledNodeGroup, args: list[ValueType]):
         # Create the node group's inner tree:
@@ -158,12 +172,12 @@ class Interpreter():
             in_socket = node_tree.inputs.new(
                 self.data_type_to_socket_type(input.dtype), input.name)
             if input.value is not None:
-                in_socket.default_value = input.value
+                in_socket.default_value = input.value  # type: ignore
         for output in node_group.outputs:
             out_socket = node_tree.outputs.new(
                 self.data_type_to_socket_type(output.dtype), output.name)
             if output.value is not None:
-                out_socket.default_value = output.value
+                out_socket.default_value = output.value  # type: ignore
         group_input = node_tree.nodes.new('NodeGroupInput')
         group_output = node_tree.nodes.new('NodeGroupOutput')
 
@@ -187,19 +201,22 @@ class Interpreter():
             if isinstance(output, bpy.types.NodeSocket):
                 node_tree.links.new(output, group_output.inputs[index])
             elif not (output is None):
-                group_output.inputs[index].default_value = output
+                group_output.\
+                    inputs[index].\
+                    default_value = output  # type: ignore
 
         self.node_group_trees.append(node_tree)
 
         # Add the group and connect the arguments
         group_name = 'GeometryNodeGroup' if outer_tree.bl_idname == 'GeometryNodeTree' else 'ShaderNodeGroup'
         node = outer_tree.nodes.new(group_name)
+        node = cast(bpy.types.NodeGroup, node)
         node.node_tree = node_tree
         for i, arg in enumerate(args):
             if isinstance(arg, NodeSocket):
                 outer_tree.links.new(arg, node.inputs[i])
             elif not (arg is None):
-                node.inputs[i].default_value = arg
+                node.inputs[i].default_value = arg  # type: ignore
         self.nodes.append(node)
         self.tree = outer_tree
 
