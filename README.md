@@ -22,7 +22,7 @@ Current features:
 
 ## Math Formula
 
-An add-on to speed up adding (math) nodes to your node tree. You can access the menu with `ALT +F`. You can find more information about it in the [documentation file](./math_formula/docs.md) file in the math formula folder.
+An add-on to speed up adding (math) nodes to your node tree. You can access the menu with <kbd> ALT </kbd> + <kbd> F </kbd>. You can find more information about it in the [documentation file](./math_formula/docs.md) file in the math formula folder.
 
 
 
