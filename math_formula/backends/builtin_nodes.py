@@ -1,4 +1,4 @@
-from backends.type_defs import DataType, BuiltinNode, NodeInstance
+from .type_defs import DataType, BuiltinNode, NodeInstance
 
 
 def levenshtein_distance(x: str, y: str) -> int:
@@ -806,11 +806,11 @@ instances = {
     'mix_saturation': [NodeInstance('ShaderNodeMixRGB', [0, 1, 2], [0], [('blend_type', 'SATURATION')])],
     'mix_color': [NodeInstance('ShaderNodeMixRGB', [0, 1, 2], [0], [('blend_type', 'COLOR')])],
     'mix_value': [NodeInstance('ShaderNodeMixRGB', [0, 1, 2], [0], [('blend_type', 'VALUE')])],
-    'rotate_axis': [NodeInstance('ShaderNodeVectorRotate', [0, 1, 2, 3], [0], [('rotation_type', ['AXIS_ANGLE'])])],
-    'rotate_x': [NodeInstance('ShaderNodeVectorRotate', [0, 1, 3], [0], [('rotation_type', ['X_AXIS'])])],
-    'rotate_y': [NodeInstance('ShaderNodeVectorRotate', [0, 1, 3], [0], [('rotation_type', ['Y_AXIS'])])],
-    'rotate_z': [NodeInstance('ShaderNodeVectorRotate', [0, 1, 3], [0], [('rotation_type', ['Z_AXIS'])])],
-    'rotate_euler': [NodeInstance('ShaderNodeVectorRotate', [0, 1, 4], [0], [('rotation_type', ['EULER_XYZ'])])],
+    'rotate_axis': [NodeInstance('ShaderNodeVectorRotate', [0, 1, 2, 3], [0], [('rotation_type', 'AXIS_ANGLE')])],
+    'rotate_x': [NodeInstance('ShaderNodeVectorRotate', [0, 1, 3], [0], [('rotation_type', 'X_AXIS')])],
+    'rotate_y': [NodeInstance('ShaderNodeVectorRotate', [0, 1, 3], [0], [('rotation_type', 'Y_AXIS')])],
+    'rotate_z': [NodeInstance('ShaderNodeVectorRotate', [0, 1, 3], [0], [('rotation_type', 'Z_AXIS')])],
+    'rotate_euler': [NodeInstance('ShaderNodeVectorRotate', [0, 1, 4], [0], [('rotation_type', 'EULER_XYZ')])],
     'white_noise': [NodeInstance('ShaderNodeTexWhiteNoise', [0], [0, 1], [('noise_dimensions', '3D')]),
                     NodeInstance('ShaderNodeTexWhiteNoise', [1], [0, 1], [('noise_dimensions', '1D')]), ],
     'white_noise_2d': [NodeInstance('ShaderNodeTexWhiteNoise', [0], [0, 1], [('noise_dimensions', '2D')])],

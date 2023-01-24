@@ -1,6 +1,6 @@
-from backends.builtin_nodes import instances
-from backends.main import BackEnd
-from backends.type_defs import *
+from .builtin_nodes import instances
+from .main import BackEnd
+from .type_defs import *
 
 geometry_nodes = {
     '_and': [NodeInstance('FunctionNodeBooleanMath', [0, 1], [0], [('operation', 'AND')])],

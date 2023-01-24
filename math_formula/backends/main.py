@@ -1,7 +1,7 @@
 from functools import reduce
 from typing import overload, Literal
-from backends.type_defs import *
-from backends.builtin_nodes import levenshtein_distance, nodes
+from .type_defs import *
+from .builtin_nodes import levenshtein_distance, nodes
 
 
 class BackEnd():

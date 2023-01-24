@@ -1,6 +1,6 @@
-from backends.builtin_nodes import instances
-from backends.main import BackEnd
-from backends.type_defs import *
+from .builtin_nodes import instances
+from .main import BackEnd
+from .type_defs import *
 
 shader_nodes = {
     'tex_coords': [NodeInstance('ShaderNodeTexCoord', [], [0, 1, 2, 3, 4, 5, 6], [])],
