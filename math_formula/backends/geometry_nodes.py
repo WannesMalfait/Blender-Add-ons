@@ -1,6 +1,6 @@
-from math_formula.backends.builtin_nodes import instances
-from math_formula.backends.main import BackEnd
-from math_formula.backends.type_defs import *
+from backends.builtin_nodes import instances
+from backends.main import BackEnd
+from backends.type_defs import *
 
 geometry_nodes = {
     '_and': [NodeInstance('FunctionNodeBooleanMath', [0, 1], [0], [('operation', 'AND')])],
@@ -72,5 +72,5 @@ class GeometryNodesBackEnd(BackEnd):
                 f'Can\'t coerce type {type._name_} to a Geometry Nodes value')
         return value, type
 
-    def resolve_function(self, name: str, args: list[ty_expr], functions: list[TyFunction]) -> tuple[Union[TyFunction, NodeInstance], list[DataType], list[str]]:
+    def resolve_function(self, name: str, args: list[ty_expr], functions: dict[str, list[TyFunction]]) -> tuple[Union[TyFunction, NodeInstance], list[DataType], list[str]]:
         return self._resolve_function(name, args, [geometry_nodes, instances, functions])

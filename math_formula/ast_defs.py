@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field, fields
 from typing import Union
-from math_formula.scanner import Token
-from math_formula.backends.main import DataType, ValueType
+from .scanner import Token
+from .backends.main import DataType, ValueType
 
 
 @dataclass
@@ -90,7 +90,7 @@ class expr(stmt):
 
 
 @dataclass
-class Module(Ast):
+class Module():
     body: list[stmt] = field(default_factory=list)
 
 # Literals
@@ -104,9 +104,9 @@ class Constant(expr):
 
 @dataclass
 class Vec3(expr):
-    x: Union[None, expr]
-    y: Union[None, expr]
-    z: Union[None, expr]
+    x: expr
+    y: expr
+    z: expr
 
 
 @dataclass

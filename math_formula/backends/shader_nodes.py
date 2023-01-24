@@ -1,6 +1,6 @@
-from math_formula.backends.builtin_nodes import instances
-from math_formula.backends.main import BackEnd
-from math_formula.backends.type_defs import *
+from backends.builtin_nodes import instances
+from backends.main import BackEnd
+from backends.type_defs import *
 
 shader_nodes = {
     'tex_coords': [NodeInstance('ShaderNodeTexCoord', [], [0, 1, 2, 3, 4, 5, 6], [])],
@@ -24,5 +24,5 @@ class ShaderNodesBackEnd(BackEnd):
             type = DataType.FLOAT
         return value, type
 
-    def resolve_function(self, name: str, args: list[ty_expr], functions: list[TyFunction]) -> tuple[Union[TyFunction, NodeInstance], list[DataType], list[str]]:
+    def resolve_function(self, name: str, args: list[ty_expr], functions: dict[str, list[TyFunction]]) -> tuple[Union[TyFunction, NodeInstance], list[DataType], list[str]]:
         return self._resolve_function(name, args, [shader_nodes, instances, functions])

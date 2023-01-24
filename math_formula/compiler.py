@@ -1,9 +1,9 @@
-from math_formula.backends.geometry_nodes import GeometryNodesBackEnd
-from math_formula.backends.shader_nodes import ShaderNodesBackEnd
-from math_formula.backends.type_defs import *
-from math_formula.backends.main import BackEnd
-from math_formula.parser import Error
-from math_formula.type_checking import TypeChecker
+from .backends.geometry_nodes import GeometryNodesBackEnd
+from .backends.shader_nodes import ShaderNodesBackEnd
+from .backends.type_defs import *
+from .backends.main import BackEnd
+from .mf_parser import Error
+from .type_checking import TypeChecker
 
 
 class Compiler():
@@ -14,8 +14,10 @@ class Compiler():
             return GeometryNodesBackEnd()
         elif tree_type == 'ShaderNodeTree':
             return ShaderNodesBackEnd()
+        else:
+            assert False, 'Unreachable, compiler should not be used for other trees.'
 
-    def __init__(self, tree_type: str, file_data: FileData = None) -> None:
+    def __init__(self, tree_type: str, file_data: FileData | None = None) -> None:
         self.operations: list[Operation] = []
         self.errors: list[Error] = []
         self.back_end: BackEnd = self.choose_backend(tree_type)
@@ -24,7 +26,7 @@ class Compiler():
                 self.back_end, file_data.geometry_nodes if tree_type == 'GeometryNodeTree' else file_data.shader_nodes)
         else:
             self.type_checker = TypeChecker(self.back_end, {})
-        self.curr_function: TyFunction = None
+        self.curr_function: TyFunction | None = None
 
     def check_functions(self, source: str) -> bool:
         self.type_checker.type_check(source)
@@ -64,12 +66,15 @@ class Compiler():
             value = assign.value.value
             dtype = assign.value.dtype[0]
             if isinstance(assign, TyAssign):
+                assert isinstance(target, Var), 'Assignment should be to a Var'
                 self.back_end.create_input(
                     self.operations, target.id, value, dtype)
                 self.operations.append(Operation(OpType.CREATE_VAR, target.id))
             else:
+                assert isinstance(target, int) and isinstance(
+                    assign, TyOut) and self.curr_function is not None
                 self.back_end.create_input(
-                    self.operations, self.curr_function.inputs[target].name, value, dtype)
+                    self.operations, self.curr_function.outputs[target].name, value, dtype)
                 self.operations.append(
                     Operation(OpType.SET_FUNCTION_OUT, target))
             return
@@ -92,6 +97,7 @@ class Compiler():
             if target is None:
                 continue
             if isinstance(assign, TyAssign):
+                assert isinstance(target, Var), 'Assignment should be to a Var'
                 self.operations.append(Operation(OpType.CREATE_VAR, target.id))
             else:
                 self.operations.append(
@@ -115,6 +121,7 @@ class Compiler():
     def compile_function(self, func: TyFunction) -> CompiledFunction:
         outer_ops = self.operations
         self.operations = []
+        self.curr_function = func
         for stmt in func.body:
             self.compile_statement(stmt)
         compiled_body = self.operations
@@ -125,6 +132,7 @@ class Compiler():
     def compile_node_group(self, func: TyFunction) -> CompiledNodeGroup:
         outer_ops = self.operations
         self.operations = []
+        self.curr_function = func
         for stmt in func.body:
             self.compile_statement(stmt)
         compiled_body = self.operations

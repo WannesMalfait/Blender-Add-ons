@@ -126,7 +126,7 @@ class NodeInstance:
     # Output indices that are used
     outputs: list[int]
     # Props that are set along with their value
-    props: list[tuple[str, str]]
+    props: list[tuple[str, ValueType]]
 
 
 class Operation():

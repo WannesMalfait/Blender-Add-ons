@@ -71,12 +71,13 @@ class Token():
     - a number `start` which says where in the text the token starts
     """
 
-    def __init__(self, lexeme: str, token_type: TokenType, line: int = 0, col: int = 0, start: int = 0) -> None:
+    def __init__(self, lexeme: str, token_type: TokenType, line: int = 0, col: int = 0, start: int = 0, error: str | None = None) -> None:
         self.token_type = token_type
         self.start = start
         self.line = line
         self.col = col
         self.lexeme = lexeme
+        self.error = error
 
     def __str__(self) -> str:
         return f'[{self.lexeme}, {self.token_type.name}]'
@@ -147,10 +148,10 @@ class Scanner():
 
     def error_token(self, message: str) -> Token:
         col = self.col - (self.current-self.start)
-        return Token((self.source[self.start: self.current], message),
-                     TokenType.ERROR, line=self.line, col=col, start=self.start)
+        return Token(self.source[self.start: self.current],
+                     TokenType.ERROR, line=self.line, col=col, start=self.start, error=message)
 
-    def keyword(self) -> Union[TokenType, None]:
+    def keyword(self) -> Token:
         """ Checks if it's a keyword, otherwise it's treated as an identifier."""
         name = self.source[self.start: self.current]
         if name == 'out':
@@ -333,6 +334,6 @@ if __name__ == '__main__':
         with open(os.path.join(test_directory, filename), 'r') as f:
             scanner = Scanner(f.read())
             tokens = []
-            while(token := scanner.scan_token()).token_type != TokenType.EOL:
+            while (token := scanner.scan_token()).token_type != TokenType.EOL:
                 tokens.append(token)
             print(tokens)

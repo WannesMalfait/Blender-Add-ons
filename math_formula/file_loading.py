@@ -1,9 +1,9 @@
 import pickle
 import os
 import bpy
-from math_formula.backends.type_defs import FileData
-from math_formula.compiler import Compiler
-from math_formula.parser import Error
+from .backends.type_defs import FileData
+from .compiler import Compiler
+from .mf_parser import Error
 
 
 add_on_dir = os.path.dirname(

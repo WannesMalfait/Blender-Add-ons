@@ -1,15 +1,15 @@
 from copy import copy
-from math_formula.backends.main import BackEnd
-from math_formula.parser import Parser, Error
-from math_formula import ast_defs
-from math_formula.backends.type_defs import *
+from . import ast_defs
+from .backends.main import BackEnd
+from .mf_parser import Parser, Error
+from .backends.type_defs import *
 
 
 class TypeChecker():
     def __init__(self, back_end: BackEnd, functions: dict[str, list[TyFunction]] = {}) -> None:
         self.typed_repr: TyRepr = TyRepr(body=[])
         self.errors: list[Error] = []
-        self.curr_node: ty_stmt = None
+        self.curr_node: ty_stmt | None = None
         self.back_end: BackEnd = back_end
         self.vars: dict[str, Var] = {}
         # Can have multiple functions with same name, but different
@@ -62,11 +62,13 @@ class TypeChecker():
         else:
             assert False, "Unreachable code"
 
-    def out_types(self, targets: list[Union[TyArg, None]], dtypes: list[DataType], ast_targets: list[Union[None, ast_defs.Name]]):
+    def out_types(self, targets: list[TyArg | None], dtypes: list[DataType], ast_targets: list[None | ast_defs.Name]):
         for target, dtype, ast_target in zip(targets, dtypes, ast_targets):
             if target is None:
                 continue
             if not self.back_end.can_convert(dtype, target.dtype):
+                if ast_target is None:
+                    return
                 return self.error(
                     f'Can\'t assign value of type {dtype._name_} to output of type {target.dtype._name_}', ast_target)
 
@@ -119,7 +121,7 @@ class TypeChecker():
         self.check_expr(arg.default)
         default_value = self.curr_node
         if not isinstance(default_value, Const):
-            return self.error('Default value should be a value not an expression.', arg.default.token)
+            return self.error('Default value should be a value not an expression.', arg.default)
         try:
             return self.back_end.convert(default_value.value,
                                          default_value.dtype[0], arg.type)
@@ -156,8 +158,9 @@ class TypeChecker():
         self.function_outputs = []
         self.curr_node = None
 
-    def assign_types(self, targets: list[Union[ast_defs.Name, None]], dtypes: list[DataType]) -> list[Union[Var, None]]:
-        typed_targets = [None for _ in range(len(targets))]
+    def assign_types(self, targets: list[Union[ast_defs.Name, None]], dtypes: list[DataType]) -> list[Var | None]:
+        typed_targets: list[Var | None] = [
+            None for _ in range(len(targets))]
         for i, target in enumerate(targets):
             if target is None:
                 continue
@@ -233,7 +236,7 @@ class TypeChecker():
             func, dtype, out_names = self.back_end.resolve_function(
                 name, args, self.functions)
         except TypeError as err:
-            return self.error(err, ast)
+            return self.error(str(err), ast)
         if dtype == []:
             stype = StackType.EMPTY
         elif len(dtype) == 1:
@@ -260,10 +263,10 @@ class TypeChecker():
         if call.keyword_args != []:
             # TODO: passing keyword arguments
             raise NotImplementedError
-        ty_args = [None for _ in range(len(call.pos_args))]
-        for i, pos_arg in enumerate(call.pos_args):
+        ty_args = []
+        for pos_arg in call.pos_args:
             self.check_expr(pos_arg)
-            ty_args[i] = self.curr_node
+            ty_args.append(self.curr_node)
         self.resolve_function(function_name, ty_args, call)
 
     def unary_op(self, un_op: ast_defs.UnaryOp):
@@ -274,7 +277,7 @@ class TypeChecker():
             expr, ty_expr), 'Argument to unary op should be an expression'
 
         if expr.stype == StackType.EMPTY:
-            return self.error(un_op, 'Argument expression has no value.')
+            return self.error('Argument expression has no value.', un_op)
         if isinstance(op, ast_defs.Not):
             self.resolve_function('_not', [expr], un_op)
         elif isinstance(op, ast_defs.USub):
@@ -292,7 +295,7 @@ class TypeChecker():
         assert isinstance(left, ty_expr) and isinstance(
             right, ty_expr), 'Arguments to binop should be expressions'
         if left.stype == StackType.EMPTY or right.stype == StackType.EMPTY:
-            return self.error(bin_op, 'Argument expression has no value.')
+            return self.error('Argument expression has no value.', bin_op)
         if isinstance(op, ast_defs.And):
             self.resolve_function('_and', [left, right], bin_op)
         elif isinstance(op, ast_defs.Or):
@@ -329,18 +332,18 @@ class TypeChecker():
         try:
             value, dtype = self.back_end.coerce_value(const.value, const.type)
         except TypeError as err:
-            return self.error(err, const)
+            return self.error(str(err), const)
         self.curr_node = Const(StackType.VALUE, [dtype], [], value)
 
     def vec3(self, vec: ast_defs.Vec3):
-        if all(map(lambda x: isinstance(x, ast_defs.Constant), [vec.x, vec.y, vec.z])):
+        if isinstance(vec.x, ast_defs.Constant) and isinstance(vec.y, ast_defs.Constant) and isinstance(vec.z, ast_defs.Constant):
             self.curr_node = Const(StackType.VALUE, [DataType.VEC3], ['x', 'y', 'z'], [
                 self.back_end.convert(vec.x.value, vec.x.type, DataType.FLOAT),
                 self.back_end.convert(vec.y.value, vec.y.type, DataType.FLOAT),
                 self.back_end.convert(vec.z.value, vec.z.type, DataType.FLOAT),
             ])
             return
-        # At least one of the argument is not a constant, so we need a combine XYZ node.
+        # At least one of the arguments is not a constant, so we need a combine XYZ node.
         self.check_expr(vec.x)
         x = self.curr_node
         self.check_expr(vec.y)
@@ -384,6 +387,8 @@ class TypeChecker():
                 # Need to add a separate XYZ node for this to work.
                 self.resolve_function('sep_xyz', [expr], attr)
                 expr = self.curr_node
+                assert isinstance(
+                    expr, ty_expr), 'Result of sep_xyz should be an expression'
             elif expr.dtype[0] == DataType.RGBA:
                 raise NotImplementedError
         index = expr.out_names.index(attr.attr)
@@ -399,7 +404,7 @@ class TypeChecker():
 
 if __name__ == '__main__':
     import os
-    from math_formula.backends.geometry_nodes import GeometryNodesBackEnd
+    from .backends.geometry_nodes import GeometryNodesBackEnd
     add_on_dir = os.path.dirname(
         os.path.realpath(__file__))
     test_directory = os.path.join(add_on_dir, 'tests')

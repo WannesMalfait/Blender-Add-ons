@@ -1,15 +1,16 @@
 import bpy
 import traceback
+from typing import cast
 from bpy.types import Node
-from math_formula import file_loading
-from math_formula.interpreter import Interpreter
-from math_formula.positioning import TreePositioner
-from math_formula.editor import Editor
-from math_formula.compiler import Compiler
+from . import file_loading
+from .interpreter import Interpreter
+from .positioning import TreePositioner
+from .editor import Editor
+from .compiler import Compiler
 
 
-def mf_check(context: bpy.context) -> bool:
-    space = context.space_data
+def mf_check(context: bpy.types.Context) -> bool:
+    space = cast(bpy.types.SpaceNodeEditor, context.space_data)
     possible_trees = ('GeometryNodeTree', 'ShaderNodeTree')
     return space.type == 'NODE_EDITOR' and space.node_tree is not None and \
         space.tree_type in possible_trees
@@ -17,7 +18,7 @@ def mf_check(context: bpy.context) -> bool:
 
 class MFBase:
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         return mf_check(context)
 
 
@@ -28,21 +29,21 @@ class MF_OT_select_from_root(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
-    def poll(self, context) -> bool:
+    def poll(cls, context: bpy.types.Context) -> bool:
         return mf_check(context) and context.active_node is not None
 
     select_parents: bpy.props.BoolProperty(
         name="Select Parents",
         description="Select all the parents of this node recursively",
         default=False,
-    )
+    )  # type: ignore
     select_children: bpy.props.BoolProperty(
         name="Select Children",
         description="Select all the children of this node recursively",
         default=False,
-    )
+    )  # type: ignore
 
-    def select_parents_of(self, node: bpy.types.Node, links: list[bpy.types.NodeLink], visited: list[bpy.types.Node]) -> None:
+    def select_parents_of(self, node: bpy.types.Node, links: bpy.types.NodeLinks, visited: list[bpy.types.Node]) -> None:
         # Prevent loops
         if node in visited:
             return
@@ -54,7 +55,7 @@ class MF_OT_select_from_root(bpy.types.Operator):
             if link.from_node == node:
                 self.select_parents_of(link.to_node, links, visited)
 
-    def select_children_of(self, node: bpy.types.Node, links: list[bpy.types.NodeLink], visited: list[bpy.types.Node]) -> None:
+    def select_children_of(self, node: bpy.types.Node, links: bpy.types.NodeLinks, visited: list[bpy.types.Node]) -> None:
         # Prevent loops
         if node in visited:
             return
@@ -67,7 +68,7 @@ class MF_OT_select_from_root(bpy.types.Operator):
                 self.select_children_of(link.from_node, links, visited)
 
     def execute(self, context: bpy.types.Context):
-        space = context.space_data
+        space = cast(bpy.types.SpaceNodeEditor, context.space_data)
         links = space.edit_tree.links
         active_node = context.active_node
         bpy.ops.node.select_all(action='DESELECT')
@@ -89,11 +90,11 @@ class MF_OT_arrange_from_root(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
-    def poll(self, context) -> bool:
+    def poll(cls, context: bpy.types.Context) -> bool:
         return mf_check(context) and context.active_node is not None
 
     def execute(self, context: bpy.types.Context):
-        space = context.space_data
+        space = cast(bpy.types.SpaceNodeEditor, context.space_data)
         links = space.edit_tree.links
         active_node = context.active_node
         bpy.ops.node.select_all(action='DESELECT')
@@ -116,11 +117,11 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
 
     use_mouse_location: bpy.props.BoolProperty(
         default=False,
-    )
+    )  # type: ignore
 
     @ staticmethod
-    def store_mouse_cursor(context: bpy.context, event: bpy.types.Event):
-        space = context.space_data
+    def store_mouse_cursor(context: bpy.types.Context, event: bpy.types.Event):
+        space = cast(bpy.types.SpaceNodeEditor, context.space_data)
         tree = space.edit_tree
 
         # convert mouse position to the View2D for later node placement
@@ -131,15 +132,15 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         else:
             space.cursor_location = tree.view_center
 
-    def execute(self, context: bpy.context):
-        space = context.space_data
+    def execute(self, context: bpy.types.Context):
+        space = cast(bpy.types.SpaceNodeEditor, context.space_data)
         # Safe because of poll function
-        tree: bpy.types.NodeTree = space.edit_tree
-        props = context.scene.math_formula_add
+        tree = space.edit_tree
+        props = context.scene.math_formula_add  # type: ignore
         # The formula that we parse.
         formula: str = props.formula
         # Parse the input string into a sequence of operations
-        compiler = Compiler(space.tree_type, file_loading.file_data)
+        compiler = Compiler(cast(str, space.tree_type), file_loading.file_data)
         success = compiler.compile(formula)
         if not success:
             return {'CANCELLED'}
@@ -182,16 +183,16 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                     self.root_nodes[i + 1].append(node)
         return {'FINISHED'}
 
-    def modal(self, context: bpy.context, event: bpy.types.Event):
+    def modal(self, context: bpy.types.Context, event: bpy.types.Event):
         if self.root_nodes[0][0].dimensions.x == 0:
             return {'RUNNING_MODAL'}
-        space = context.space_data
+        space = cast(bpy.types.SpaceNodeEditor, context.space_data)
         links = space.edit_tree.links
         cursor_loc = space.cursor_location if self.use_mouse_location else (
             0, 0)
         node_positioner = TreePositioner(context)
         cursor_loc = node_positioner.place_nodes(
-            self.root_nodes[0], links, cursor_loc=cursor_loc)
+            self.root_nodes[0], links, cursor_loc=cast(tuple[int, int], cursor_loc))
         for i, tree in enumerate(self.node_group_trees):
             node_positioner = TreePositioner(context)
             node_positioner.place_nodes(
@@ -199,7 +200,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
 
         return {'FINISHED'}
 
-    def invoke(self, context: bpy.context, event: bpy.types.Event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
         self.store_mouse_cursor(context, event)
         self.execute(context)
         if self.root_nodes == [[]]:
@@ -232,9 +233,9 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             'Please report this at https://github.com/WannesMalfait/Blender-Add-ons/issues')
         if remove_handle:
             bpy.types.SpaceNodeEditor.draw_handler_remove(
-                self._handle, 'WINDOW')
+                self._handle, 'WINDOW')  # type: ignore
 
-    def modal(self, context: bpy.context, event: bpy.types.Event):
+    def modal(self, context: bpy.types.Context, event: bpy.types.Event):
         global formula_history_index
         editor_action = False
         context.area.tag_redraw()
@@ -242,7 +243,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             if event.ctrl:
                 # Exit when they press control + enter
                 compiler = Compiler(
-                    context.space_data.tree_type, file_loading.file_data)
+                    cast(str, cast(bpy.types.SpaceNodeEditor, context.space_data).tree_type), file_loading.file_data)
                 formula = self.editor.get_text()
                 try:
                     res = compiler.compile(formula)
@@ -255,14 +256,14 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                         {'WARNING'}, 'Compile errors, could not create node tree')
                     return {'RUNNING_MODAL'}
                 bpy.types.SpaceNodeEditor.draw_handler_remove(
-                    self._handle, 'WINDOW')
-                context.scene.math_formula_add.formula = formula
+                    self._handle, 'WINDOW')  # type: ignore
+                context.scene.math_formula_add.formula = formula  # type: ignore
                 formula_history.append(formula)
                 formula_history_index += 1
                 # Deselect all the nodes before adding new ones
                 bpy.ops.node.select_all(action='DESELECT')
                 try:
-                    bpy.ops.node.mf_math_formula_add(
+                    bpy.ops.node.mf_math_formula_add(  # type: ignore
                         'INVOKE_DEFAULT', use_mouse_location=True)
                 except:
                     self.internal_error(remove_handle=False)
@@ -276,7 +277,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
 
         # Cancel when they press Esc or Rmb
         elif event.type in ('ESC', 'RIGHTMOUSE'):
-            bpy.types.SpaceNodeEditor.draw_handler_remove(
+            bpy.types.SpaceNodeEditor.draw_handler_remove(  # type: ignore
                 self._handle, 'WINDOW')
             return {'CANCELLED'}
 
@@ -288,7 +289,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
 
         # Compile and check for errors
         elif not self.lock and event.alt and event.type == 'C':
-            compiler = Compiler(context.space_data.tree_type,
+            compiler = Compiler(cast(str, cast(bpy.types.SpaceNodeEditor, context.space_data).tree_type),
                                 file_loading.file_data)
             try:
                 res = compiler.compile(self.editor.get_text())
@@ -315,10 +316,10 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 event.mouse_region_y - self.old_mouse_loc[1])
         elif event.type == 'WHEELUPMOUSE':
             prefs = context.preferences.addons['math_formula'].preferences
-            prefs.font_size += 1
+            prefs.font_size += 1  # type: ignore
         elif event.type == 'WHEELDOWNMOUSE':
             prefs = context.preferences.addons['math_formula'].preferences
-            prefs.font_size = max(8, prefs.font_size-1)
+            prefs.font_size = max(8, prefs.font_size-1)  # type: ignore
 
         # FORMULA HISTORY NAVIGATION
         elif not self.lock and event.ctrl and event.type == 'UP_ARROW':
@@ -368,7 +369,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         # AUTOCOMPLETE
         elif not self.lock and event.type == 'TAB':
             self.editor.try_auto_complete(
-                context.space_data.edit_tree.bl_idname)
+                cast(bpy.types.SpaceNodeEditor, context.space_data).edit_tree.bl_idname)
             self.lock = True
 
         if editor_action:
@@ -377,11 +378,11 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
 
         return {'RUNNING_MODAL'}
 
-    def invoke(self, context: bpy.context, event: bpy.types.Event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
         self.editor = Editor((event.mouse_region_x, event.mouse_region_y))
         args = (self.editor, context)
         self._handle = bpy.types.SpaceNodeEditor.draw_handler_add(
-            Editor.draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
+            Editor.draw_callback_px, args, 'WINDOW', 'POST_PIXEL')  # type: ignore
         # Stores the location of the formula before dragging MMB
         self.old_editor_loc = self.editor.pos
         self.old_mouse_loc = (0, 0)
@@ -389,7 +390,8 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         self.middle_mouse = False
         if formula_history == []:
             # Add the last formula as history
-            formula_history.append(context.scene.math_formula_add.formula)
+            formula_history.append(
+                context.scene.math_formula_add.formula)  # type: ignore
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
