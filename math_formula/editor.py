@@ -303,24 +303,38 @@ class Editor():
         self.cursor_col = self.draw_cursor_col
         self.rescan_line()
 
+    def indentation(self, row: int) -> int:
+        """The number of spaces at the start of the given line"""
+        line = self.lines[row]
+        return len(line) - len(line.lstrip())
+
+    def get_char_before_cursor(self) -> str | None:
+        if self.cursor_col == 0:
+            return None
+        return self.lines[self.cursor_row][self.cursor_col - 1]
+
     def new_line(self) -> None:
         self.suggestions.clear()
+        indentation = self.indentation(self.cursor_row)
+        if self.get_char_before_cursor() == '{':
+            indentation += 2
         if self.draw_cursor_col != len(self.lines[self.cursor_row]):
             line = self.lines[self.cursor_row]
             self.lines[self.cursor_row] = line[:self.draw_cursor_col]
             self.rescan_line()
             self.cursor_row += 1
-            self.lines.insert(self.cursor_row, line[self.draw_cursor_col:])
+            self.lines.insert(self.cursor_row, ' ' *
+                              indentation + line[self.draw_cursor_col:])
             self.line_tokens.insert(self.cursor_row, [])
             self.rescan_line()
-            self.cursor_col = 0
-            self.draw_cursor_col = 0
+            self.cursor_col = indentation
+            self.draw_cursor_col = indentation
             return
         self.cursor_row += 1
-        self.lines.insert(self.cursor_row, "")
+        self.lines.insert(self.cursor_row, ' '*indentation)
         self.line_tokens.insert(self.cursor_row, [])
-        self.cursor_col = 0
-        self.draw_cursor_col = 0
+        self.cursor_col = indentation
+        self.draw_cursor_col = indentation
 
     def rescan_line(self) -> None:
         line = self.cursor_row
