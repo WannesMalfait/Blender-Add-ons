@@ -239,7 +239,11 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         global formula_history_index
         editor_action = False
         context.area.tag_redraw()
-        if event.type == 'RET':
+
+        if event.value == 'RELEASE':
+            self.middle_mouse = False
+        # elif here since this was a key release and not a key press.
+        elif event.type == 'RET':
             if event.ctrl:
                 # Exit when they press control + enter
                 compiler = Compiler(
@@ -270,10 +274,8 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 return {'FINISHED'}
             else:
                 # Just add a new line
-                if (not self.lock or event.is_repeat):
-                    self.editor.new_line()
-                    self.lock = True
-                    editor_action = True
+                self.editor.new_line()
+                editor_action = True
 
         # Cancel when they press Esc or Rmb
         elif event.type in ('ESC', 'RIGHTMOUSE'):
@@ -281,14 +283,8 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 self._handle, 'WINDOW')
             return {'CANCELLED'}
 
-        # Prevent unwanted repetition
-        elif event.value == 'RELEASE':
-            # Lock is needed because of oversensitive keys
-            self.lock = False
-            self.middle_mouse = False
-
         # Compile and check for errors
-        elif not self.lock and event.alt and event.type == 'C':
+        elif event.alt and event.type == 'C':
             compiler = Compiler(cast(str, cast(bpy.types.SpaceNodeEditor, context.space_data).tree_type),
                                 file_loading.file_data)
             try:
@@ -322,11 +318,11 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             prefs.font_size = max(8, prefs.font_size-1)  # type: ignore
 
         # FORMULA HISTORY NAVIGATION
-        elif not self.lock and event.ctrl and event.type == 'UP_ARROW':
+        elif event.ctrl and event.type == 'UP_ARROW':
             self.editor.replace_text(
                 formula_history[formula_history_index])
             formula_history_index = max(formula_history_index - 1, 0)
-        elif not self.lock and event.ctrl and event.type == 'DOWN_ARROW':
+        elif event.ctrl and event.type == 'DOWN_ARROW':
             self.editor.replace_text(
                 formula_history[formula_history_index])
             formula_history_index = min(
@@ -347,19 +343,16 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             self.editor.cursor_down()
 
         # INSERTION + DELETING
-        elif (not self.lock or event.is_repeat) and event.type == 'BACK_SPACE':
+        elif event.type == 'BACK_SPACE':
             self.editor.delete_before_cursor()
             # Prevent over sensitive keys
-            self.lock = True
             editor_action = True
-        elif (not self.lock or event.is_repeat) and event.type == 'DEL':
+        elif event.type == 'DEL':
             self.editor.delete_after_cursor()
-            self.lock = True
             editor_action = True
-        elif not self.lock and event.ctrl and event.type == 'V':
+        elif event.ctrl and event.type == 'V':
             # Paste from clipboard
             self.editor.paste_after_cursor(context.window_manager.clipboard)
-            self.lock = True
             editor_action = True
         elif event.unicode != "" and event.unicode.isprintable():
             # Only allow printable characters
@@ -367,10 +360,9 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             editor_action = True
 
         # AUTOCOMPLETE
-        elif not self.lock and event.type == 'TAB':
+        elif event.type == 'TAB':
             self.editor.try_auto_complete(
                 cast(bpy.types.SpaceNodeEditor, context.space_data).edit_tree.bl_idname)
-            self.lock = True
 
         if editor_action:
             # Now editing this one instead of just looking through the history
@@ -386,7 +378,6 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         # Stores the location of the formula before dragging MMB
         self.old_editor_loc = self.editor.pos
         self.old_mouse_loc = (0, 0)
-        self.lock = False
         self.middle_mouse = False
         if formula_history == []:
             # Add the last formula as history
