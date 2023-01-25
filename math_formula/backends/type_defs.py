@@ -113,8 +113,6 @@ class BuiltinNode:
     inputs: list[tuple[str, DataType]]
     # The output sockets, name and data type
     outputs: list[tuple[str, DataType]]
-    # A list of the properties that can be set on the node along with their possible values.
-    props: list[tuple[str, list[str]]]
 
 
 @dataclass
