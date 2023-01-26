@@ -8,7 +8,7 @@ from .mf_parser import Parser
 from .scanner import Scanner, Token, TokenType
 from .compiler import Error
 from .backends.main import string_to_data_type
-from .backends.builtin_nodes import instances, levenshtein_distance, nodes
+from .backends.builtin_nodes import instances, levenshtein_distance, nodes, shader_node_aliases, shader_geo_node_aliases, geometry_node_aliases, NodeInstance
 from .backends.geometry_nodes import geometry_nodes
 from .backends.shader_nodes import shader_nodes
 
@@ -42,6 +42,16 @@ class Editor():
         self.__init__(self.pos)
         self.paste_after_cursor(text)
 
+    @staticmethod
+    def get_function_output_names(func: NodeInstance | str, aliases: list[dict[str, NodeInstance]]) -> None | list[str]:
+        if isinstance(func, NodeInstance):
+            node = nodes[func.key]
+            return [out[0] for out in node.outputs]
+        for alias_dict in aliases:
+            if func in alias_dict:
+                node = nodes[alias_dict[func].key]
+                return [out[0] for out in node.outputs]
+
     def attribute_suggestions(self, prev_token: Token, token_under_cursor: Token, tree_type: str):
         token_text = token_under_cursor.lexeme
         text_start = token_under_cursor.start
@@ -74,26 +84,36 @@ class Editor():
         else:
             func_name = func.id
         # Find which node this belongs to.
-        node_name = ''
+        suggestions = None
         if func_name in instances:
-            node_name = instances[func_name][0].key
-        elif tree_type == 'GeometryNodeTree' and func_name in geometry_nodes:
-            node_name = geometry_nodes[func_name][0].key
-        elif tree_type == 'ShaderNodeTree' and func_name in shader_nodes:
-            node_name = shader_nodes[func_name][0].key
-        if node_name == '':
-            ty_func = None
-            if tree_type == 'GeometryNodeTree' and func_name in file_loading.file_data.geometry_nodes:
-                ty_func = file_loading.file_data.geometry_nodes[func_name][0]
-            elif tree_type == 'ShaderNodeTree' and func_name in file_loading.file_data.shader_nodes:
-                ty_func = file_loading.file_data.shader_nodes[func_name][0]
-            if ty_func is not None:
-                self.suggestions += [
-                    out.name for out in ty_func.outputs if out.name.startswith(token_text)]
+            suggestions = self.get_function_output_names(
+                instances[func_name][0], [shader_geo_node_aliases])
+        elif tree_type == 'GeometryNodeTree':
+            if func_name in geometry_nodes:
+                suggestions = self.get_function_output_names(
+                    geometry_nodes[func_name][0], [shader_geo_node_aliases, geometry_node_aliases])
+            else:
+                suggestions = self.get_function_output_names(
+                    func_name, [shader_geo_node_aliases, geometry_node_aliases])
+        elif tree_type == 'ShaderNodeTree':
+            if func_name in shader_nodes:
+                suggestions = self.get_function_output_names(
+                    shader_nodes[func_name][0], [shader_geo_node_aliases, shader_node_aliases])
+            else:
+                suggestions = self.get_function_output_names(
+                    func_name, [shader_geo_node_aliases, shader_node_aliases])
+        if suggestions is not None:
+            self.suggestions += [
+                name for name in suggestions if name.startswith(token_text)]
             return
-        # We don't know what specific 'instance' is being used so add all outputs
-        self.suggestions += [out[0]
-                             for out in nodes[node_name].outputs if out[0].startswith(token_text)]
+        ty_func = None
+        if tree_type == 'GeometryNodeTree' and func_name in file_loading.file_data.geometry_nodes:
+            ty_func = file_loading.file_data.geometry_nodes[func_name][0]
+        elif tree_type == 'ShaderNodeTree' and func_name in file_loading.file_data.shader_nodes:
+            ty_func = file_loading.file_data.shader_nodes[func_name][0]
+        if ty_func is not None:
+            self.suggestions += [
+                out.name for out in ty_func.outputs if out.name.startswith(token_text)]
 
     def try_auto_complete(self, tree_type: str) -> None:
         token_under_cursor = None
@@ -121,9 +141,13 @@ class Editor():
             if tree_type == 'GeometryNodeTree':
                 options += list(geometry_nodes.keys())
                 options += list(file_loading.file_data.geometry_nodes.keys())
+                options += list(shader_geo_node_aliases.keys())
+                options += list(geometry_node_aliases.keys())
             else:
                 options += list(shader_nodes.keys())
                 options += list(file_loading.file_data.shader_nodes.keys())
+                options += list(shader_geo_node_aliases.keys())
+                options += list(shader_node_aliases.keys())
             for name in options:
                 if name.startswith(token_under_cursor.lexeme):
                     self.suggestions.append(name)
@@ -141,6 +165,8 @@ class Editor():
                 sorted_options = sorted(options_with_dist,
                                         key=lambda x: x[1])
                 self.suggestions += list(map(lambda x: x[0], sorted_options))
+            else:
+                self.suggestions = deque(sorted(self.suggestions, key=len))
             if len(self.suggestions) == 0:
                 return
             suggestion = self.suggestions.popleft()

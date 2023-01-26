@@ -204,14 +204,32 @@ class BackEnd():
         else:
             return [i.dtype for i in instance.inputs]
 
-    def _resolve_function(self, name: str, args: list[ty_expr], dicts: list[dict]) -> tuple[Union[TyFunction, NodeInstance], list[DataType], list[str]]:
+    @staticmethod
+    def resolve_alias(thing: NodeInstance | TyFunction | str, aliases: list[dict[str, NodeInstance]]) -> NodeInstance | TyFunction:
+        if not isinstance(thing, str):
+            return thing
+        for alias_dict in aliases:
+            if thing in alias_dict:
+                return alias_dict[thing]
+
+        assert False, 'Unreachable, aliases should be valid!'
+
+    def _resolve_function(self, name: str, args: list[ty_expr], aliases: list[dict[str, NodeInstance]], dicts: list[dict[str, list[str | NodeInstance]] | dict[str, list[TyFunction]]]) -> tuple[Union[TyFunction, NodeInstance], list[DataType], list[str]]:
         instance_options: list[Union[NodeInstance, TyFunction]] = []
         for dict in dicts:
             if name in dict:
-                instance_options += dict[name]
+                options = dict[name]
+                options = list(
+                    map(lambda thing: self.resolve_alias(thing, aliases), options))
+                instance_options += options
+        if instance_options == []:
+            # Only check these if the other thing failed.
+            for alias_dict in aliases:
+                if name in alias_dict:
+                    instance_options.append(alias_dict[name])
         if instance_options == []:
             # Try to get a suggestion in case of a typo.
-            options = sorted(reduce(lambda a, b: a + b, map(lambda x: list(x.keys()), dicts)),
+            options = sorted(reduce(lambda a, b: a + b, map(lambda x: list(x.keys()), dicts + aliases)),
                              key=lambda x: levenshtein_distance(name, x))
             raise TypeError(
                 f'No function named "{name}" found. Did you mean "{options[0]}" or "{options[1]}"?')

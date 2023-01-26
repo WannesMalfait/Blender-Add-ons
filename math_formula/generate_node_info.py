@@ -86,6 +86,7 @@ def generate_node_info():
             property_values = [(prop.identifier, prop.enum_items[enum_j].identifier)
                                for enum_j, prop in zip(curr_state, props)]
             alias_str = f"'{name}' : NodeInstance('{node.bl_idname}', {enabled_inputs}, {enabled_outputs}, {property_values}),"
+
             if node.bl_idname.startswith('Shader'):
                 if supports_geometry_nodes:
                     shader_geo_alias_strs.append(alias_str)
@@ -112,6 +113,7 @@ def generate_node_info():
                 except:
                     # This property can't actually be set.
                     continue
+                # TODO: check that this is a valid name (no '&,' '/'...)
                 rec(prop_i+1, name + '_' + snake(enum_value.name))
 
         # Generate the default case as well.
@@ -171,6 +173,7 @@ shader_node_aliases = {{
     import importlib
     from .backends import builtin_nodes
     importlib.reload(builtin_nodes)
+    # TODO: check that all aliases are well-defined
 
 
 bpy.app.timers.register(generate_node_info, first_interval=0)
