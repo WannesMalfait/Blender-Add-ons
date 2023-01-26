@@ -1,5 +1,5 @@
 # type: ignore
-from . import main, mf_parser, scanner, positioning, backends, editor, compiler, type_checking, ast_defs, interpreter, file_loading
+from . import main, mf_parser, scanner, positioning, backends, editor, compiler, type_checking, ast_defs, interpreter, file_loading, generate_node_info
 import bpy
 import rna_keymap_ui
 
@@ -16,6 +16,7 @@ bl_info = {
 # Reload other modules as well
 if "bpy" in locals():
     import importlib
+    importlib.reload(generate_node_info)
     importlib.reload(main)
     importlib.reload(mf_parser)
     importlib.reload(scanner)
@@ -214,6 +215,8 @@ class MF_PT_file_panel(bpy.types.Panel, main.MFBase):
         props = col.operator(file_loading.MF_OT_load_custom_implementations.bl_idname,
                              icon='FILE_REFRESH', text='Reload Custom Implementations')
         props.force_update = True
+        col.operator(file_loading.MF_OT_generate_node_info.bl_idname,
+                     icon='FILE_REFRESH')
 
 
 addon_keymaps = []
