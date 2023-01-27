@@ -264,8 +264,12 @@ class Parser():
     def parse_int(self) -> int:
         if self.match(TokenType.MINUS):
             self.consume(TokenType.INT, 'Expected an integer')
+            if self.panic_mode:
+                return 0
             return - int(self.previous.lexeme)
         self.consume(TokenType.INT, 'Expected an integer')
+        if self.panic_mode:
+            return 0
         return int(self.previous.lexeme)
 
     def loop(self) -> ast_defs.Loop:
