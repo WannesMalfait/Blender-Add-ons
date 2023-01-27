@@ -185,7 +185,7 @@ class Scanner():
         if self.peek() == '.':
             if self.peek_next().isalpha():
                 # Syntax like 5.sin()
-                self.make_token(TokenType.INT)
+                return self.make_token(TokenType.INT)
             self.advance()
             return self.float()
         return self.make_token(TokenType.INT)
