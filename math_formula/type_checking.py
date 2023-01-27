@@ -281,6 +281,11 @@ class TypeChecker():
         if isinstance(op, ast_defs.Not):
             self.resolve_function('_not', [expr], un_op)
         elif isinstance(op, ast_defs.USub):
+            if isinstance(expr, Const) and (expr.dtype[0] == DataType.FLOAT or expr.dtype[0] == DataType.INT):
+                assert len(
+                    expr.dtype) == 1, "Should just be a float or an integer"
+                expr.value *= -1
+                return
             arg = Const(StackType.VALUE, [DataType.INT], [], -1)
             self.resolve_function('mul', [arg, expr], un_op)
         else:
