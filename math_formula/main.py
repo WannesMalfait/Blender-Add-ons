@@ -150,8 +150,8 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             interpreter.operation(operation)
         # The nodes that we added
         nodes: list[Node] = interpreter.nodes
-        self.node_group_trees: list[bpy.types.NodeTree] = interpreter.node_group_trees
-
+        self.node_group_trees: list[bpy.types.NodeTree] = list(
+            interpreter.node_group_trees.values())
         if props.add_frame and nodes != []:
             # Add all nodes in a frame
             frame = tree.nodes.new(type='NodeFrame')

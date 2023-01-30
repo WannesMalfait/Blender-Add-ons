@@ -11,7 +11,9 @@ class Interpreter():
         self.stack: list[ValueType | NodeSocket | list[NodeSocket]] = []
         # The nodes that we added
         self.nodes: list[Node] = []
-        self.node_group_trees: list[bpy.types.NodeTree] = []
+        # Inner node trees of node groups that we have created.
+        # TODO: Fill this with existing node trees in the blend file.
+        self.node_group_trees: dict[str, bpy.types.NodeTree] = {}
         # Variables in the form of output sockets
         self.variables: dict[str, ValueType |
                              NodeSocket | list[NodeSocket]] = {}
@@ -165,67 +167,72 @@ class Interpreter():
             assert False, 'Unreachable'
 
     def execute_node_group(self, node_group: CompiledNodeGroup, args: list[ValueType]):
-        # Create the node group's inner tree:
-        node_tree = bpy.data.node_groups.new(
-            node_group.name, self.tree.bl_idname)
-        for input in node_group.inputs:
-            in_socket = node_tree.inputs.new(
-                self.data_type_to_socket_type(input.dtype), input.name)
-            if input.value is not None:
-                in_socket.default_value = input.value  # type: ignore
-        for output in node_group.outputs:
-            out_socket = node_tree.outputs.new(
-                self.data_type_to_socket_type(output.dtype), output.name)
-            if output.value is not None:
-                out_socket.default_value = output.value  # type: ignore
-        group_input = node_tree.nodes.new('NodeGroupInput')
-        group_output = node_tree.nodes.new('NodeGroupOutput')
+        if node_group.name in self.node_group_trees:
+            node_tree = self.node_group_trees[node_group.name]
+        else:
+            # Create the node group's inner tree:
+            node_tree = bpy.data.node_groups.new(
+                node_group.name, self.tree.bl_idname)
+            for input in node_group.inputs:
+                in_socket = node_tree.inputs.new(
+                    self.data_type_to_socket_type(input.dtype), input.name)
+                if input.value is not None:
+                    in_socket.default_value = input.value  # type: ignore
+            for output in node_group.outputs:
+                out_socket = node_tree.outputs.new(
+                    self.data_type_to_socket_type(output.dtype), output.name)
+                if output.value is not None:
+                    out_socket.default_value = output.value  # type: ignore
+            group_input = node_tree.nodes.new('NodeGroupInput')
+            group_output = node_tree.nodes.new('NodeGroupOutput')
 
-        # Store state outside node group, and prepare state in node group
-        outer_tree = self.tree
-        self.tree = node_tree
-        outer_vars = self.variables
-        self.variables = {}
-        for socket in group_input.outputs:
-            self.variables[socket.name] = socket
-        outer_function_outputs = self.function_outputs
-        self.function_outputs = [None for _ in range(len(node_group.outputs))]
-        outer_stack = self.stack
-        self.stack = []
-        # Execute node group
-        for operation in node_group.body:
-            self.operation(operation)
+            # Store state outside node group, and prepare state in node group
+            outer_tree = self.tree
+            self.tree = node_tree
+            outer_vars = self.variables
+            self.variables = {}
+            for socket in group_input.outputs:
+                self.variables[socket.name] = socket
+            outer_function_outputs = self.function_outputs
+            self.function_outputs = [
+                None for _ in range(len(node_group.outputs))]
+            outer_stack = self.stack
+            self.stack = []
+            # Execute node group
+            for operation in node_group.body:
+                self.operation(operation)
 
-        # Connect to the group outputs
-        for index, output in enumerate(self.function_outputs):
-            if isinstance(output, bpy.types.NodeSocket):
-                node_tree.links.new(output, group_output.inputs[index])
-            elif not (output is None):
-                group_output.\
-                    inputs[index].\
-                    default_value = output  # type: ignore
+            # Connect to the group outputs
+            for index, output in enumerate(self.function_outputs):
+                if isinstance(output, bpy.types.NodeSocket):
+                    node_tree.links.new(output, group_output.inputs[index])
+                elif not (output is None):
+                    group_output.\
+                        inputs[index].\
+                        default_value = output  # type: ignore
 
-        self.node_group_trees.append(node_tree)
+            # Restore state outside node group
+            self.stack = outer_stack
+            self.function_outputs = outer_function_outputs
+            self.variables = outer_vars
+            self.tree = outer_tree
+            # Store it so we don't recreate it if called multiple times.
+            self.node_group_trees[node_group.name] = node_tree
 
         # Add the group and connect the arguments
-        group_name = 'GeometryNodeGroup' if outer_tree.bl_idname == 'GeometryNodeTree' else 'ShaderNodeGroup'
-        node = outer_tree.nodes.new(group_name)
+        group_name = 'GeometryNodeGroup' if self.tree.bl_idname == 'GeometryNodeTree' else 'ShaderNodeGroup'
+        node = self.tree.nodes.new(group_name)
         node = cast(bpy.types.NodeGroup, node)
         node.node_tree = node_tree
         for i, arg in enumerate(args):
             if isinstance(arg, NodeSocket):
-                outer_tree.links.new(arg, node.inputs[i])
+                self.tree.links.new(arg, node.inputs[i])
             elif not (arg is None):
                 node.inputs[i].default_value = arg  # type: ignore
         self.nodes.append(node)
-        self.tree = outer_tree
 
-        # Restore state outside node group
-        self.stack = outer_stack
         if len(node.outputs) == 1:
             self.stack.append(node.outputs[0])
         elif len(node.outputs) > 1:
             self.stack.append([node.outputs[i]
                                for i in reversed(range(len(node.outputs)))])
-        self.function_outputs = outer_function_outputs
-        self.variables = outer_vars

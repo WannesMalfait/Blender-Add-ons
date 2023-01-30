@@ -335,7 +335,7 @@ class Editor():
         return len(line) - len(line.lstrip())
 
     def get_char_before_cursor(self) -> str | None:
-        if self.cursor_col == 0:
+        if self.cursor_col - 1 >= len(self.lines[self.cursor_row]):
             return None
         return self.lines[self.cursor_row][self.cursor_col - 1]
 
