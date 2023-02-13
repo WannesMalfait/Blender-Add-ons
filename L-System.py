@@ -64,7 +64,7 @@ class MESH_OT_addFractal(bpy.types.Operator, bpy_extras.object_utils.AddObjectHe
     """Creates the Fractal"""
     bl_idname = "mesh.add_fractal"
     bl_label = "Add Fractal"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'REGISTER', 'UNDO', 'PRESET'}
 
     p: bpy.props.PointerProperty(type=Params)
 
