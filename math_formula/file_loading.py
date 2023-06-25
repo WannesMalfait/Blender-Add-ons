@@ -12,8 +12,8 @@ custom_implementations_dir = os.path.join(add_on_dir, 'custom_implementations')
 
 
 @bpy.app.handlers.persistent
-def load_custom_implementations(dir: str = None, force_update: bool = False) -> list[tuple[str, list[Error]]]:
-    if dir is None:
+def load_custom_implementations(dummy, dir: str = '', force_update: bool = False) -> list[tuple[str, list[Error]]]:
+    if dir == '' or dir is None:
         prefs = bpy.context.preferences.addons['math_formula'].preferences
         dir = prefs.custom_implementations_folder
     filenames = os.listdir(dir)
@@ -77,9 +77,9 @@ unless `force_update` is true"""
         default=False
     )
 
-    def execute(self, context: bpy.context):
+    def execute(self, context: bpy.types.Context):
         prefs = context.preferences.addons['math_formula'].preferences
-        errors = load_custom_implementations(
+        errors = load_custom_implementations(None,
             prefs.custom_implementations_folder, self.force_update)
         if errors != []:
             self.report(
@@ -98,7 +98,7 @@ unless `force_update` is true"""
 
 
 class MF_OT_generate_node_info(bpy.types.Operator):
-    """Generate informations about the nodes available in this version of blender."""
+    """Generate information about the nodes available in this version of blender"""
     bl_idname = "node.mf_generate_node_info"
     bl_label = "Regenerate node info"
     bl_options = {'REGISTER', 'UNDO'}

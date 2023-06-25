@@ -136,7 +136,7 @@ class PositionNode():
 class TreePositioner():
     """
     Class to position nodes in a node tree
-    Algorithm: https://techreports.cs.unc.edu/papers/89-034.pdf
+    Algorithm: https://www.cs.unc.edu/techreports/89-034.pdf
     """
 
     def __init__(self, context):
@@ -267,7 +267,7 @@ class TreePositioner():
         offset_x = 0
         offset_y = 0
         if cursor_loc is not None:
-            offset_x = - self.min_x_loc
+            offset_x = cursor_loc[0] - self.min_x_loc
             offset_y = cursor_loc[1] - self.max_y_loc
         else:
             offset_x = old_root_node_pos_x-root_node.get_x()

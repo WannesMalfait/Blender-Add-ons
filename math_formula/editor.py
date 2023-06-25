@@ -335,8 +335,9 @@ class Editor():
         return len(line) - len(line.lstrip())
 
     def get_char_before_cursor(self) -> str | None:
-        if self.cursor_col - 1 >= len(self.lines[self.cursor_row]):
+        if self.cursor_col <= 0 or self.cursor_col - 1 >= len(self.lines[self.cursor_row]):
             return None
+        
         return self.lines[self.cursor_row][self.cursor_col - 1]
 
     def new_line(self) -> None:
@@ -378,8 +379,7 @@ class Editor():
         prefs = context.preferences.addons['math_formula'].preferences
         font_id = fonts['regular']
         font_size = prefs.font_size  # type: ignore
-        font_dpi = 72
-        blf.size(font_id, font_size, font_dpi)
+        blf.size(font_id, font_size)
 
         char_width = blf.dimensions(font_id, 'H')[0]
         char_height = blf.dimensions(font_id, 'Hq')[1]*1.3
@@ -447,7 +447,7 @@ class Editor():
                           prefs.function_color)  # type: ignore
                 else:
                     color(token_font_style, prefs.default_color)  # type: ignore
-                blf.size(token_font_style, font_size, font_dpi)
+                blf.size(token_font_style, font_size)
 
                 # Draw manually to ensure equal spacing and no kerning.
                 for char in text:
