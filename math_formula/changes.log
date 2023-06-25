@@ -1,3 +1,13 @@
+v2.0.0-alpha.3
+- Add some basic SDF's to included node groups.
+- Editor: better handling of indentation.
+- Editor: replace tabs with spaces on paste.
+- Generate node information from version of blender the add-on is being run in.
+- Reuse created node groups in the same formula.
+- Fix bug with adding newlines.
+- Fix problems with API changes in 4.0
+- Fix problem with methods on numbers (like `5.sin()`)
+
 v2.0.0-alpha.2
 - Add support for adding functions using the `fn` keyword.
 - Add support for adding node groups using the `ng` keyword.
