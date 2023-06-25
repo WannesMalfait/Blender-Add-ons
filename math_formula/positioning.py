@@ -136,7 +136,7 @@ class PositionNode():
 class TreePositioner():
     """
     Class to position nodes in a node tree
-    Algorithm: https://www.cs.unc.edu/techreports/89-034.pdf
+    Algorithm: https://techreports.cs.unc.edu/papers/89-034.pdf
     """
 
     def __init__(self, context):
