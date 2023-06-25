@@ -30,6 +30,7 @@ def generate_node_info():
         'COLLECTION': 'COLLECTION',
         'TEXTURE': 'TEXTURE',
         'MATERIAL': 'MATERIAL',
+        'ROTATION': 'ROTATION',
     }
 
     default_props = bpy.types.FunctionNode.bl_rna.properties
@@ -61,10 +62,11 @@ def generate_node_info():
             supports_geometry_nodes = True
         except:
             pass
+
         inputs = ", ".join(
-            [f"('{snake(inp.name)}', DataType.{dtypes[cast(str,inp.type)]})" for inp in node.inputs])
+            [f"('{snake(inp.name)}', DataType.{dtypes[cast(str,inp.type)]})" for inp in node.inputs if inp.type in dtypes])
         outputs = ", ".join(
-            [f"('{snake(outp.name)}', DataType.{dtypes[cast(str, outp.type)]})" for outp in node.outputs])
+            [f"('{snake(outp.name)}', DataType.{dtypes[cast(str, outp.type)]})" for outp in node.outputs if outp.type in dtypes])
 
         props = [cast(bpy.types.EnumProperty, prop) for prop in node.bl_rna.properties if not prop.is_readonly and
                  prop.type == 'ENUM' and not prop.identifier in default_props]

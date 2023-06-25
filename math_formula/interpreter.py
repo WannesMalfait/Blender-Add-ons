@@ -163,6 +163,8 @@ class Interpreter():
             return 'NodeSocketTexture'
         elif dtype == DataType.MATERIAL:
             return 'NodeSocketMaterial'
+        elif dtype == DataType.ROTATION:
+            return 'NodeSocketRotation'
         else:
             assert False, 'Unreachable'
 
