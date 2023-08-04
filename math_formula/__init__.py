@@ -49,7 +49,7 @@ class MFMathFormula(bpy.types.AddonPreferences):
     node_distance: bpy.props.IntProperty(
         name="Distance between nodes",
         description="The distance placed between the nodes from the formula",
-        default=10,
+        default=20,
         min=0,
     )
     sibling_distance: bpy.props.IntProperty(
@@ -224,13 +224,15 @@ kmi_defs = [
     # kmi_defs entry: (identifier, key, action, CTRL, SHIFT, ALT, props)
     # props entry: (property name, property value)
     (main.MF_OT_arrange_from_root.bl_idname,
-     'E', 'PRESS', False, False, True, None),
+     'E', 'PRESS', False, False, False, (('selected_only', False),)),
+    (main.MF_OT_arrange_from_root.bl_idname,
+     'E', 'PRESS', False, False, True, (('selected_only', True),)),
     (main.MF_OT_select_from_root.bl_idname,
-     'E', 'PRESS', True, True, False, (('select_children', True), ('select_parents', True))),
+     'K', 'PRESS', False, False, False, (('select_children', True), ('select_parents', True))),
     (main.MF_OT_select_from_root.bl_idname,
-     'E', 'PRESS', True, False, False, (('select_children', True), ('select_parents', False))),
+     'K', 'PRESS', True, False, False, (('select_children', True), ('select_parents', False))),
     (main.MF_OT_select_from_root.bl_idname,
-     'E', 'PRESS', False, True, False, (('select_children', False), ('select_parents', True))),
+     'K', 'PRESS', False, True, False, (('select_children', False), ('select_parents', True))),
     (main.MF_OT_type_formula_then_add_nodes.bl_idname,
      'F', 'PRESS', False, False, True, None),
 ]

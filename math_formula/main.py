@@ -93,15 +93,22 @@ class MF_OT_arrange_from_root(bpy.types.Operator):
     def poll(cls, context: bpy.types.Context) -> bool:
         return mf_check(context) and context.active_node is not None
 
+    selected_only: bpy.props.BoolProperty(
+        name="Selected Only",
+        description="Only arrange nodes that are selected",
+        default=False,
+    )  # type: ignore
+
     def execute(self, context: bpy.types.Context):
         space = cast(bpy.types.SpaceNodeEditor, context.space_data)
         links = space.edit_tree.links
         active_node = context.active_node
-        bpy.ops.node.select_all(action='DESELECT')
+        if not self.selected_only:
+            bpy.ops.node.select_all(action='DESELECT')
         active_node.select = True
         # Figure out the parents, children, and siblings of nodes.
         # Needed for the node positioner
-        node_positioner = TreePositioner(context)
+        node_positioner = TreePositioner(context, selected_only=self.selected_only)
         node_positioner.place_nodes(active_node, links)
         return {'FINISHED'}
 

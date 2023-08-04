@@ -1,6 +1,6 @@
 from sys import maxsize as INF
 from typing import cast, Optional
-from bpy.types import Node, NodeLinks
+from bpy.types import Node, NodeLinks, Context
 from mathutils import Vector
 
 
@@ -139,11 +139,12 @@ class TreePositioner():
     Algorithm: https://www.cs.unc.edu/techreports/89-034.pdf
     """
 
-    def __init__(self, context):
+    def __init__(self, context: Context, selected_only =  False):
         prefs = context.preferences.addons['math_formula'].preferences
         self.level_separation: int = prefs.node_distance
         self.sibling_separation: int = prefs.sibling_distance
         self.subtree_separation: int = prefs.subtree_distance
+        self.selected_only = selected_only
         self.x_top_adjustment: int = 0
         self.y_top_adjustment: int = 0
         self.max_width_per_level: list[int] = [0 for _ in range(100)]
@@ -167,6 +168,8 @@ class TreePositioner():
                 add_link = True
                 child = None
                 from_node = link.from_node
+                if self.selected_only and not from_node.select:
+                    continue
                 for ilink, _ in input_links:
                     if ilink.from_node == from_node:
                         add_link = False
