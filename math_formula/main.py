@@ -98,6 +98,12 @@ class MF_OT_arrange_from_root(bpy.types.Operator):
         description="Only arrange nodes that are selected",
         default=False,
     )  # type: ignore
+    
+    invert_relations: bpy.props.BoolProperty(
+        name="Invert Relations",
+        description="Invert the relations between parents and children",
+        default=False,
+    )  # type: ignore
 
     def execute(self, context: bpy.types.Context):
         space = cast(bpy.types.SpaceNodeEditor, context.space_data)
@@ -108,7 +114,7 @@ class MF_OT_arrange_from_root(bpy.types.Operator):
         active_node.select = True
         # Figure out the parents, children, and siblings of nodes.
         # Needed for the node positioner
-        node_positioner = TreePositioner(context, selected_only=self.selected_only)
+        node_positioner = TreePositioner(context, selected_only=self.selected_only, invert_relations=self.invert_relations)
         node_positioner.place_nodes(active_node, links)
         return {'FINISHED'}
 

@@ -224,9 +224,13 @@ kmi_defs = [
     # kmi_defs entry: (identifier, key, action, CTRL, SHIFT, ALT, props)
     # props entry: (property name, property value)
     (main.MF_OT_arrange_from_root.bl_idname,
-     'E', 'PRESS', False, False, False, (('selected_only', False),)),
+     'E', 'PRESS', False, False, False, (('selected_only', False), ('invert_relations', False))),
     (main.MF_OT_arrange_from_root.bl_idname,
-     'E', 'PRESS', False, False, True, (('selected_only', True),)),
+     'E', 'PRESS', False, False, True, (('selected_only', True), ('invert_relations', False))),
+    (main.MF_OT_arrange_from_root.bl_idname,
+     'E', 'PRESS', False, True, False, (('selected_only', False), ('invert_relations', True))),
+    (main.MF_OT_arrange_from_root.bl_idname,
+     'E', 'PRESS', False, True, True, (('selected_only', True), ('invert_relations', True))),
     (main.MF_OT_select_from_root.bl_idname,
      'K', 'PRESS', False, False, False, (('select_children', True), ('select_parents', True))),
     (main.MF_OT_select_from_root.bl_idname,

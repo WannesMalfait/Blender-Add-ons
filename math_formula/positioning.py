@@ -139,12 +139,13 @@ class TreePositioner():
     Algorithm: https://www.cs.unc.edu/techreports/89-034.pdf
     """
 
-    def __init__(self, context: Context, selected_only =  False):
+    def __init__(self, context: Context, selected_only =  False, invert_relations = False):
         prefs = context.preferences.addons['math_formula'].preferences
         self.level_separation: int = prefs.node_distance
         self.sibling_separation: int = prefs.sibling_distance
         self.subtree_separation: int = prefs.subtree_distance
         self.selected_only = selected_only
+        self.invert_relations = invert_relations
         self.x_top_adjustment: int = 0
         self.y_top_adjustment: int = 0
         self.max_width_per_level: list[int] = [0 for _ in range(100)]
@@ -156,8 +157,7 @@ class TreePositioner():
         self.max_y_loc: int = -INF
         self.visited_nodes: list[PositionNode] = []
 
-    # Test formula:
-    # p.xyz; r = length(p); theta = acos(z/r); phi = atan2(y,x); {r, theta, phi}
+    # Build the parent-children-sibling relationships between the nodes recursively.
     def build_relations(self, pnode: PositionNode, links: NodeLinks, depth: int = 0) -> None:
         # Get all links connected to the input sockets of the node
         input_links = []
@@ -227,6 +227,76 @@ class TreePositioner():
             if needs_building:
                 self.build_relations(child, links, depth=depth+1)
 
+    # Same as `build_relations`, but parent-children relationship is inverted.
+    def build_relations_inverted(self, pnode: PositionNode, links: NodeLinks, depth: int = 0) -> None:
+        # Get all links connected to the output sockets of the node
+        output_links = []
+        for link in links:
+            # It's possible that nodes have multiple parents. In that case the
+            # algorithm doesn't work, so we only allow one parent per node.
+            if link.from_node == pnode.node:
+                add_link = True
+                child = None
+                to_node = link.to_node
+                if self.selected_only and not to_node.select:
+                    continue
+                for ilink, _ in output_links:
+                    if ilink.to_node == to_node:
+                        add_link = False
+                        break
+                if not add_link:
+                    continue
+                for vnode in self.visited_nodes:
+                    if to_node == vnode.node:
+                        # TODO: make sure this is correct.
+                        # Due to the DFS it's possible that a node's depth is
+                        # increased after checking if it should update the parent.
+                        # When this happens a parent update might be missed. This
+                        # is not a drastic problem but should be tackled in the
+                        # future.
+                        if depth >= vnode.depth:
+                            vnode.update_parent(pnode)
+                            add_link = True
+                            child = vnode
+                            break
+                        add_link = False
+                        break
+                if add_link:
+                    output_links.append((link, child))
+
+        if output_links == []:
+            # It's a leaf node
+            return None
+
+        # Sort the links in order of the sockets
+        sorted_children: list[tuple[PositionNode, bool]] = []
+        for socket in cast(Node, pnode.node).outputs:
+            for link, node in output_links:
+                if socket == link.from_socket:
+                    if node is not None:
+                        sorted_children.append((node, False))
+                        continue
+                    new_node = link.to_node
+                    new_node.select = True
+                    child = PositionNode(new_node, depth=depth+1)
+                    self.visited_nodes.append(child)
+                    sorted_children.append((child, True))
+
+        # In the recursive sense, this is now the root node. The parent of this
+        # node is set during backtracking.
+        children_only = [child for child, _ in sorted_children]
+        pnode.set_children(children_only)
+        root_node = pnode
+        for i, child in enumerate(children_only):
+            if i < len(children_only)-1:
+                child.right_sibling = children_only[i+1]
+            if i > 0:
+                child.left_sibling = children_only[i-1]
+            child.parent = root_node
+        for child, needs_building in sorted_children:
+            if needs_building:
+                self.build_relations_inverted(child, links, depth=depth+1)
+
     def place_nodes(self, root_nodes: list[Node] | Node, links: NodeLinks, cursor_loc: tuple[int, int] | None = None) -> tuple[float, float] | None:
         """
         Aranges the nodes connected to `root_node` so that the top
@@ -256,10 +326,16 @@ class TreePositioner():
                     child.left_sibling = r_nodes[i-1]
                 child.parent = root_node
             for pnode in r_nodes:
-                self.build_relations(pnode, links, depth=1)
+                if self.invert_relations:
+                    self.build_relations_inverted(pnode, links, depth=1)
+                else:
+                    self.build_relations(pnode, links, depth=1)
         else:
             root_node = PositionNode(root_nodes)
-            self.build_relations(root_node, links, depth=0)
+            if self.invert_relations:
+                self.build_relations_inverted(root_node, links, depth=0)
+            else:
+                self.build_relations(root_node, links, depth=0)
         self.visited_nodes = []
         old_root_node_pos_x: int = root_node.node.location.x  # type: ignore
         old_root_node_pos_y: int = root_node.node.location.y  # type: ignore
@@ -283,6 +359,9 @@ class TreePositioner():
                 # It looks weird if it is placed at the top. This makes it a bit
                 # more centrally placed, near the sockets.
                 pnode.set_y(pnode.get_y()-30)
+            if self.invert_relations:
+                # Mirror everything along the x axis relative to the root node.
+                pnode.set_x(old_root_node_pos_x - (pnode.get_x() -old_root_node_pos_x))
         if cursor_loc is not None:
             return (cursor_loc[0]+self.max_x_loc-self.min_x_loc, cursor_loc[1])
 
