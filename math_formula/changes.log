@@ -1,5 +1,6 @@
 v2.0.0-alpha.4
 - Improve "arrange from root" operator (#20)
+- Fix bug with default values for geometry sockets
 
 v2.0.0-alpha.3
 - Add some basic SDF's to included node groups.
