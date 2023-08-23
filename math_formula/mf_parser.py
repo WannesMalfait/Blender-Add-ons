@@ -381,7 +381,7 @@ def python(self: Parser, can_assign: bool) -> None:
 
 
 def default(self: Parser, can_assign: bool) -> None:
-    self.curr_node = ast_defs.Constant(self.previous, 0, DataType.DEFAULT)
+    self.curr_node = ast_defs.Constant(self.previous, None, DataType.DEFAULT)
 
 
 def identifier(self: Parser, can_assign: bool) -> None:

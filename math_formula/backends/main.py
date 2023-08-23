@@ -8,7 +8,7 @@ class BackEnd():
 
     @staticmethod
     def can_convert(from_type: DataType, to_type: DataType) -> bool:
-        if from_type == to_type:
+        if from_type == to_type or from_type == DataType.DEFAULT:
             return True
         else:
             return from_type.value <= DataType.VEC3.value and to_type.value <= DataType.VEC3.value

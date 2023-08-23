@@ -75,7 +75,7 @@ string_to_data_type = {
     'quaternion': DataType.ROTATION,
 }
 
-ValueType = Union[bool, int, float, list[float], str]
+ValueType = Union[bool, int, float, list[float], str, None]
 
 
 class OpType(IntEnum):
