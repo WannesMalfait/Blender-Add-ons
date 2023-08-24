@@ -6,42 +6,74 @@ from .builtin_nodes import levenshtein_distance, nodes
 
 
 class BackEnd(metaclass=ABCMeta):
-
     @staticmethod
     def can_convert(from_type: td.DataType, to_type: td.DataType) -> bool:
         if from_type == to_type or from_type == td.DataType.DEFAULT:
             return True
         else:
-            return from_type.value <= td.DataType.VEC3.value and to_type.value <= td.DataType.VEC3.value
+            return (
+                from_type.value <= td.DataType.VEC3.value
+                and to_type.value <= td.DataType.VEC3.value
+            )
 
     @overload
-    def convert(self, value: td.ValueType,
-                from_type: td.DataType, to_type: Literal[td.DataType.BOOL]) -> bool: ...
+    def convert(
+        self,
+        value: td.ValueType,
+        from_type: td.DataType,
+        to_type: Literal[td.DataType.BOOL],
+    ) -> bool:
+        ...
 
     @overload
-    def convert(self, value: td.ValueType,
-                from_type: td.DataType, to_type: Literal[td.DataType.INT]) -> int: ...
+    def convert(
+        self,
+        value: td.ValueType,
+        from_type: td.DataType,
+        to_type: Literal[td.DataType.INT],
+    ) -> int:
+        ...
 
     @overload
-    def convert(self, value: td.ValueType,
-                from_type: td.DataType, to_type: Literal[td.DataType.FLOAT]) -> float: ...
+    def convert(
+        self,
+        value: td.ValueType,
+        from_type: td.DataType,
+        to_type: Literal[td.DataType.FLOAT],
+    ) -> float:
+        ...
 
     @overload
-    def convert(self, value: td.ValueType,
-                from_type: td.DataType, to_type: Literal[td.DataType.VEC3]) -> list[float]: ...
+    def convert(
+        self,
+        value: td.ValueType,
+        from_type: td.DataType,
+        to_type: Literal[td.DataType.VEC3],
+    ) -> list[float]:
+        ...
 
     @overload
-    def convert(self, value: td.ValueType,
-                from_type: td.DataType, to_type: Literal[td.DataType.RGBA]) -> list[float]: ...
+    def convert(
+        self,
+        value: td.ValueType,
+        from_type: td.DataType,
+        to_type: Literal[td.DataType.RGBA],
+    ) -> list[float]:
+        ...
 
     @overload
-    def convert(self, value: td.ValueType, from_type: td.DataType,
-                to_type: td.DataType) -> td.ValueType: ...
+    def convert(
+        self, value: td.ValueType, from_type: td.DataType, to_type: td.DataType
+    ) -> td.ValueType:
+        ...
 
-    def convert(self, value: td.ValueType, from_type: td.DataType, to_type: td.DataType) -> td.ValueType:
-        '''Convert value of type from_type to to_type.'''
+    def convert(
+        self, value: td.ValueType, from_type: td.DataType, to_type: td.DataType
+    ) -> td.ValueType:
+        """Convert value of type from_type to to_type."""
         assert self.can_convert(
-            from_type, to_type), f'Invalid type, can\'t convert from {from_type} to {to_type} '
+            from_type, to_type
+        ), f"Invalid type, can't convert from {from_type} to {to_type} "
         if from_type == td.DataType.DEFAULT or from_type == td.DataType.UNKNOWN:
             if to_type == td.DataType.BOOL:
                 return True
@@ -85,8 +117,7 @@ class BackEnd(metaclass=ABCMeta):
                 return [value for _ in range(3)]
         if from_type == td.DataType.RGBA:
             assert isinstance(value, list)
-            gray_scale = (
-                0.2126 * value[0]) + (0.7152 * value[1]) + (0.0722 * value[2])
+            gray_scale = (0.2126 * value[0]) + (0.7152 * value[1]) + (0.0722 * value[2])
             if to_type == td.DataType.BOOL:
                 return bool(gray_scale)
             if to_type == td.DataType.INT:
@@ -97,8 +128,7 @@ class BackEnd(metaclass=ABCMeta):
                 return [value[i] for i in range(3)]
         if from_type == td.DataType.VEC3:
             assert isinstance(value, list)
-            avg = (
-                value[0] + value[1] + value[2])/3.0
+            avg = (value[0] + value[1] + value[2]) / 3.0
             if to_type == td.DataType.BOOL:
                 return bool(avg)
             if to_type == td.DataType.INT:
@@ -110,8 +140,10 @@ class BackEnd(metaclass=ABCMeta):
         return value
 
     @abstractmethod
-    def coerce_value(self, value: td.ValueType, type: td.DataType) -> tuple[td.ValueType, td.DataType]:
-        '''Ensure that the value is of a type supported by the backend'''
+    def coerce_value(
+        self, value: td.ValueType, type: td.DataType
+    ) -> tuple[td.ValueType, td.DataType]:
+        """Ensure that the value is of a type supported by the backend"""
         ...
 
     @abstractmethod
@@ -125,62 +157,108 @@ class BackEnd(metaclass=ABCMeta):
         ...
 
     def create_input_helper(
-            self,
-            operations: list[td.Operation],
-            name: str,
-            value: td.ValueType | None,
-            dtype: td.DataType,
-            input_vector: bool = True):
+        self,
+        operations: list[td.Operation],
+        name: str,
+        value: td.ValueType | None,
+        dtype: td.DataType,
+        input_vector: bool = True,
+    ):
         if dtype == td.DataType.FLOAT or dtype == td.DataType.UNKNOWN:
             operations.append(
-                td.Operation(td.OpType.CALL_BUILTIN,
-                             td.NodeInstance('ShaderNodeValue', [], [0], [])))
+                td.Operation(
+                    td.OpType.CALL_BUILTIN,
+                    td.NodeInstance("ShaderNodeValue", [], [0], []),
+                )
+            )
             if value:
-                operations.append(
-                    td.Operation(td.OpType.SET_OUTPUT, (0, value)))
+                operations.append(td.Operation(td.OpType.SET_OUTPUT, (0, value)))
         elif dtype == td.DataType.BOOL:
-            operations.append(td.Operation(td.OpType.CALL_BUILTIN,
-                                           td.NodeInstance('FunctionNodeInputBool', [], [0],
-                                                           [('boolean', value)] if value is not None else [])))
+            operations.append(
+                td.Operation(
+                    td.OpType.CALL_BUILTIN,
+                    td.NodeInstance(
+                        "FunctionNodeInputBool",
+                        [],
+                        [0],
+                        [("boolean", value)] if value is not None else [],
+                    ),
+                )
+            )
         elif dtype == td.DataType.INT:
-            operations.append(td.Operation(td.OpType.CALL_BUILTIN,
-                                           td.NodeInstance('FunctionNodeInputInt', [], [0],
-                                                           [('integer', value)] if value is not None else [])))
+            operations.append(
+                td.Operation(
+                    td.OpType.CALL_BUILTIN,
+                    td.NodeInstance(
+                        "FunctionNodeInputInt",
+                        [],
+                        [0],
+                        [("integer", value)] if value is not None else [],
+                    ),
+                )
+            )
         elif dtype == td.DataType.RGBA:
-            operations.append(td.Operation(td.OpType.CALL_BUILTIN,
-                                           td.NodeInstance('FunctionNodeInputColor', [], [0],
-                                                           [('color', value)] if value is not None else [])))
+            operations.append(
+                td.Operation(
+                    td.OpType.CALL_BUILTIN,
+                    td.NodeInstance(
+                        "FunctionNodeInputColor",
+                        [],
+                        [0],
+                        [("color", value)] if value is not None else [],
+                    ),
+                )
+            )
         elif dtype == td.DataType.VEC3:
             # Only geometry nodes has this input vector node
             if input_vector:
-                operations.append(td.Operation(td.OpType.CALL_BUILTIN,
-                                               td.NodeInstance('FunctionNodeInputVector', [], [0],
-                                                               [('vector', value)] if value is not None else [])))
+                operations.append(
+                    td.Operation(
+                        td.OpType.CALL_BUILTIN,
+                        td.NodeInstance(
+                            "FunctionNodeInputVector",
+                            [],
+                            [0],
+                            [("vector", value)] if value is not None else [],
+                        ),
+                    )
+                )
             else:
                 if value is not None:
-                    assert isinstance(
-                        value, list), 'Vec3 should be list of floats'
+                    assert isinstance(value, list), "Vec3 should be list of floats"
                     for v in value:
-                        operations.append(td.Operation(
-                            td.OpType.PUSH_VALUE, v))
+                        operations.append(td.Operation(td.OpType.PUSH_VALUE, v))
                 else:
                     for _ in range(3):
-                        operations.append(td.Operation(
-                            td.OpType.PUSH_VALUE, None))
-                operations.append(td.Operation(td.OpType.CALL_BUILTIN,
-                                               td.NodeInstance('ShaderNodeCombineXYZ', [0, 1, 2], [0], [])))
+                        operations.append(td.Operation(td.OpType.PUSH_VALUE, None))
+                operations.append(
+                    td.Operation(
+                        td.OpType.CALL_BUILTIN,
+                        td.NodeInstance("ShaderNodeCombineXYZ", [0, 1, 2], [0], []),
+                    )
+                )
         elif dtype == td.DataType.STRING:
-            operations.append(td.Operation(td.OpType.CALL_BUILTIN,
-                                           td.NodeInstance('FunctionNodeInputString', [], [0],
-                                                           [('string', value)] if value is not None else [])))
+            operations.append(
+                td.Operation(
+                    td.OpType.CALL_BUILTIN,
+                    td.NodeInstance(
+                        "FunctionNodeInputString",
+                        [],
+                        [0],
+                        [("string", value)] if value is not None else [],
+                    ),
+                )
+            )
         else:
-            raise NotImplementedError(f'Creating input of type {str(dtype)}')
+            raise NotImplementedError(f"Creating input of type {str(dtype)}")
         operations.append(td.Operation(td.OpType.RENAME_NODE, name))
 
-    def find_best_match(self, options: list[list[td.DataType]], args: list[td.ty_expr], name: str) -> int:
-        '''Find the best function to use from the list of options.
+    def find_best_match(
+        self, options: list[list[td.DataType]], args: list[td.ty_expr], name: str
+    ) -> int:
+        """Find the best function to use from the list of options.
         The options argument contains a list of possible function argument types.
-        Returns the index of the best match.'''
+        Returns the index of the best match."""
 
         # NOTE: This assumes that no 'empty' arguments were passed.
         #       Those should have been handled before this.
@@ -197,8 +275,12 @@ class BackEnd(metaclass=ABCMeta):
                 # it can never be a match. If we pass less arguments
                 # the rest are implicit default arguments.
                 continue
-            penalty = sum([td.dtype_conversion_penalties[arg_types[i].value]
-                           [option[i].value] for i in range(len(arg_types))])
+            penalty = sum(
+                [
+                    td.dtype_conversion_penalties[arg_types[i].value][option[i].value]
+                    for i in range(len(arg_types))
+                ]
+            )
 
             if best_penalty > penalty:
                 best_penalty = penalty
@@ -214,10 +296,13 @@ class BackEnd(metaclass=ABCMeta):
             return best_index
         # print(f'\nOPTIONS: {options}\nARGS: {arg_types}')
         raise TypeError(
-            f'Couldn\'t find find instance of function "{name}" with arguments {arg_types}')
+            f'Couldn\'t find find instance of function "{name}" with arguments {arg_types}'
+        )
 
     @staticmethod
-    def input_types(instance: td.Union[td.NodeInstance, td.TyFunction]) -> list[td.DataType]:
+    def input_types(
+        instance: td.Union[td.NodeInstance, td.TyFunction]
+    ) -> list[td.DataType]:
         if isinstance(instance, td.NodeInstance):
             node = nodes[instance.key]
             return [node.inputs[i][1] for i in instance.inputs]
@@ -227,7 +312,7 @@ class BackEnd(metaclass=ABCMeta):
     @staticmethod
     def resolve_alias(
         thing: td.NodeInstance | td.TyFunction | str,
-        aliases: list[dict[str, td.NodeInstance]]
+        aliases: list[dict[str, td.NodeInstance]],
     ) -> td.NodeInstance | td.TyFunction:
         if not isinstance(thing, str):
             return thing
@@ -235,22 +320,24 @@ class BackEnd(metaclass=ABCMeta):
             if thing in alias_dict:
                 return alias_dict[thing]
 
-        assert False, 'Unreachable, aliases should be valid!'
+        assert False, "Unreachable, aliases should be valid!"
 
     def _resolve_function(
         self,
         name: str,
         args: list[td.ty_expr],
         aliases: list[dict[str, td.NodeInstance]],
-        dicts: list[dict[str, list[str | td.NodeInstance]]
-                    | dict[str, list[td.TyFunction]]]
+        dicts: list[
+            dict[str, list[str | td.NodeInstance]] | dict[str, list[td.TyFunction]]
+        ],
     ) -> tuple[td.Union[td.TyFunction, td.NodeInstance], list[td.DataType], list[str]]:
         instance_options: list[td.NodeInstance | td.TyFunction] = []
         for dict in dicts:
             if name in dict:
                 options = dict[name]
                 resolved_options = list(
-                    map(lambda thing: self.resolve_alias(thing, aliases), options))
+                    map(lambda thing: self.resolve_alias(thing, aliases), options)
+                )
                 instance_options += resolved_options
         if instance_options == []:
             # Only check these if the other thing failed.
@@ -264,10 +351,10 @@ class BackEnd(metaclass=ABCMeta):
                 keys += list(d.keys())
             for a in aliases:
                 keys += list(a.keys())
-            suggestions = sorted(keys,
-                                 key=lambda x: levenshtein_distance(name, x))
+            suggestions = sorted(keys, key=lambda x: levenshtein_distance(name, x))
             raise TypeError(
-                f'No function named "{name}" found. Did you mean "{suggestions[0]}" or "{suggestions[1]}"?')
+                f'No function named "{name}" found. Did you mean "{suggestions[0]}" or "{suggestions[1]}"?'
+            )
         all_options = [self.input_types(option) for option in instance_options]
         index = self.find_best_match(all_options, args, name)
         func = instance_options[index]
@@ -280,12 +367,12 @@ class BackEnd(metaclass=ABCMeta):
         out_names = [node.outputs[i][0] for i in func.outputs]
         return func, out_types, out_names
 
-    @ abstractmethod
+    @abstractmethod
     def resolve_function(
         self,
         name: str,
         args: list[td.ty_expr],
-        functions: dict[str, list[td.TyFunction]]
+        functions: dict[str, list[td.TyFunction]],
     ) -> tuple[td.Union[td.TyFunction, td.NodeInstance], list[td.DataType], list[str]]:
-        ''' Resolve name to a built-in node by type matching on the arguments.'''
+        """Resolve name to a built-in node by type matching on the arguments."""
         ...

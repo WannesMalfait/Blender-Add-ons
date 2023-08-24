@@ -5,13 +5,13 @@ from bpy.types import Context, Node, NodeLink, NodeLinks
 from mathutils import Vector
 
 
-class DummyVec2():
+class DummyVec2:
     def __init__(self) -> None:
         self.x = 0
         self.y = 0
 
 
-class DummyNode():
+class DummyNode:
     def __init__(self) -> None:
         self.dimensions = DummyVec2()
         self.location = DummyVec2()
@@ -19,14 +19,16 @@ class DummyNode():
         self.bl_width_default = self.bl_height_default = 0
 
 
-class PositionNode():
-    def __init__(self,
-                 node: Node | DummyNode,
-                 parent: Optional['PositionNode'] = None,
-                 children: Optional[list['PositionNode']] = None,
-                 left_sibling: Optional['PositionNode'] = None,
-                 right_sibling: Optional['PositionNode'] = None,
-                 depth: int = 0):
+class PositionNode:
+    def __init__(
+        self,
+        node: Node | DummyNode,
+        parent: Optional["PositionNode"] = None,
+        children: Optional[list["PositionNode"]] = None,
+        left_sibling: Optional["PositionNode"] = None,
+        right_sibling: Optional["PositionNode"] = None,
+        depth: int = 0,
+    ):
         self.node = node
         self.parent = parent
         self.children = children
@@ -44,7 +46,7 @@ class PositionNode():
         self.prelim_y = 0
         self.modifier = 0
         self.depth = depth
-        self.left_neighbour: 'PositionNode' | None = None
+        self.left_neighbour: "PositionNode" | None = None
 
     def set_children(self, children: list) -> None:
         if children != []:
@@ -61,8 +63,9 @@ class PositionNode():
         possible new siblings from the new parent."""
         prev_parent = self.parent
         if prev_parent is not None and prev_parent.children is not None:
-            prev_parent.set_children([
-                child for child in prev_parent.children if child is not self])
+            prev_parent.set_children(
+                [child for child in prev_parent.children if child is not self]
+            )
         self.parent = new_parent
         ls = self.left_sibling
         rs = self.right_sibling
@@ -78,7 +81,7 @@ class PositionNode():
         self.depth = new_depth
         if self.children is not None:
             for child in self.children:
-                child.update_depth(new_depth+1)
+                child.update_depth(new_depth + 1)
 
     def set_x(self, x: int):
         self.node.location.x = x  # type: ignore
@@ -110,7 +113,7 @@ class PositionNode():
     def good_name(self, node) -> str | None:
         if node is None:
             return None
-        if 'Math' in node.node.bl_idname:
+        if "Math" in node.node.bl_idname:
             return node.node.operation
         elif node.node.label != "":
             return node.node.label
@@ -134,14 +137,14 @@ class PositionNode():
         return f"{self.good_name(self)}"
 
 
-class TreePositioner():
+class TreePositioner:
     """
     Class to position nodes in a node tree
     Algorithm: https://www.cs.unc.edu/techreports/89-034.pdf
     """
 
     def __init__(self, context: Context, selected_only=False, invert_relations=False):
-        prefs = context.preferences.addons['math_formula'].preferences
+        prefs = context.preferences.addons["math_formula"].preferences
         self.level_separation: int = prefs.node_distance  # type:ignore
         self.sibling_separation: int = prefs.sibling_distance  # type:ignore
         self.subtree_separation: int = prefs.subtree_distance  # type:ignore
@@ -150,8 +153,9 @@ class TreePositioner():
         self.x_top_adjustment: int = 0
         self.y_top_adjustment: int = 0
         self.max_width_per_level: list[int] = [0 for _ in range(100)]
-        self.prev_node_per_level: list['PositionNode' | None] = [
-            None for _ in range(100)]
+        self.prev_node_per_level: list["PositionNode" | None] = [
+            None for _ in range(100)
+        ]
         self.min_x_loc: int = +INF
         self.max_x_loc: int = -INF
         self.min_y_loc: int = +INF
@@ -159,7 +163,9 @@ class TreePositioner():
         self.visited_nodes: list[PositionNode] = []
 
     # Build the parent-children-sibling relationships between the nodes recursively.
-    def build_relations(self, pnode: PositionNode, links: NodeLinks, depth: int = 0) -> None:
+    def build_relations(
+        self, pnode: PositionNode, links: NodeLinks, depth: int = 0
+    ) -> None:
         # Get all links connected to the input sockets of the node
         input_links: list[tuple[NodeLink, None | PositionNode]] = []
         for link in links:
@@ -209,7 +215,7 @@ class TreePositioner():
                         continue
                     new_node = link.from_node
                     new_node.select = True
-                    child = PositionNode(new_node, depth=depth+1)
+                    child = PositionNode(new_node, depth=depth + 1)
                     self.visited_nodes.append(child)
                     sorted_children.append((child, True))
 
@@ -219,17 +225,19 @@ class TreePositioner():
         pnode.set_children(children_only)
         root_node = pnode
         for i, child in enumerate(children_only):
-            if i < len(children_only)-1:
-                child.right_sibling = children_only[i+1]
+            if i < len(children_only) - 1:
+                child.right_sibling = children_only[i + 1]
             if i > 0:
-                child.left_sibling = children_only[i-1]
+                child.left_sibling = children_only[i - 1]
             child.parent = root_node
         for child, needs_building in sorted_children:
             if needs_building:
-                self.build_relations(child, links, depth=depth+1)
+                self.build_relations(child, links, depth=depth + 1)
 
     # Same as `build_relations`, but parent-children relationship is inverted.
-    def build_relations_inverted(self, pnode: PositionNode, links: NodeLinks, depth: int = 0) -> None:
+    def build_relations_inverted(
+        self, pnode: PositionNode, links: NodeLinks, depth: int = 0
+    ) -> None:
         # Get all links connected to the output sockets of the node
         output_links: list[tuple[NodeLink, None | PositionNode]] = []
         for link in links:
@@ -279,7 +287,7 @@ class TreePositioner():
                         continue
                     new_node = link.to_node
                     new_node.select = True
-                    child = PositionNode(new_node, depth=depth+1)
+                    child = PositionNode(new_node, depth=depth + 1)
                     self.visited_nodes.append(child)
                     sorted_children.append((child, True))
 
@@ -289,20 +297,21 @@ class TreePositioner():
         pnode.set_children(children_only)
         root_node = pnode
         for i, child in enumerate(children_only):
-            if i < len(children_only)-1:
-                child.right_sibling = children_only[i+1]
+            if i < len(children_only) - 1:
+                child.right_sibling = children_only[i + 1]
             if i > 0:
-                child.left_sibling = children_only[i-1]
+                child.left_sibling = children_only[i - 1]
             child.parent = root_node
         for child, needs_building in sorted_children:
             if needs_building:
-                self.build_relations_inverted(child, links, depth=depth+1)
+                self.build_relations_inverted(child, links, depth=depth + 1)
 
-    def place_nodes(self,
-                    root_nodes: list[Node] | Node,
-                    links: NodeLinks,
-                    cursor_loc: tuple[int, int] | None = None
-                    ) -> tuple[float, float] | None:
+    def place_nodes(
+        self,
+        root_nodes: list[Node] | Node,
+        links: NodeLinks,
+        cursor_loc: tuple[int, int] | None = None,
+    ) -> tuple[float, float] | None:
         """
         Aranges the nodes connected to `root_node` so that the top
         left corner lines up with `cursor_loc`. If `cursor_loc` is `None`,
@@ -325,10 +334,10 @@ class TreePositioner():
             r_nodes = self.visited_nodes.copy()
             root_node.set_children(r_nodes)
             for i, child in enumerate(r_nodes):
-                if i < len(r_nodes)-1:
-                    child.right_sibling = r_nodes[i+1]
+                if i < len(r_nodes) - 1:
+                    child.right_sibling = r_nodes[i + 1]
                 if i > 0:
-                    child.left_sibling = r_nodes[i-1]
+                    child.left_sibling = r_nodes[i - 1]
                 child.parent = root_node
             for pnode in r_nodes:
                 if self.invert_relations:
@@ -354,32 +363,31 @@ class TreePositioner():
             offset_x = cursor_loc[0] - self.min_x_loc
             offset_y = cursor_loc[1] - self.max_y_loc
         else:
-            offset_x = old_root_node_pos_x-root_node.get_x()
-            offset_y = old_root_node_pos_y-root_node.get_y()
+            offset_x = old_root_node_pos_x - root_node.get_x()
+            offset_y = old_root_node_pos_y - root_node.get_y()
         for pnode in self.visited_nodes:
-
             pnode.set_x(pnode.get_x() + offset_x)
             pnode.set_y(pnode.get_y() + offset_y)
-            if 'NodeReroute' in pnode.node.bl_idname:
+            if "NodeReroute" in pnode.node.bl_idname:
                 # It looks weird if it is placed at the top. This makes it a bit
                 # more centrally placed, near the sockets.
-                pnode.set_y(pnode.get_y()-30)
+                pnode.set_y(pnode.get_y() - 30)
             if self.invert_relations:
                 # Mirror everything along the x axis relative to the root node.
-                pnode.set_x(old_root_node_pos_x -
-                            (pnode.get_x() - old_root_node_pos_x))
+                pnode.set_x(old_root_node_pos_x - (pnode.get_x() - old_root_node_pos_x))
         if cursor_loc is not None:
-            return (cursor_loc[0]+self.max_x_loc-self.min_x_loc, cursor_loc[1])
+            return (cursor_loc[0] + self.max_x_loc - self.min_x_loc, cursor_loc[1])
         return None
 
-    def get_leftmost(self, node: PositionNode, level: int, depth: int) -> PositionNode | None:
+    def get_leftmost(
+        self, node: PositionNode, level: int, depth: int
+    ) -> PositionNode | None:
         if level >= depth:
             return node
         if node.is_leaf():
             return None
         rightmost = cast(PositionNode, node.first_child)
-        leftmost = cast(PositionNode, self.get_leftmost(
-            rightmost, level + 1, depth))
+        leftmost = cast(PositionNode, self.get_leftmost(rightmost, level + 1, depth))
         while leftmost is None and rightmost.has_right():
             rightmost = cast(PositionNode, rightmost.right_sibling)
             leftmost = self.get_leftmost(rightmost, level + 1, depth)
@@ -405,21 +413,21 @@ class TreePositioner():
             ancestor_neighbour = neighbour
 
             for _ in range(compare_depth):
-                ancestor_leftmost = cast(
-                    PositionNode, ancestor_leftmost.parent)
-                ancestor_neighbour = cast(
-                    PositionNode,  ancestor_neighbour.parent)
+                ancestor_leftmost = cast(PositionNode, ancestor_leftmost.parent)
+                ancestor_neighbour = cast(PositionNode, ancestor_neighbour.parent)
                 right_mod_sum += ancestor_leftmost.modifier
 
                 left_mod_sum += ancestor_neighbour.modifier
 
             # Find the move_distance and apply it to the node's subtree
             # Add appropriate portions to smaller interior subtrees
-            move_distance: int = neighbour.prelim_y +\
-                left_mod_sum + \
-                self.subtree_separation + \
-                neighbour.get_height() - \
-                (leftmost.prelim_y + right_mod_sum)
+            move_distance: int = (
+                neighbour.prelim_y
+                + left_mod_sum
+                + self.subtree_separation
+                + neighbour.get_height()
+                - (leftmost.prelim_y + right_mod_sum)
+            )
             if move_distance > 0:
                 tmp: None | PositionNode = node
                 left_siblings = 0
@@ -430,7 +438,7 @@ class TreePositioner():
                 if tmp is not None:
                     # Apply portions to appropriate left sibling
                     # subtrees
-                    portion = move_distance//left_siblings
+                    portion = move_distance // left_siblings
                     tmp = node
                     while tmp != ancestor_neighbour:
                         tmp.prelim_y += move_distance
@@ -461,46 +469,57 @@ class TreePositioner():
         node.modifier = 0
         if node.is_leaf():
             if node.has_left():
-                node.prelim_y = cast(PositionNode, node.left_sibling).prelim_y + \
-                    self.sibling_separation + \
-                    cast(PositionNode, node.left_sibling).get_height()
+                node.prelim_y = (
+                    cast(PositionNode, node.left_sibling).prelim_y
+                    + self.sibling_separation
+                    + cast(PositionNode, node.left_sibling).get_height()
+                )
             else:
                 node.prelim_y = 0
         else:
             # It's not a leaf, so recursively call for children
             leftmost = rightmost = cast(PositionNode, node.first_child)
-            self.first_walk(leftmost, level+1)
+            self.first_walk(leftmost, level + 1)
             while rightmost.has_right():
                 rightmost = cast(PositionNode, rightmost.right_sibling)
-                self.first_walk(rightmost, level+1)
-            mid = (leftmost.prelim_y + rightmost.prelim_y)//2
+                self.first_walk(rightmost, level + 1)
+            mid = (leftmost.prelim_y + rightmost.prelim_y) // 2
             if node.has_left():
-                node.prelim_y = cast(PositionNode, node.left_sibling).prelim_y + \
-                    self.sibling_separation + \
-                    cast(PositionNode, node.left_sibling).get_height()
+                node.prelim_y = (
+                    cast(PositionNode, node.left_sibling).prelim_y
+                    + self.sibling_separation
+                    + cast(PositionNode, node.left_sibling).get_height()
+                )
                 node.modifier = node.prelim_y - mid
                 self.apportion(node)
             else:
                 node.prelim_y = mid
         self.max_width_per_level[level] = max(
-            node.width, self.max_width_per_level[level])
+            node.width, self.max_width_per_level[level]
+        )
 
-    def second_walk(self, node: PositionNode, level: int, width_sum_x: int, mod_sum_y: int):
+    def second_walk(
+        self, node: PositionNode, level: int, width_sum_x: int, mod_sum_y: int
+    ):
         x = self.x_top_adjustment - width_sum_x
         y = self.y_top_adjustment - node.prelim_y - mod_sum_y
         self.min_x_loc = min(x, self.min_x_loc)
-        self.min_y_loc = min(y+node.get_height(), self.min_y_loc)
-        self.max_x_loc = max(x+node.get_width(), self.max_x_loc)
+        self.min_y_loc = min(y + node.get_height(), self.min_y_loc)
+        self.max_x_loc = max(x + node.get_width(), self.max_x_loc)
         self.max_y_loc = max(y, self.max_y_loc)
         node.set_x(x)
         node.set_y(y)
         self.visited_nodes.append(node)
         if not node.is_leaf():
-            self.second_walk(cast(PositionNode, node.first_child), level + 1,
-                             width_sum_x +
-                             self.max_width_per_level[level+1] +
-                             self.level_separation,
-                             mod_sum_y + node.modifier)
+            self.second_walk(
+                cast(PositionNode, node.first_child),
+                level + 1,
+                width_sum_x
+                + self.max_width_per_level[level + 1]
+                + self.level_separation,
+                mod_sum_y + node.modifier,
+            )
         if node.has_right():
-            self.second_walk(cast(PositionNode, node.right_sibling),
-                             level, width_sum_x, mod_sum_y)
+            self.second_walk(
+                cast(PositionNode, node.right_sibling), level, width_sum_x, mod_sum_y
+            )

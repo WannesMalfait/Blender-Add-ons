@@ -30,6 +30,7 @@ bl_info = {
 # Reload other modules as well
 if "bpy" in locals():
     import importlib
+
     importlib.reload(generate_node_info)
     importlib.reload(main)
     importlib.reload(mf_parser)
@@ -51,7 +52,7 @@ class MFMathFormula(bpy.types.AddonPreferences):
         name="Custom implementations Folder",
         description="The folder where custom implementations should be loaded from",
         default=file_loading.custom_implementations_dir,
-        subtype='DIR_PATH',
+        subtype="DIR_PATH",
     )
 
     font_size: bpy.props.IntProperty(
@@ -86,79 +87,84 @@ class MFMathFormula(bpy.types.AddonPreferences):
         # C586C0
         name="Python Color",
         default=(0.773, 0.525, 0.753),
-        subtype='COLOR',
+        subtype="COLOR",
     )
     number_color: bpy.props.FloatVectorProperty(
         # B5CEA8
         name="Number Color",
         default=(0.71, 0.808, 0.659),
-        subtype='COLOR',
+        subtype="COLOR",
     )
     string_color: bpy.props.FloatVectorProperty(
         # CE9178
-        name='String Color',
+        name="String Color",
         default=(0.808, 0.569, 0.471),
-        subtype='COLOR',
+        subtype="COLOR",
     )
     default_color: bpy.props.FloatVectorProperty(
         name="Default Color",
         default=(1.0, 1.0, 1.0),
-        subtype='COLOR',
+        subtype="COLOR",
     )
     keyword_color: bpy.props.FloatVectorProperty(
         # 569CD6
         name="Keyword Color",
         default=(0.337, 0.612, 0.839),
-        subtype='COLOR',
+        subtype="COLOR",
     )
     type_color: bpy.props.FloatVectorProperty(
         # 4EC9B0
         name="Type Color",
         default=(0.306, 0.788, 0.69),
-        subtype='COLOR',
+        subtype="COLOR",
     )
     function_color: bpy.props.FloatVectorProperty(
         # DCDCAA
         name="Function Color",
         default=(0.863, 0.863, 0.667),
-        subtype='COLOR',
+        subtype="COLOR",
     )
     error_color: bpy.props.FloatVectorProperty(
         # F44747
         name="Error Color",
         default=(0.957, 0.278, 0.278),
-        subtype='COLOR',
+        subtype="COLOR",
     )
 
     def draw(self: bpy.types.AddonPreferences, context: bpy.types.Context):
         layout = self.layout
         col = layout.column()
-        col.prop(self, 'font_size')
-        col.prop(self, 'node_distance')
-        col.prop(self, 'sibling_distance')
-        col.prop(self, 'subtree_distance')
+        col.prop(self, "font_size")
+        col.prop(self, "node_distance")
+        col.prop(self, "sibling_distance")
+        col.prop(self, "subtree_distance")
         col.separator()
-        col.prop(self, 'custom_implementations_folder')
+        col.prop(self, "custom_implementations_folder")
         col.label(
-            text=f'{file_loading.file_data.num_funcs()} custom implementations are currently loaded.')
-        col.operator(file_loading.MF_OT_load_custom_implementations.bl_idname,
-                     icon='FILE_PARENT')
-        props = col.operator(file_loading.MF_OT_load_custom_implementations.bl_idname,
-                             icon='FILE_REFRESH', text='Reload Custom Implementations')
+            text=f"{file_loading.file_data.num_funcs()} custom implementations are currently loaded."
+        )
+        col.operator(
+            file_loading.MF_OT_load_custom_implementations.bl_idname, icon="FILE_PARENT"
+        )
+        props = col.operator(
+            file_loading.MF_OT_load_custom_implementations.bl_idname,
+            icon="FILE_REFRESH",
+            text="Reload Custom Implementations",
+        )
         props.force_update = True
         col.separator()
-        col.prop(self, 'show_colors')
+        col.prop(self, "show_colors")
         if self.show_colors:
             box = layout.box()
             box.label(text="Syntax Highlighting")
-            box.prop(self, 'python_color')
-            box.prop(self, 'number_color')
-            box.prop(self, 'string_color')
-            box.prop(self, 'default_color')
-            box.prop(self, 'keyword_color')
-            box.prop(self, 'type_color')
-            box.prop(self, 'function_color')
-            box.prop(self, 'error_color')
+            box.prop(self, "python_color")
+            box.prop(self, "number_color")
+            box.prop(self, "string_color")
+            box.prop(self, "default_color")
+            box.prop(self, "keyword_color")
+            box.prop(self, "type_color")
+            box.prop(self, "function_color")
+            box.prop(self, "error_color")
         col = layout.column()
         col.label(text="Keymaps:")
         kc = bpy.context.window_manager.keyconfigs.addon
@@ -176,20 +182,19 @@ class MF_Settings(bpy.types.PropertyGroup):
     )
     add_frame: bpy.props.BoolProperty(
         name="Add Frame",
-        description='Put all the nodes in a frame',
+        description="Put all the nodes in a frame",
         default=False,
     )
 
 
 class MF_PT_add_panel(bpy.types.Panel, main.MFBase):
     bl_idname = "NODE_PT_mf_add_math_formula"
-    bl_space_type = 'NODE_EDITOR'
+    bl_space_type = "NODE_EDITOR"
     bl_label = "Add Math Formula"
     bl_region_type = "UI"
     bl_category = "Math Formula"
 
     def draw(self, context: bpy.types.Context):
-
         # Helper variables
         layout = self.layout
         scene = context.scene
@@ -197,8 +202,8 @@ class MF_PT_add_panel(bpy.types.Panel, main.MFBase):
 
         col = layout.column(align=True)
         col.label(text="Addon Preferences has more settings")
-        col.prop(props, 'formula')
-        col.prop(props, 'add_frame')
+        col.prop(props, "formula")
+        col.prop(props, "add_frame")
         col.separator()
         col.operator(main.MF_OT_math_formula_add.bl_idname)
         if context.active_node is not None:
@@ -209,13 +214,12 @@ class MF_PT_add_panel(bpy.types.Panel, main.MFBase):
 
 class MF_PT_file_panel(bpy.types.Panel, main.MFBase):
     bl_idname = "NODE_PT_mf_files"
-    bl_space_type = 'NODE_EDITOR'
+    bl_space_type = "NODE_EDITOR"
     bl_label = "Change File Settings"
     bl_region_type = "UI"
     bl_category = "Math Formula"
 
     def draw(self, context: bpy.types.Context):
-
         # Helper variables
         layout = self.layout
         scene = context.scene
@@ -223,36 +227,98 @@ class MF_PT_file_panel(bpy.types.Panel, main.MFBase):
 
         col = layout.column(align=True)
         col.label(
-            text=f'{file_loading.file_data.num_funcs()} custom implementations are currently loaded.')
-        col.operator(file_loading.MF_OT_load_custom_implementations.bl_idname,
-                     icon='FILE_PARENT')
-        props = col.operator(file_loading.MF_OT_load_custom_implementations.bl_idname,
-                             icon='FILE_REFRESH', text='Reload Custom Implementations')
+            text=f"{file_loading.file_data.num_funcs()} custom implementations are currently loaded."
+        )
+        col.operator(
+            file_loading.MF_OT_load_custom_implementations.bl_idname, icon="FILE_PARENT"
+        )
+        props = col.operator(
+            file_loading.MF_OT_load_custom_implementations.bl_idname,
+            icon="FILE_REFRESH",
+            text="Reload Custom Implementations",
+        )
         props.force_update = True
-        col.operator(file_loading.MF_OT_generate_node_info.bl_idname,
-                     icon='FILE_REFRESH')
+        col.operator(
+            file_loading.MF_OT_generate_node_info.bl_idname, icon="FILE_REFRESH"
+        )
 
 
 addon_keymaps = []
 kmi_defs = [
     # kmi_defs entry: (identifier, key, action, CTRL, SHIFT, ALT, props)
     # props entry: (property name, property value)
-    (main.MF_OT_arrange_from_root.bl_idname,
-     'E', 'PRESS', False, False, False, (('selected_only', False), ('invert_relations', False))),
-    (main.MF_OT_arrange_from_root.bl_idname,
-     'E', 'PRESS', False, False, True, (('selected_only', True), ('invert_relations', False))),
-    (main.MF_OT_arrange_from_root.bl_idname,
-     'E', 'PRESS', False, True, False, (('selected_only', False), ('invert_relations', True))),
-    (main.MF_OT_arrange_from_root.bl_idname,
-     'E', 'PRESS', False, True, True, (('selected_only', True), ('invert_relations', True))),
-    (main.MF_OT_select_from_root.bl_idname,
-     'K', 'PRESS', False, False, False, (('select_children', True), ('select_parents', True))),
-    (main.MF_OT_select_from_root.bl_idname,
-     'K', 'PRESS', True, False, False, (('select_children', True), ('select_parents', False))),
-    (main.MF_OT_select_from_root.bl_idname,
-     'K', 'PRESS', False, True, False, (('select_children', False), ('select_parents', True))),
-    (main.MF_OT_type_formula_then_add_nodes.bl_idname,
-     'F', 'PRESS', False, False, True, None),
+    (
+        main.MF_OT_arrange_from_root.bl_idname,
+        "E",
+        "PRESS",
+        False,
+        False,
+        False,
+        (("selected_only", False), ("invert_relations", False)),
+    ),
+    (
+        main.MF_OT_arrange_from_root.bl_idname,
+        "E",
+        "PRESS",
+        False,
+        False,
+        True,
+        (("selected_only", True), ("invert_relations", False)),
+    ),
+    (
+        main.MF_OT_arrange_from_root.bl_idname,
+        "E",
+        "PRESS",
+        False,
+        True,
+        False,
+        (("selected_only", False), ("invert_relations", True)),
+    ),
+    (
+        main.MF_OT_arrange_from_root.bl_idname,
+        "E",
+        "PRESS",
+        False,
+        True,
+        True,
+        (("selected_only", True), ("invert_relations", True)),
+    ),
+    (
+        main.MF_OT_select_from_root.bl_idname,
+        "K",
+        "PRESS",
+        False,
+        False,
+        False,
+        (("select_children", True), ("select_parents", True)),
+    ),
+    (
+        main.MF_OT_select_from_root.bl_idname,
+        "K",
+        "PRESS",
+        True,
+        False,
+        False,
+        (("select_children", True), ("select_parents", False)),
+    ),
+    (
+        main.MF_OT_select_from_root.bl_idname,
+        "K",
+        "PRESS",
+        False,
+        True,
+        False,
+        (("select_children", False), ("select_parents", True)),
+    ),
+    (
+        main.MF_OT_type_formula_then_add_nodes.bl_idname,
+        "F",
+        "PRESS",
+        False,
+        False,
+        True,
+        None,
+    ),
 ]
 
 classes = (
@@ -273,18 +339,18 @@ def register():
     addon_keymaps.clear()
     kc = bpy.context.window_manager.keyconfigs.addon
     if kc:
-        km = kc.keymaps.new(name='Node Editor', space_type="NODE_EDITOR")
-        for (identifier, key, action, CTRL, SHIFT, ALT, props) in kmi_defs:
+        km = kc.keymaps.new(name="Node Editor", space_type="NODE_EDITOR")
+        for identifier, key, action, CTRL, SHIFT, ALT, props in kmi_defs:
             kmi = km.keymap_items.new(
-                identifier, key, action, ctrl=CTRL, shift=SHIFT, alt=ALT)
+                identifier, key, action, ctrl=CTRL, shift=SHIFT, alt=ALT
+            )
             kmi.active = True
             if props:
                 for prop, value in props:
                     setattr(kmi.properties, prop, value)
             addon_keymaps.append((km, kmi))
 
-    bpy.types.Scene.math_formula_add = bpy.props.PointerProperty(
-        type=MF_Settings)
+    bpy.types.Scene.math_formula_add = bpy.props.PointerProperty(type=MF_Settings)
 
 
 def unregister():

@@ -24,6 +24,7 @@ class DataType(IntEnum):
 
 # Penalty for converting from type a to type b
 # Higher means worse; 1000 means never do this conversion
+# fmt: off
 dtype_conversion_penalties = (
     (0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
     (0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
@@ -51,28 +52,32 @@ dtype_conversion_penalties = (
     (0, 0, 1000, 1000, 1000, 1000, 1000, 1000,
      1000, 1000, 1000, 1000, 1000, 1000, 1000, 0),
 )
-assert DataType.ROTATION.value == len(
-    dtype_conversion_penalties)-1, 'Correct table size'
-assert DataType.ROTATION.value == len(
-    dtype_conversion_penalties[0])-1, 'Correct table size'
+# fmt: on
+
+assert (
+    DataType.ROTATION.value == len(dtype_conversion_penalties) - 1
+), "Correct table size"
+assert (
+    DataType.ROTATION.value == len(dtype_conversion_penalties[0]) - 1
+), "Correct table size"
 
 string_to_data_type = {
-    '_': DataType.UNKNOWN,
-    '': DataType.DEFAULT,
-    'bool': DataType.BOOL,
-    'int': DataType.INT,
-    'float': DataType.FLOAT,
-    'rgba': DataType.RGBA,
-    'vec3': DataType.VEC3,
-    'geo': DataType.GEOMETRY,
-    'str': DataType.STRING,
-    'shader': DataType.SHADER,
-    'obj': DataType.OBJECT,
-    'img': DataType.IMAGE,
-    'collection': DataType.COLLECTION,
-    'tex': DataType.TEXTURE,
-    'mat': DataType.MATERIAL,
-    'quaternion': DataType.ROTATION,
+    "_": DataType.UNKNOWN,
+    "": DataType.DEFAULT,
+    "bool": DataType.BOOL,
+    "int": DataType.INT,
+    "float": DataType.FLOAT,
+    "rgba": DataType.RGBA,
+    "vec3": DataType.VEC3,
+    "geo": DataType.GEOMETRY,
+    "str": DataType.STRING,
+    "shader": DataType.SHADER,
+    "obj": DataType.OBJECT,
+    "img": DataType.IMAGE,
+    "collection": DataType.COLLECTION,
+    "tex": DataType.TEXTURE,
+    "mat": DataType.MATERIAL,
+    "quaternion": DataType.ROTATION,
 }
 
 ValueType = Union[bool, int, float, list[float], str, None]
@@ -131,7 +136,7 @@ class NodeInstance:
     props: list[tuple[str, ValueType]]
 
 
-class Operation():
+class Operation:
     def __init__(self, op_type: OpType, data) -> None:
         self.op_type = op_type
         self.data = data
@@ -143,7 +148,7 @@ class Operation():
         return self.__str__()
 
 
-class FileData():
+class FileData:
     def __init__(self) -> None:
         self.geometry_nodes: dict[str, list[TyFunction]] = {}
         self.shader_nodes: dict[str, list[TyFunction]] = {}
@@ -243,14 +248,14 @@ class TyOut(ty_stmt):
 
 
 @dataclass
-class CompiledFunction():
+class CompiledFunction:
     inputs: list[str]
     body: list[Operation]
     num_outputs: int
 
 
 @dataclass
-class CompiledNodeGroup():
+class CompiledNodeGroup:
     name: str
     inputs: list[TyArg]
     outputs: list[TyArg]

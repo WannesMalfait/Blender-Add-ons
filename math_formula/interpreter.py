@@ -14,8 +14,7 @@ from .backends.type_defs import (
 )
 
 
-class Interpreter():
-
+class Interpreter:
     def __init__(self, tree: bpy.types.NodeTree) -> None:
         self.tree = tree
         self.stack: list[ValueType | NodeSocket | list[NodeSocket]] = []
@@ -25,56 +24,55 @@ class Interpreter():
         # TODO: Fill this with existing node trees in the blend file.
         self.node_group_trees: dict[str, bpy.types.NodeTree] = {}
         # Variables in the form of output sockets
-        self.variables: dict[str, ValueType |
-                             NodeSocket | list[NodeSocket]] = {}
+        self.variables: dict[str, ValueType | NodeSocket | list[NodeSocket]] = {}
         self.function_outputs: list[NodeSocket | None] = []
 
     def operation(self, operation: Operation):
         op_type = operation.op_type
         op_data = operation.data
-        assert OpType.END_OF_STATEMENT.value == 11, 'Exhaustive handling of Operation types.'
+        assert (
+            OpType.END_OF_STATEMENT.value == 11
+        ), "Exhaustive handling of Operation types."
         if op_type == OpType.PUSH_VALUE:
             self.stack.append(op_data)
         elif op_type == OpType.CREATE_VAR:
-            assert isinstance(
-                op_data, str), 'Variable name should be a string.'
+            assert isinstance(op_data, str), "Variable name should be a string."
             socket = self.stack.pop()
             assert isinstance(
-                socket, (NodeSocket, list)), 'Create var expects a node socket or struct.'
+                socket, (NodeSocket, list)
+            ), "Create var expects a node socket or struct."
             if isinstance(socket, list):
                 socket = cast(list[NodeSocket], socket)
             self.variables[op_data] = socket
         elif op_type == OpType.GET_VAR:
-            assert isinstance(
-                op_data, str), 'Variable name should be a string.'
+            assert isinstance(op_data, str), "Variable name should be a string."
             self.stack.append(self.variables[op_data])
         elif op_type == OpType.GET_OUTPUT:
-            assert isinstance(
-                op_data, int), 'Bug in type checker, index should be int.'
+            assert isinstance(op_data, int), "Bug in type checker, index should be int."
             index = op_data
             struct = self.stack.pop()
             assert isinstance(
-                struct, list), 'Bug in type checker, GET_OUTPUT only works on structs.'
+                struct, list
+            ), "Bug in type checker, GET_OUTPUT only works on structs."
             # Index order is reversed
-            self.stack.append(struct[-index-1])
+            self.stack.append(struct[-index - 1])
         elif op_type == OpType.SET_OUTPUT:
-            assert isinstance(
-                op_data, tuple), 'Data should be tuple of index and value'
+            assert isinstance(op_data, tuple), "Data should be tuple of index and value"
             index, value = op_data
             self.nodes[-1].outputs[index].default_value = value  # type: ignore
         elif op_type == OpType.SET_FUNCTION_OUT:
-            assert isinstance(op_data, int), 'Data should be an index'
+            assert isinstance(op_data, int), "Data should be an index"
             socket = self.stack.pop()
             assert isinstance(socket, NodeSocket)
             self.function_outputs[op_data] = socket
         elif op_type == OpType.SPLIT_STRUCT:
             struct = self.stack.pop()
             assert isinstance(
-                struct, list), 'Bug in type checker, GET_OUTPUT only works on structs.'
+                struct, list
+            ), "Bug in type checker, GET_OUTPUT only works on structs."
             self.stack += struct
         elif op_type == OpType.CALL_FUNCTION:
-            assert isinstance(
-                op_data, CompiledFunction), 'Bug in type checker.'
+            assert isinstance(op_data, CompiledFunction), "Bug in type checker."
             args = self.get_args(self.stack, len(op_data.inputs))
             # Store state outside function, and prepare state in function
             outer_vars = self.variables
@@ -82,8 +80,7 @@ class Interpreter():
             for name, arg in zip(op_data.inputs, args):
                 self.variables[name] = arg
             outer_function_outputs = self.function_outputs
-            self.function_outputs = [None
-                                     for _ in range(op_data.num_outputs)]
+            self.function_outputs = [None for _ in range(op_data.num_outputs)]
             outer_stack = self.stack
             self.stack = []
             # Execute function
@@ -98,19 +95,20 @@ class Interpreter():
             elif len(self.function_outputs) > 1:
                 for output in self.function_outputs:
                     assert isinstance(output, NodeSocket)
-                self.stack.append(
-                    list(reversed(self.function_outputs)))  # type: ignore
+                self.stack.append(list(reversed(self.function_outputs)))  # type: ignore
             self.function_outputs = outer_function_outputs
             self.variables = outer_vars
         elif op_type == OpType.CALL_NODEGROUP:
-            assert isinstance(
-                op_data, CompiledNodeGroup), 'Bug in type checker.'
+            assert isinstance(op_data, CompiledNodeGroup), "Bug in type checker."
             args = self.get_args(self.stack, len(op_data.inputs))
             self.execute_node_group(op_data, args)
         elif op_type == OpType.CALL_BUILTIN:
-            assert isinstance(op_data, NodeInstance), 'Bug in compiler.'
+            assert isinstance(op_data, NodeInstance), "Bug in compiler."
             args = self.get_args(self.stack, len(op_data.inputs))
-            node = self.add_builtin(op_data, args,)
+            node = self.add_builtin(
+                op_data,
+                args,
+            )
             outputs = op_data.outputs
             if len(outputs) == 1:
                 self.stack.append(node.outputs[outputs[0]])
@@ -122,7 +120,7 @@ class Interpreter():
         elif op_type == OpType.END_OF_STATEMENT:
             self.stack = []
         else:
-            print(f'Need implementation of {op_type}')
+            print(f"Need implementation of {op_type}")
             raise NotImplementedError
 
     def get_args(self, stack: list, num_args: int) -> list[ValueType]:
@@ -132,7 +130,9 @@ class Interpreter():
         stack[:] = stack[:-num_args]
         return args
 
-    def add_builtin(self, node_info: NodeInstance, args: list[ValueType]) -> bpy.types.Node:
+    def add_builtin(
+        self, node_info: NodeInstance, args: list[ValueType]
+    ) -> bpy.types.Node:
         tree = self.tree
         node = tree.nodes.new(type=node_info.key)
         for name, value in node_info.props:
@@ -145,58 +145,59 @@ class Interpreter():
                 node.inputs[input_index].default_value = arg  # type: ignore
         return node
 
-    @ staticmethod
+    @staticmethod
     def data_type_to_socket_type(dtype: DataType) -> str:
         if dtype == DataType.BOOL:
-            return 'NodeSocketBool'
+            return "NodeSocketBool"
         elif dtype == DataType.INT:
-            return 'NodeSocketInt'
+            return "NodeSocketInt"
         elif dtype == DataType.FLOAT:
-            return 'NodeSocketFloat'
+            return "NodeSocketFloat"
         elif dtype == DataType.RGBA:
-            return 'NodeSocketColor'
+            return "NodeSocketColor"
         elif dtype == DataType.VEC3:
-            return 'NodeSocketVector'
+            return "NodeSocketVector"
         elif dtype == DataType.GEOMETRY:
-            return 'NodeSocketGeometry'
+            return "NodeSocketGeometry"
         elif dtype == DataType.STRING:
-            return 'NodeSocketString'
+            return "NodeSocketString"
         elif dtype == DataType.SHADER:
-            return 'NodeSocketShader'
+            return "NodeSocketShader"
         elif dtype == DataType.OBJECT:
-            return 'NodeSocketObject'
+            return "NodeSocketObject"
         elif dtype == DataType.IMAGE:
-            return 'NodeSocketImage'
+            return "NodeSocketImage"
         elif dtype == DataType.COLLECTION:
-            return 'NodeSocketCollection'
+            return "NodeSocketCollection"
         elif dtype == DataType.TEXTURE:
-            return 'NodeSocketTexture'
+            return "NodeSocketTexture"
         elif dtype == DataType.MATERIAL:
-            return 'NodeSocketMaterial'
+            return "NodeSocketMaterial"
         elif dtype == DataType.ROTATION:
-            return 'NodeSocketRotation'
+            return "NodeSocketRotation"
         else:
-            assert False, 'Unreachable'
+            assert False, "Unreachable"
 
     def execute_node_group(self, node_group: CompiledNodeGroup, args: list[ValueType]):
         if node_group.name in self.node_group_trees:
             node_tree = self.node_group_trees[node_group.name]
         else:
             # Create the node group's inner tree:
-            node_tree = bpy.data.node_groups.new(
-                node_group.name, self.tree.bl_idname)
+            node_tree = bpy.data.node_groups.new(node_group.name, self.tree.bl_idname)
             for input in node_group.inputs:
                 in_socket = node_tree.inputs.new(
-                    self.data_type_to_socket_type(input.dtype), input.name)
+                    self.data_type_to_socket_type(input.dtype), input.name
+                )
                 if input.value is not None:
                     in_socket.default_value = input.value  # type: ignore
             for output in node_group.outputs:
                 out_socket = node_tree.outputs.new(
-                    self.data_type_to_socket_type(output.dtype), output.name)
+                    self.data_type_to_socket_type(output.dtype), output.name
+                )
                 if output.value is not None:
                     out_socket.default_value = output.value  # type: ignore
-            group_input = node_tree.nodes.new('NodeGroupInput')
-            group_output = node_tree.nodes.new('NodeGroupOutput')
+            group_input = node_tree.nodes.new("NodeGroupInput")
+            group_output = node_tree.nodes.new("NodeGroupOutput")
 
             # Store state outside node group, and prepare state in node group
             outer_tree = self.tree
@@ -206,8 +207,7 @@ class Interpreter():
             for socket in group_input.outputs:
                 self.variables[socket.name] = socket
             outer_function_outputs = self.function_outputs
-            self.function_outputs = [
-                None for _ in range(len(node_group.outputs))]
+            self.function_outputs = [None for _ in range(len(node_group.outputs))]
             outer_stack = self.stack
             self.stack = []
             # Execute node group
@@ -219,9 +219,7 @@ class Interpreter():
                 if isinstance(foutput, NodeSocket):
                     node_tree.links.new(foutput, group_output.inputs[index])
                 elif output is not None:
-                    group_output.\
-                        inputs[index].\
-                        default_value = foutput  # type: ignore
+                    group_output.inputs[index].default_value = foutput  # type: ignore
 
             # Restore state outside node group
             self.stack = outer_stack
@@ -232,7 +230,11 @@ class Interpreter():
             self.node_group_trees[node_group.name] = node_tree
 
         # Add the group and connect the arguments
-        group_name = 'GeometryNodeGroup' if self.tree.bl_idname == 'GeometryNodeTree' else 'ShaderNodeGroup'
+        group_name = (
+            "GeometryNodeGroup"
+            if self.tree.bl_idname == "GeometryNodeTree"
+            else "ShaderNodeGroup"
+        )
         node = self.tree.nodes.new(group_name)
         node = cast(bpy.types.NodeGroup, node)
         node.node_tree = node_tree
@@ -246,5 +248,6 @@ class Interpreter():
         if len(node.outputs) == 1:
             self.stack.append(node.outputs[0])
         elif len(node.outputs) > 1:
-            self.stack.append([node.outputs[i]
-                               for i in reversed(range(len(node.outputs)))])
+            self.stack.append(
+                [node.outputs[i] for i in reversed(range(len(node.outputs)))]
+            )

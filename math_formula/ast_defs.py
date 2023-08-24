@@ -6,7 +6,7 @@ from .scanner import Token
 
 
 @dataclass
-class Ast():
+class Ast:
     token: Token
 
 
@@ -91,8 +91,9 @@ class expr(stmt):
 
 
 @dataclass
-class Module():
+class Module:
     body: list[stmt] = field(default_factory=list)
+
 
 # Literals
 
@@ -124,6 +125,7 @@ class Rgba(expr):
 @dataclass
 class Name(expr):
     id: str
+
 
 # Expressions
 
@@ -158,6 +160,7 @@ class Call(expr):
     func: Union[Name, Attribute]
     pos_args: list[expr]
     keyword_args: list[Keyword]
+
 
 # Statements
 
@@ -206,12 +209,16 @@ class Loop(stmt):
 
 
 def find(node: Ast, token: Token) -> Union[None, Ast]:
-    if node.token is not None and node.token.line == token.line and node.token.col == token.col:
+    if (
+        node.token is not None
+        and node.token.line == token.line
+        and node.token.col == token.col
+    ):
         return node
     else:
         for nfield in fields(node):
             name = nfield.name
-            if name == 'token':
+            if name == "token":
                 continue
             try:
                 value = getattr(node, name)
@@ -237,14 +244,15 @@ def dump(node, node_type: type = Ast, indent=None):
     integer or string, then the tree will be pretty-printed with that indent
     level. None (the default) selects the single line representation.
     """
+
     def _format(node, level=0):
         if indent is not None:
             level += 1
-            prefix = '\n' + indent * level
-            sep = ',\n' + indent * level
+            prefix = "\n" + indent * level
+            sep = ",\n" + indent * level
         else:
-            prefix = ''
-            sep = ', '
+            prefix = ""
+            sep = ", "
         if isinstance(node, node_type):
             cls = type(node)
             args = []
@@ -252,7 +260,7 @@ def dump(node, node_type: type = Ast, indent=None):
             keywords = True
             for nfield in fields(node):
                 name = nfield.name
-                if name == 'token':
+                if name == "token":
                     continue
                 try:
                     value = getattr(node, name)
@@ -265,21 +273,23 @@ def dump(node, node_type: type = Ast, indent=None):
                 value, simple = _format(value, level)
                 allsimple = allsimple and simple
                 if keywords:
-                    args.append('%s=%s' % (name, value))
+                    args.append("%s=%s" % (name, value))
                 else:
                     args.append(value)
             if allsimple and len(args) <= 3:
-                return '%s(%s)' % (node.__class__.__name__, ', '.join(args)), not args
-            return '%s(%s%s)' % (node.__class__.__name__, prefix, sep.join(args)), False
+                return "%s(%s)" % (node.__class__.__name__, ", ".join(args)), not args
+            return "%s(%s%s)" % (node.__class__.__name__, prefix, sep.join(args)), False
         elif isinstance(node, list):
             if not node:
-                return '[]', True
-            return '[%s%s]' % (prefix, sep.join(_format(x, level)[0] for x in node)), False
+                return "[]", True
+            return (
+                "[%s%s]" % (prefix, sep.join(_format(x, level)[0] for x in node)),
+                False,
+            )
         return repr(node), True
 
     if not isinstance(node, node_type):
-        raise TypeError('expected node_type, got %r' %
-                        node.__class__.__name__)
+        raise TypeError("expected node_type, got %r" % node.__class__.__name__)
     if indent is not None and not isinstance(indent, str):
-        indent = ' ' * indent
+        indent = " " * indent
     return _format(node)[0]

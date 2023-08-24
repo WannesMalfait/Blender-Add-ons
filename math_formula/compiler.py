@@ -6,16 +6,15 @@ from .mf_parser import Error
 from .type_checking import TypeChecker
 
 
-class Compiler():
-
+class Compiler:
     @staticmethod
     def choose_backend(tree_type: str) -> BackEnd:
-        if tree_type == 'GeometryNodeTree':
+        if tree_type == "GeometryNodeTree":
             return GeometryNodesBackEnd()
-        elif tree_type == 'ShaderNodeTree':
+        elif tree_type == "ShaderNodeTree":
             return ShaderNodesBackEnd()
         else:
-            assert False, 'Unreachable, compiler should not be used for other trees.'
+            assert False, "Unreachable, compiler should not be used for other trees."
 
     def __init__(self, tree_type: str, file_data: td.FileData | None = None) -> None:
         self.operations: list[td.Operation] = []
@@ -23,7 +22,11 @@ class Compiler():
         self.back_end: BackEnd = self.choose_backend(tree_type)
         if file_data is not None:
             self.type_checker = TypeChecker(
-                self.back_end, file_data.geometry_nodes if tree_type == 'GeometryNodeTree' else file_data.shader_nodes)
+                self.back_end,
+                file_data.geometry_nodes
+                if tree_type == "GeometryNodeTree"
+                else file_data.shader_nodes,
+            )
         else:
             self.type_checker = TypeChecker(self.back_end, {})
         self.curr_function: td.TyFunction | None = None
@@ -31,7 +34,7 @@ class Compiler():
     def check_functions(self, source: str) -> bool:
         self.type_checker.type_check(source)
         self.errors = self.type_checker.errors
-        return (self.errors == [])
+        return self.errors == []
 
     def compile(self, source: str) -> bool:
         succeeded = self.type_checker.type_check(source)
@@ -66,48 +69,50 @@ class Compiler():
             value = assign.value.value
             dtype = assign.value.dtype[0]
             if isinstance(assign, td.TyAssign):
-                assert isinstance(
-                    target, td.Var), 'Assignment should be to a Var'
-                self.back_end.create_input(
-                    self.operations, target.id, value, dtype)
-                self.operations.append(td.Operation(
-                    td.OpType.CREATE_VAR, target.id))
+                assert isinstance(target, td.Var), "Assignment should be to a Var"
+                self.back_end.create_input(self.operations, target.id, value, dtype)
+                self.operations.append(td.Operation(td.OpType.CREATE_VAR, target.id))
             else:
-                assert isinstance(target, int) and isinstance(
-                    assign, td.TyOut) and self.curr_function is not None
+                assert (
+                    isinstance(target, int)
+                    and isinstance(assign, td.TyOut)
+                    and self.curr_function is not None
+                )
                 self.back_end.create_input(
-                    self.operations, self.curr_function.outputs[target].name, value, dtype)
-                self.operations.append(
-                    td.Operation(td.OpType.SET_FUNCTION_OUT, target))
+                    self.operations,
+                    self.curr_function.outputs[target].name,
+                    value,
+                    dtype,
+                )
+                self.operations.append(td.Operation(td.OpType.SET_FUNCTION_OUT, target))
             return
         # Output will be some node socket, so just simple assignment
         self.compile_expr(assign.value)
         if len(targets) > 1:
             if assign.value.stype == td.StackType.STRUCT:
-                self.operations.append(td.Operation(
-                    td.OpType.SPLIT_STRUCT, None))
+                self.operations.append(td.Operation(td.OpType.SPLIT_STRUCT, None))
             elif assign.value.dtype[0] == td.DataType.VEC3:
-                self.operations.append(td.Operation(td.OpType.CALL_BUILTIN,
-                                                    td.NodeInstance('ShaderNodeSeparateXYZ', [0], [0, 1, 2], [])))
-                self.operations.append(td.Operation(
-                    td.OpType.SPLIT_STRUCT, None))
+                self.operations.append(
+                    td.Operation(
+                        td.OpType.CALL_BUILTIN,
+                        td.NodeInstance("ShaderNodeSeparateXYZ", [0], [0, 1, 2], []),
+                    )
+                )
+                self.operations.append(td.Operation(td.OpType.SPLIT_STRUCT, None))
             elif assign.value.dtype[0] == td.DataType.RGBA:
                 raise NotImplementedError
             else:
-                assert False, 'Unreachable, bug in type checker'
+                assert False, "Unreachable, bug in type checker"
         elif isinstance(assign, td.TyOut) and assign.value.stype == td.StackType.STRUCT:
             self.operations.append(td.Operation(td.OpType.GET_OUTPUT, 0))
         for target in targets:
             if target is None:
                 continue
             if isinstance(assign, td.TyAssign):
-                assert isinstance(
-                    target, td.Var), 'Assignment should be to a Var'
-                self.operations.append(td.Operation(
-                    td.OpType.CREATE_VAR, target.id))
+                assert isinstance(target, td.Var), "Assignment should be to a Var"
+                self.operations.append(td.Operation(td.OpType.CREATE_VAR, target.id))
             else:
-                self.operations.append(
-                    td.Operation(td.OpType.SET_FUNCTION_OUT, target))
+                self.operations.append(td.Operation(td.OpType.SET_FUNCTION_OUT, target))
 
     def compile_expr(self, expr: td.ty_expr):
         if isinstance(expr, td.Const):
@@ -133,7 +138,8 @@ class Compiler():
         compiled_body = self.operations
         self.operations = outer_ops
         return td.CompiledFunction(
-            [i.name for i in func.inputs], compiled_body, len(func.outputs))
+            [i.name for i in func.inputs], compiled_body, len(func.outputs)
+        )
 
     def compile_node_group(self, func: td.TyFunction) -> td.CompiledNodeGroup:
         outer_ops = self.operations
@@ -154,13 +160,18 @@ class Compiler():
         # Add the implicit default arguments here
         for i in range(len(expr.args), len(expr.function.inputs)):
             self.operations.append(
-                td.Operation(td.OpType.PUSH_VALUE, expr.function.inputs[i].value))
+                td.Operation(td.OpType.PUSH_VALUE, expr.function.inputs[i].value)
+            )
         if expr.function.is_node_group:
             self.operations.append(
-                td.Operation(td.OpType.CALL_NODEGROUP, self.compile_node_group(expr.function)))
+                td.Operation(
+                    td.OpType.CALL_NODEGROUP, self.compile_node_group(expr.function)
+                )
+            )
             return
         self.operations.append(
-            td.Operation(td.OpType.CALL_FUNCTION, self.compile_function(expr.function)))
+            td.Operation(td.OpType.CALL_FUNCTION, self.compile_function(expr.function))
+        )
 
     def node_call(self, expr: td.NodeCall):
         for arg in expr.args:
@@ -180,50 +191,51 @@ class Compiler():
         # We should only end up here when we want to 'load' a variable.
         # If the name doesn't exist yet, create a default value
         if var.needs_instantion:
-            self.back_end.create_input(
-                self.operations, var.id, None, var.dtype[0])
+            self.back_end.create_input(self.operations, var.id, None, var.dtype[0])
             self.operations.append(td.Operation(td.OpType.CREATE_VAR, var.id))
         self.operations.append(td.Operation(td.OpType.GET_VAR, var.id))
 
     def get_output(self, get_output: td.GetOutput):
         self.compile_expr(get_output.value)
-        self.operations.append(td.Operation(
-            td.OpType.GET_OUTPUT, get_output.index))
+        self.operations.append(td.Operation(td.OpType.GET_OUTPUT, get_output.index))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import os
-    add_on_dir = os.path.dirname(
-        os.path.realpath(__file__))
-    test_directory = os.path.join(add_on_dir, 'tests')
+
+    add_on_dir = os.path.dirname(os.path.realpath(__file__))
+    test_directory = os.path.join(add_on_dir, "tests")
     filenames = os.listdir(test_directory)
     verbose = 3
     num_passed = 0
     tot_tests = 0
-    BOLD = '\033[1m'
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[96m'
-    ENDC = '\033[0m'
+    BOLD = "\033[1m"
+    GREEN = "\033[92m"
+    RED = "\033[91m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[96m"
+    ENDC = "\033[0m"
     for filename in filenames:
         # if filename != 'functions':
         #     continue
         tot_tests += 1
-        print(f'Testing: {BOLD}{filename}{ENDC}:  ', end='')
-        with open(os.path.join(test_directory, filename), 'r') as f:
-            compiler = Compiler('GeometryNodeTree')
+        print(f"Testing: {BOLD}{filename}{ENDC}:  ", end="")
+        with open(os.path.join(test_directory, filename), "r") as f:
+            compiler = Compiler("GeometryNodeTree")
             try:
                 success = compiler.compile(f.read())
-                print(GREEN + 'No internal errors' + ENDC)
+                print(GREEN + "No internal errors" + ENDC)
                 if verbose > 0:
                     print(
-                        f'{YELLOW}Compiler errors{ENDC}' if not success else f'{BLUE}No compiler errors{ENDC}')
+                        f"{YELLOW}Compiler errors{ENDC}"
+                        if not success
+                        else f"{BLUE}No compiler errors{ENDC}"
+                    )
                 if verbose > 1 and success:
                     print(compiler.errors)
                 if verbose > 2:
-                    print(*compiler.operations, sep='\n')
+                    print(*compiler.operations, sep="\n")
                 num_passed += 1
             except NotImplementedError:
-                print(RED + 'Internal errors' + ENDC)
-    print(f'Tests done: Passed: ({num_passed}/{tot_tests})')
+                print(RED + "Internal errors" + ENDC)
+    print(f"Tests done: Passed: ({num_passed}/{tot_tests})")
