@@ -1,9 +1,8 @@
 from enum import IntEnum, auto
-from typing import Union
-
 
 # See: https://craftinginterpreters.com/scanning-on-demand.html
 # For the original source of this code
+
 
 class TokenType(IntEnum):
     # Single-character tokens.
@@ -71,7 +70,14 @@ class Token():
     - a number `start` which says where in the text the token starts
     """
 
-    def __init__(self, lexeme: str, token_type: TokenType, line: int = 0, col: int = 0, start: int = 0, error: str | None = None) -> None:
+    def __init__(self,
+                 lexeme: str,
+                 token_type: TokenType,
+                 line: int = 0,
+                 col: int = 0,
+                 start: int = 0,
+                 error: str | None = None
+                 ) -> None:
         self.token_type = token_type
         self.start = start
         self.line = line
