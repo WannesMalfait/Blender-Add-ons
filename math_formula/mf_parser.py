@@ -1,9 +1,10 @@
-from . import ast_defs
-from enum import IntEnum, auto
 import math
-from typing import cast, overload, Literal
-from .scanner import TokenType, Token, Scanner
-from .backends.type_defs import string_to_data_type, DataType
+from enum import IntEnum, auto
+from typing import Literal, cast, overload
+
+from . import ast_defs
+from .backends.type_defs import DataType, string_to_data_type
+from .scanner import Scanner, Token, TokenType
 
 
 class Precedence(IntEnum):
@@ -126,7 +127,20 @@ class Parser():
 
     @overload
     def parse_precedence(
-        self, precedence: Precedence, skip_advance=False) -> ast_defs.expr | None: ...
+        self,
+        precedence:
+        Literal[Precedence.OR] |
+        Literal[Precedence.AND] |
+        Literal[Precedence.NOT] |
+        Literal[Precedence.COMPARISON] |
+        Literal[Precedence.TERM] |
+        Literal[Precedence.FACTOR] |
+        Literal[Precedence.UNARY] |
+        Literal[Precedence.EXPONENT] |
+        Literal[Precedence.ATTRIBUTE] |
+        Literal[Precedence.CALL] |
+        Literal[Precedence.PRIMARY],
+        skip_advance=False) -> ast_defs.expr | None: ...
 
     def parse_precedence(self, precedence: Precedence, skip_advance=False) -> ast_defs.stmt | None:
         if not skip_advance:
@@ -134,7 +148,7 @@ class Parser():
         prefix_rule = self.get_rule(self.previous.token_type).prefix
         if prefix_rule is None:
             self.error('Expect expression.')
-            return
+            return None
         can_assign = precedence.value <= Precedence.ASSIGNMENT.value
         prefix_rule(self, can_assign)
         while precedence.value <= self.get_rule(self.current.token_type).precedence.value:
@@ -197,7 +211,7 @@ class Parser():
         # out x,y,z = 10;
         # out x,_,z = position();
         token = self.previous
-        targets = []
+        targets: list[ast_defs.Name | None] = []
         message = 'Expect variable name or "_" after "out".'
         while not self.match(TokenType.EQUAL):
             if self.match(TokenType.IDENTIFIER):
@@ -236,7 +250,9 @@ class Parser():
         self.consume(TokenType.LEFT_BRACE, 'Expect function body.')
         body = []
         while not (self.check(TokenType.RIGHT_BRACE) or self.match(TokenType.EOL)):
-            body.append(self.declaration())
+            if (stmt := self.declaration()) is None:
+                continue
+            body.append(stmt)
         self.consume(TokenType.RIGHT_BRACE, 'Expect closing "}".')
         self.curr_node = None
         return args, body, returns
@@ -287,13 +303,15 @@ class Parser():
         self.consume(TokenType.LEFT_BRACE, 'Expect loop body.')
         body = []
         while not (self.check(TokenType.RIGHT_BRACE) or self.match(TokenType.EOL)):
-            body.append(self.declaration())
+            if (stmt := self.declaration()) is None:
+                continue
+            body.append(stmt)
         self.consume(TokenType.RIGHT_BRACE, 'Expect closing "}".')
         self.curr_node = None
         return ast_defs.Loop(token, var, start, end, body)
 
     def declaration(self) -> ast_defs.stmt | None:
-        node = None
+        node: ast_defs.stmt | None = None
         if self.match(TokenType.OUT):
             node = self.out()
         elif self.match(TokenType.FUNCTION):
@@ -335,12 +353,15 @@ class Parser():
                                 arg_token, arg_token.lexeme, value))
                     else:
                         # Not a keyword so normal argument
-                        pos_args.append(
-                            self.parse_precedence(Precedence.OR, True))
+                        if (pos_arg := self.parse_precedence(Precedence.OR, True)) is None:
+                            return None
+                        pos_args.append(pos_arg)
                 else:
-                    pos_args.append(self.expression())
+                    if (pos_arg := self.expression()) is None:
+                        return None
+                    pos_args.append(pos_arg)
 
-        self.consume(TokenType.RIGHT_PAREN, f'Expect ")" after arguments.')
+        self.consume(TokenType.RIGHT_PAREN, 'Expect ")" after arguments.')
         return pos_args, keyword_args
 
     def synchronize(self) -> None:
@@ -374,10 +395,11 @@ def python(self: Parser, can_assign: bool) -> None:
     except (SyntaxError, NameError, TypeError, ZeroDivisionError) as err:
         self.error(f'Invalid python syntax: {err}.')
     try:
-        value = float(value)
-    except:
-        self.error(f'Expected result of python expression to be a number.')
-    self.curr_node = ast_defs.Constant(token, value, DataType.FLOAT)
+        converted_value = float(value)
+    except ValueError as err:
+        self.error(
+            f'Expected result of python expression to be a number: {err}.')
+    self.curr_node = ast_defs.Constant(token, converted_value, DataType.FLOAT)
 
 
 def default(self: Parser, can_assign: bool) -> None:
@@ -435,9 +457,9 @@ def unary(self: Parser, can_assign: bool) -> None:
     # Compile the operand
     operand = self.parse_precedence(Precedence.UNARY)
     if operand is None:
-        return
+        return None
 
-    unaryop = None
+    unaryop: ast_defs.unaryop | None = None
     if operator_type == TokenType.MINUS:
         unaryop = ast_defs.USub(operator_token)
     elif operator_type == TokenType.NOT:
@@ -451,6 +473,9 @@ def unary(self: Parser, can_assign: bool) -> None:
 
 def make_vector(self: Parser, can_assign: bool) -> None:
     bracket_token = self.previous
+    x: ast_defs.expr | None
+    y: ast_defs.expr | None
+    z: ast_defs.expr | None
     x = y = z = ast_defs.Constant(bracket_token, 0, DataType.DEFAULT)
     if not self.match(TokenType.RIGHT_BRACE):
         x = self.expression()
@@ -460,7 +485,7 @@ def make_vector(self: Parser, can_assign: bool) -> None:
             z = self.expression()
         self.consume(TokenType.RIGHT_BRACE, 'Expect closing "}".')
     if x is None or y is None or z is None:
-        return
+        return None
     self.curr_node = ast_defs.Vec3(bracket_token, x, y, z)
 
 
@@ -470,7 +495,7 @@ def group_name(self: Parser, can_assign: bool) -> None:
     self.consume(TokenType.LEFT_PAREN, 'Expect "(" after node group name.')
     ret = self.call_args()
     if ret is None:
-        return
+        return None
     pos_args, keyword_args = ret
     self.curr_node = ast_defs.Call(token, func, pos_args, keyword_args)
 
@@ -507,7 +532,8 @@ def binary(self: Parser, can_assign: bool) -> None:
     operator_type = operator_token.token_type
     left = self.curr_node
     rule = self.get_rule(operator_type)
-    right = self.parse_precedence(Precedence(rule.precedence.value + 1))
+    right: ast_defs.expr | None = self.parse_precedence(Precedence(
+        rule.precedence.value + 1))  # type: ignore
     if left is None or right is None:
         return
     else:
@@ -515,7 +541,7 @@ def binary(self: Parser, can_assign: bool) -> None:
             right, ast_defs.expr)
 
     # math: + - / * % > < **
-    operation = None
+    operation: ast_defs.operator | None = None
     if operator_type == TokenType.PLUS:
         operation = ast_defs.Add(operator_token)
     elif operator_type == TokenType.MINUS:
