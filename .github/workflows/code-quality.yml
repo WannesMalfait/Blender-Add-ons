@@ -12,6 +12,6 @@ jobs:
         python-version: 3.x
     - run: pip install --upgrade pip
     - run: pip install fake-bpy-module-latest
-    - run: pip install "black<23" mypy==v0.902
+    - run: pip install "black<23" mypy==v1.5.1
     - run: black --diff --check $(git ls-files 'math_formula/*.py')
     - run: mypy $(git ls-files 'math_formula/*.py')
