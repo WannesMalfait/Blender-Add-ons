@@ -463,16 +463,16 @@ class Editor:
                         # Check if it's a valid type
                         color(
                             token_font_style,
-                            prefs.type_color
-                            if token.lexeme in string_to_data_type  # type:ignore
-                            else prefs.default_color,
-                        )  # type: ignore
+                            prefs.type_color  # type: ignore
+                            if token.lexeme in string_to_data_type
+                            else prefs.default_color,  # type: ignore
+                        )
                     else:
                         next_token = tokens[i + 1] if i + 1 < len(tokens) else token
                         if next_token.token_type == TokenType.LEFT_PAREN:
                             color(
-                                token_font_style, prefs.function_color
-                            )  # type: ignore
+                                token_font_style, prefs.function_color  # type: ignore
+                            )
                         else:
                             color(token_font_style, prefs.default_color)  # type: ignore
                 elif (
