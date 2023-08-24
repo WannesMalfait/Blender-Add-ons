@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field, fields
 from typing import Union
+
+from .backends.type_defs import DataType, ValueType
 from .scanner import Token
-from .backends.main import DataType, ValueType
 
 
 @dataclass
@@ -208,8 +209,8 @@ def find(node: Ast, token: Token) -> Union[None, Ast]:
     if node.token is not None and node.token.line == token.line and node.token.col == token.col:
         return node
     else:
-        for field in fields(node):
-            name = field.name
+        for nfield in fields(node):
+            name = nfield.name
             if name == 'token':
                 continue
             try:
@@ -225,6 +226,7 @@ def find(node: Ast, token: Token) -> Union[None, Ast]:
                 continue
             if (fnode := find(value, token)) is not None:
                 return fnode
+    return None
 
 
 # Code copied and adapted from pythons own ast module
@@ -248,8 +250,8 @@ def dump(node, node_type: type = Ast, indent=None):
             args = []
             allsimple = True
             keywords = True
-            for field in fields(node):
-                name = field.name
+            for nfield in fields(node):
+                name = nfield.name
                 if name == 'token':
                     continue
                 try:
