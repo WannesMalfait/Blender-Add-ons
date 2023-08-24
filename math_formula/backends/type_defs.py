@@ -1,5 +1,5 @@
-from enum import IntEnum, auto
 from dataclasses import dataclass
+from enum import IntEnum, auto
 from typing import Union
 
 

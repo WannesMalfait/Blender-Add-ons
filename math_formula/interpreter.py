@@ -1,7 +1,17 @@
-import bpy
 from typing import cast
+
+import bpy
 from bpy.types import Node, NodeSocket
-from .backends.type_defs import CompiledNodeGroup, DataType, Operation, OpType, ValueType, NodeInstance, CompiledFunction
+
+from .backends.type_defs import (
+    CompiledFunction,
+    CompiledNodeGroup,
+    DataType,
+    NodeInstance,
+    Operation,
+    OpType,
+    ValueType,
+)
 
 
 class Interpreter():
@@ -131,7 +141,7 @@ class Interpreter():
             arg = args[i]
             if isinstance(arg, bpy.types.NodeSocket):
                 tree.links.new(arg, node.inputs[input_index])
-            elif not (arg is None):
+            elif arg is not None:
                 node.inputs[input_index].default_value = arg  # type: ignore
         return node
 
@@ -205,13 +215,13 @@ class Interpreter():
                 self.operation(operation)
 
             # Connect to the group outputs
-            for index, output in enumerate(self.function_outputs):
-                if isinstance(output, bpy.types.NodeSocket):
-                    node_tree.links.new(output, group_output.inputs[index])
-                elif not (output is None):
+            for index, foutput in enumerate(self.function_outputs):
+                if isinstance(foutput, NodeSocket):
+                    node_tree.links.new(foutput, group_output.inputs[index])
+                elif output is not None:
                     group_output.\
                         inputs[index].\
-                        default_value = output  # type: ignore
+                        default_value = foutput  # type: ignore
 
             # Restore state outside node group
             self.stack = outer_stack
@@ -229,7 +239,7 @@ class Interpreter():
         for i, arg in enumerate(args):
             if isinstance(arg, NodeSocket):
                 self.tree.links.new(arg, node.inputs[i])
-            elif not (arg is None):
+            elif arg is not None:
                 node.inputs[i].default_value = arg  # type: ignore
         self.nodes.append(node)
 

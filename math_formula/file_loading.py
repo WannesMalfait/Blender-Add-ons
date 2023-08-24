@@ -1,25 +1,28 @@
-import pickle
 import os
+import pickle
+
 import bpy
+
 from .backends.type_defs import FileData
 from .compiler import Compiler
 from .mf_parser import Error
-
 
 add_on_dir = os.path.dirname(
     os.path.realpath(__file__))
 custom_implementations_dir = os.path.join(add_on_dir, 'custom_implementations')
 
+file_data = FileData()
 
-@bpy.app.handlers.persistent
+
+@bpy.app.handlers.persistent  # type: ignore
 def load_custom_implementations(dummy, dir: str = '', force_update: bool = False) -> list[tuple[str, list[Error]]]:
     if dir == '' or dir is None:
         prefs = bpy.context.preferences.addons['math_formula'].preferences
-        dir = prefs.custom_implementations_folder
+        dir = prefs.custom_implementations_folder  # type:ignore
     filenames = os.listdir(dir)
     # Ensure that we load files in the right order.
     filenames.sort()
-    errors = []
+    errors: list[tuple[str, list[Error]]] = []
     file_data.geometry_nodes = {}
     file_data.shader_nodes = {}
     if not force_update:
@@ -71,7 +74,7 @@ unless `force_update` is true"""
     bl_label = "Load custom implementations"
     bl_options = {'REGISTER', 'UNDO'}
 
-    force_update: bpy.props.BoolProperty(
+    force_update: bpy.props.BoolProperty(  # type: ignore
         name="Force Update",
         description="Force reparsing of files, even if there is a cache file",
         default=False
@@ -80,7 +83,8 @@ unless `force_update` is true"""
     def execute(self, context: bpy.types.Context):
         prefs = context.preferences.addons['math_formula'].preferences
         errors = load_custom_implementations(None,
-            prefs.custom_implementations_folder, self.force_update)
+                                             prefs.custom_implementations_folder,  # type: ignore
+                                             self.force_update)
         if errors != []:
             self.report(
                 {'ERROR'}, 'Errors when loading macros. See console for more details.')

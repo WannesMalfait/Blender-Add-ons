@@ -1,12 +1,14 @@
-import bpy
 import traceback
 from typing import cast
+
+import bpy
 from bpy.types import Node
+
 from . import file_loading
+from .compiler import Compiler
+from .editor import Editor
 from .interpreter import Interpreter
 from .positioning import TreePositioner
-from .editor import Editor
-from .compiler import Compiler
 
 
 def mf_check(context: bpy.types.Context) -> bool:
@@ -32,18 +34,21 @@ class MF_OT_select_from_root(bpy.types.Operator):
     def poll(cls, context: bpy.types.Context) -> bool:
         return mf_check(context) and context.active_node is not None
 
-    select_parents: bpy.props.BoolProperty(
+    select_parents: bpy.props.BoolProperty(  # type: ignore
         name="Select Parents",
         description="Select all the parents of this node recursively",
         default=False,
     )  # type: ignore
-    select_children: bpy.props.BoolProperty(
+    select_children: bpy.props.BoolProperty(  # type: ignore
         name="Select Children",
         description="Select all the children of this node recursively",
         default=False,
     )  # type: ignore
 
-    def select_parents_of(self, node: bpy.types.Node, links: bpy.types.NodeLinks, visited: list[bpy.types.Node]) -> None:
+    def select_parents_of(self,
+                          node: bpy.types.Node,
+                          links: bpy.types.NodeLinks,
+                          visited: list[bpy.types.Node]) -> None:
         # Prevent loops
         if node in visited:
             return
@@ -55,7 +60,10 @@ class MF_OT_select_from_root(bpy.types.Operator):
             if link.from_node == node:
                 self.select_parents_of(link.to_node, links, visited)
 
-    def select_children_of(self, node: bpy.types.Node, links: bpy.types.NodeLinks, visited: list[bpy.types.Node]) -> None:
+    def select_children_of(self,
+                           node: bpy.types.Node,
+                           links: bpy.types.NodeLinks,
+                           visited: list[bpy.types.Node]) -> None:
         # Prevent loops
         if node in visited:
             return
@@ -93,17 +101,17 @@ class MF_OT_arrange_from_root(bpy.types.Operator):
     def poll(cls, context: bpy.types.Context) -> bool:
         return mf_check(context) and context.active_node is not None
 
-    selected_only: bpy.props.BoolProperty(
+    selected_only: bpy.props.BoolProperty(  # type: ignore
         name="Selected Only",
         description="Only arrange nodes that are selected",
         default=False,
-    )  # type: ignore
-    
-    invert_relations: bpy.props.BoolProperty(
+    )
+
+    invert_relations: bpy.props.BoolProperty(  # type:ignore
         name="Invert Relations",
         description="Invert the relations between parents and children",
         default=False,
-    )  # type: ignore
+    )
 
     def execute(self, context: bpy.types.Context):
         space = cast(bpy.types.SpaceNodeEditor, context.space_data)
@@ -114,7 +122,8 @@ class MF_OT_arrange_from_root(bpy.types.Operator):
         active_node.select = True
         # Figure out the parents, children, and siblings of nodes.
         # Needed for the node positioner
-        node_positioner = TreePositioner(context, selected_only=self.selected_only, invert_relations=self.invert_relations)
+        node_positioner = TreePositioner(
+            context, selected_only=self.selected_only, invert_relations=self.invert_relations)
         node_positioner.place_nodes(active_node, links)
         return {'FINISHED'}
 
@@ -128,9 +137,9 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
     bl_label = "Math Formula"
     bl_options = {'REGISTER', 'UNDO'}
 
-    use_mouse_location: bpy.props.BoolProperty(
+    use_mouse_location: bpy.props.BoolProperty(  # type:ignore
         default=False,
-    )  # type: ignore
+    )
 
     @ staticmethod
     def store_mouse_cursor(context: bpy.types.Context, event: bpy.types.Event):
@@ -172,7 +181,9 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             for node in nodes:
                 node.parent = frame
             frame.update()
-        self.root_nodes = [[] for _ in range(len(self.node_group_trees) + 1)]
+        self.root_nodes: list[list[bpy.types.Node]] = [
+            [] for _ in range(len(self.node_group_trees) + 1)
+        ]
         for node in nodes:
             invalid = False
             for socket in node.outputs:
@@ -197,15 +208,17 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         return {'FINISHED'}
 
     def modal(self, context: bpy.types.Context, event: bpy.types.Event):
-        if self.root_nodes[0][0].dimensions.x == 0:
+        if cast(bpy.types.mathutils.Vector, self.root_nodes[0][0].dimensions).x == 0:
             return {'RUNNING_MODAL'}
         space = cast(bpy.types.SpaceNodeEditor, context.space_data)
         links = space.edit_tree.links
-        cursor_loc = space.cursor_location if self.use_mouse_location else (
+        cursor_loc = cast(tuple[int, int], space.cursor_location) if self.use_mouse_location else (
             0, 0)
         node_positioner = TreePositioner(context)
-        cursor_loc = node_positioner.place_nodes(
-            self.root_nodes[0], links, cursor_loc=cast(tuple[int, int], cursor_loc))
+        node_positioner.place_nodes(
+            self.root_nodes[0],
+            links,
+            cursor_loc=cursor_loc)
         for i, tree in enumerate(self.node_group_trees):
             node_positioner = TreePositioner(context)
             node_positioner.place_nodes(
@@ -225,7 +238,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
             return {'RUNNING_MODAL'}
 
 
-formula_history = []
+formula_history: list[str] = []
 formula_history_index = 0
 
 

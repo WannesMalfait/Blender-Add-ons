@@ -1,6 +1,7 @@
 from sys import maxsize as INF
-from typing import cast, Optional
-from bpy.types import Node, NodeLinks, Context
+from typing import Optional, cast
+
+from bpy.types import Context, Node, NodeLink, NodeLinks
 from mathutils import Vector
 
 
@@ -139,11 +140,11 @@ class TreePositioner():
     Algorithm: https://www.cs.unc.edu/techreports/89-034.pdf
     """
 
-    def __init__(self, context: Context, selected_only =  False, invert_relations = False):
+    def __init__(self, context: Context, selected_only=False, invert_relations=False):
         prefs = context.preferences.addons['math_formula'].preferences
-        self.level_separation: int = prefs.node_distance
-        self.sibling_separation: int = prefs.sibling_distance
-        self.subtree_separation: int = prefs.subtree_distance
+        self.level_separation: int = prefs.node_distance  # type:ignore
+        self.sibling_separation: int = prefs.sibling_distance  # type:ignore
+        self.subtree_separation: int = prefs.subtree_distance  # type:ignore
         self.selected_only = selected_only
         self.invert_relations = invert_relations
         self.x_top_adjustment: int = 0
@@ -160,7 +161,7 @@ class TreePositioner():
     # Build the parent-children-sibling relationships between the nodes recursively.
     def build_relations(self, pnode: PositionNode, links: NodeLinks, depth: int = 0) -> None:
         # Get all links connected to the input sockets of the node
-        input_links = []
+        input_links: list[tuple[NodeLink, None | PositionNode]] = []
         for link in links:
             # It's possible that nodes have multiple parents. In that case the
             # algorithm doesn't work, so we only allow one parent per node.
@@ -230,7 +231,7 @@ class TreePositioner():
     # Same as `build_relations`, but parent-children relationship is inverted.
     def build_relations_inverted(self, pnode: PositionNode, links: NodeLinks, depth: int = 0) -> None:
         # Get all links connected to the output sockets of the node
-        output_links = []
+        output_links: list[tuple[NodeLink, None | PositionNode]] = []
         for link in links:
             # It's possible that nodes have multiple parents. In that case the
             # algorithm doesn't work, so we only allow one parent per node.
@@ -297,7 +298,11 @@ class TreePositioner():
             if needs_building:
                 self.build_relations_inverted(child, links, depth=depth+1)
 
-    def place_nodes(self, root_nodes: list[Node] | Node, links: NodeLinks, cursor_loc: tuple[int, int] | None = None) -> tuple[float, float] | None:
+    def place_nodes(self,
+                    root_nodes: list[Node] | Node,
+                    links: NodeLinks,
+                    cursor_loc: tuple[int, int] | None = None
+                    ) -> tuple[float, float] | None:
         """
         Aranges the nodes connected to `root_node` so that the top
         left corner lines up with `cursor_loc`. If `cursor_loc` is `None`,
@@ -361,9 +366,11 @@ class TreePositioner():
                 pnode.set_y(pnode.get_y()-30)
             if self.invert_relations:
                 # Mirror everything along the x axis relative to the root node.
-                pnode.set_x(old_root_node_pos_x - (pnode.get_x() -old_root_node_pos_x))
+                pnode.set_x(old_root_node_pos_x -
+                            (pnode.get_x() - old_root_node_pos_x))
         if cursor_loc is not None:
             return (cursor_loc[0]+self.max_x_loc-self.min_x_loc, cursor_loc[1])
+        return None
 
     def get_leftmost(self, node: PositionNode, level: int, depth: int) -> PositionNode | None:
         if level >= depth:
@@ -385,8 +392,10 @@ class TreePositioner():
         self.prev_node_per_level[level] = node
 
     def apportion(self, node: PositionNode):
-        leftmost = cast(PositionNode, node.first_child)
-        neighbour = cast(PositionNode, leftmost.left_neighbour)
+        leftmost = node.first_child
+        # Node is guaranteed to have at least one child.
+        leftmost = cast(PositionNode, leftmost)
+        neighbour = leftmost.left_neighbour
         compare_depth = 1
         while leftmost is not None and neighbour is not None:
             # Compute the location of leftmost and where it
@@ -412,7 +421,7 @@ class TreePositioner():
                 neighbour.get_height() - \
                 (leftmost.prelim_y + right_mod_sum)
             if move_distance > 0:
-                tmp = node
+                tmp: None | PositionNode = node
                 left_siblings = 0
                 # Count the interior sibling subtrees
                 while tmp is not None and tmp != ancestor_neighbour:

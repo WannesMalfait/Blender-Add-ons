@@ -1,7 +1,21 @@
 # type: ignore
-from . import main, mf_parser, scanner, positioning, backends, editor, compiler, type_checking, ast_defs, interpreter, file_loading, generate_node_info
 import bpy
 import rna_keymap_ui
+
+from . import (
+    ast_defs,
+    backends,
+    compiler,
+    editor,
+    file_loading,
+    generate_node_info,
+    interpreter,
+    main,
+    mf_parser,
+    positioning,
+    scanner,
+    type_checking,
+)
 
 bl_info = {
     "name": "Node Math Formula",

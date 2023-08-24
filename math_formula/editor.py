@@ -1,17 +1,25 @@
 import os
-import blf
-import bpy
 from collections import deque
-from . import file_loading
-from . import ast_defs
-from .mf_parser import Parser
-from .scanner import Scanner, Token, TokenType
-from .compiler import Error
-from .backends.main import string_to_data_type
-from .backends.builtin_nodes import instances, levenshtein_distance, nodes, shader_node_aliases, shader_geo_node_aliases, geometry_node_aliases, NodeInstance
+
+import blf  # type: ignore
+import bpy
+
+from . import ast_defs, file_loading
+from .backends.builtin_nodes import (
+    NodeInstance,
+    geometry_node_aliases,
+    instances,
+    levenshtein_distance,
+    nodes,
+    shader_geo_node_aliases,
+    shader_node_aliases,
+)
 from .backends.geometry_nodes import geometry_nodes
 from .backends.shader_nodes import shader_nodes
-
+from .backends.type_defs import string_to_data_type
+from .compiler import Error
+from .mf_parser import Parser
+from .scanner import Scanner, Token, TokenType
 
 add_on_dir = os.path.dirname(
     os.path.realpath(__file__))
@@ -39,7 +47,7 @@ class Editor():
         self.suggestions: deque[str] = deque()
 
     def replace_text(self, text: str):
-        self.__init__(self.pos)
+        Editor.__init__(self, self.pos)
         self.paste_after_cursor(text)
 
     @staticmethod
@@ -51,6 +59,7 @@ class Editor():
             if func in alias_dict:
                 node = nodes[alias_dict[func].key]
                 return [out[0] for out in node.outputs]
+        return None
 
     def attribute_suggestions(self, prev_token: Token, token_under_cursor: Token, tree_type: str):
         token_text = token_under_cursor.lexeme
@@ -337,7 +346,7 @@ class Editor():
     def get_char_before_cursor(self) -> str | None:
         if self.cursor_col <= 0 or self.cursor_col - 1 >= len(self.lines[self.cursor_row]):
             return None
-        
+
         return self.lines[self.cursor_row][self.cursor_col - 1]
 
     def new_line(self) -> None:
@@ -394,7 +403,9 @@ class Editor():
         blf.color(font_id, 0.4, 0.5, 0.1, 1.0)
         blf.position(font_id, posx, posy+char_height, posz)
         blf.draw(
-            font_id, f"(Press CTRL + ENTER to confirm, ESC to cancel)    (Line:{self.cursor_row+1} Col:{self.draw_cursor_col+1})")
+            font_id,
+            "(Press CTRL + ENTER to confirm, ESC to cancel)" +
+            f"    (Line:{self.cursor_row+1} Col:{self.draw_cursor_col+1})")
 
         blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
         blf.position(font_id, posx, posy, posz)
@@ -420,7 +431,8 @@ class Editor():
                     if prev_token.token_type == TokenType.COLON:
                         # Check if it's a valid type
                         color(token_font_style,
-                              prefs.type_color if token.lexeme in string_to_data_type else prefs.default_color)  # type: ignore
+                              prefs.type_color if token.lexeme in string_to_data_type  # type:ignore
+                              else prefs.default_color)  # type: ignore
                     else:
                         next_token = tokens[i+1] if i + \
                             1 < len(tokens) else token

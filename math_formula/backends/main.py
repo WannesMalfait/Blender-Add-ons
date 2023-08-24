@@ -5,7 +5,7 @@ from . import type_defs as td
 from .builtin_nodes import levenshtein_distance, nodes
 
 
-class BackEnd(ABCMeta):
+class BackEnd(metaclass=ABCMeta):
 
     @staticmethod
     def can_convert(from_type: td.DataType, to_type: td.DataType) -> bool:
@@ -114,13 +114,23 @@ class BackEnd(ABCMeta):
         '''Ensure that the value is of a type supported by the backend'''
         ...
 
+    @abstractmethod
     def create_input(
+        self,
+        operations: list[td.Operation],
+        name: str,
+        value: td.ValueType | None,
+        dtype: td.DataType,
+    ):
+        ...
+
+    def create_input_helper(
             self,
             operations: list[td.Operation],
             name: str,
             value: td.ValueType | None,
             dtype: td.DataType,
-            input_vector=True):
+            input_vector: bool = True):
         if dtype == td.DataType.FLOAT or dtype == td.DataType.UNKNOWN:
             operations.append(
                 td.Operation(td.OpType.CALL_BUILTIN,

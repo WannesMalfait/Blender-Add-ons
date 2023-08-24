@@ -1,8 +1,8 @@
-from .builtin_nodes import instances, geometry_node_aliases, shader_geo_node_aliases
+from . import type_defs as td
+from .builtin_nodes import geometry_node_aliases, instances, shader_geo_node_aliases
 from .main import BackEnd
-from .type_defs import *
 
-geometry_nodes: dict[str, list[str | NodeInstance]] = {
+geometry_nodes: dict[str, list[str | td.NodeInstance]] = {
     '_and': ['boolean_math_and'],
     '_or': ['boolean_math_or'],
     '_not': ['boolean_math_not'],
@@ -40,14 +40,22 @@ geometry_nodes: dict[str, list[str | NodeInstance]] = {
 
 class GeometryNodesBackEnd(BackEnd):
 
-    def create_input(self, operations: list[Operation], name: str, value: ValueType, dtype: DataType):
-        return super().create_input(operations, name, value, dtype, input_vector=True)
+    def create_input(self, operations: list[td.Operation], name: str, value: td.ValueType, dtype: td.DataType):
+        return super().create_input_helper(operations, name, value, dtype, input_vector=True)
 
-    def coerce_value(self, value: ValueType, type: DataType) -> tuple[ValueType, DataType]:
-        if type.value >= DataType.SHADER or type.value == DataType.GEOMETRY:
+    def coerce_value(self, value: td.ValueType, type: td.DataType) -> tuple[td.ValueType, td.DataType]:
+        if type.value >= td.DataType.SHADER or type.value == td.DataType.GEOMETRY:
             raise TypeError(
                 f'Can\'t coerce type {type._name_} to a Geometry Nodes value')
         return value, type
 
-    def resolve_function(self, name: str, args: list[ty_expr], functions: dict[str, list[TyFunction]]) -> tuple[Union[TyFunction, NodeInstance], list[DataType], list[str]]:
-        return self._resolve_function(name, args, [geometry_node_aliases, shader_geo_node_aliases], [geometry_nodes, instances, functions])
+    def resolve_function(self,
+                         name: str,
+                         args: list[td.ty_expr],
+                         functions: dict[str, list[td.TyFunction]]
+                         ) -> tuple[td.TyFunction | td.NodeInstance, list[td.DataType], list[str]]:
+        return self._resolve_function(
+            name,
+            args,
+            [geometry_node_aliases, shader_geo_node_aliases],
+            [geometry_nodes, instances, functions])

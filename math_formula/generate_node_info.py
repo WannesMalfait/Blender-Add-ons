@@ -1,12 +1,13 @@
 import os
-import bpy
 from typing import cast
 
+import bpy
 
-def generate_node_info():
+
+def generate_node_info() -> None:
     all_nodes: set[str] = set()
 
-    for name in filter(lambda t: 'Node' in t and not 'Group' in t, dir(bpy.types)):
+    for name in filter(lambda t: 'Node' in t and 'Group' not in t, dir(bpy.types)):
         if name.startswith('Shader') or name.startswith('Geometry') or name.startswith('Function'):
             all_nodes.add(name)
 
@@ -33,7 +34,7 @@ def generate_node_info():
         'ROTATION': 'ROTATION',
     }
 
-    default_props = bpy.types.FunctionNode.bl_rna.properties
+    default_props = bpy.types.FunctionNode.bl_rna.properties  # type:ignore
 
     def snake(s: str) -> str:
         """Turn a string into snake case"""
@@ -64,12 +65,17 @@ def generate_node_info():
             pass
 
         inputs = ", ".join(
-            [f"('{snake(inp.name)}', DataType.{dtypes[cast(str,inp.type)]})" for inp in node.inputs if inp.type in dtypes])
+            [f"('{snake(inp.name)}', DataType.{dtypes[cast(str,inp.type)]})"
+                for inp in node.inputs if inp.type in dtypes])
         outputs = ", ".join(
-            [f"('{snake(outp.name)}', DataType.{dtypes[cast(str, outp.type)]})" for outp in node.outputs if outp.type in dtypes])
+            [f"('{snake(outp.name)}', DataType.{dtypes[cast(str, outp.type)]})"
+             for outp in node.outputs if outp.type in dtypes])
 
-        props = [cast(bpy.types.EnumProperty, prop) for prop in node.bl_rna.properties if not prop.is_readonly and
-                 prop.type == 'ENUM' and not prop.identifier in default_props]
+        props = [cast(bpy.types.EnumProperty, prop)
+                 for prop in node.bl_rna.properties  # type: ignore
+                 if not prop.is_readonly and
+                 prop.type == 'ENUM' and
+                 prop.identifier not in default_props]
 
         # Generate aliases and validate properties
         default_name = snake(node.bl_label)
@@ -84,7 +90,8 @@ def generate_node_info():
                 node.outputs) if output.enabled]
             property_values = [(prop.identifier, prop.enum_items[enum_j].identifier)
                                for enum_j, prop in zip(curr_state, props)]
-            alias_str = f"'{name}' : NodeInstance('{node.bl_idname}', {enabled_inputs}, {enabled_outputs}, {property_values}),"
+            alias_str = f"'{name}': " +\
+                f"' NodeInstance('{node.bl_idname}', {enabled_inputs}, {enabled_outputs}, {property_values}), "
 
             if node.bl_idname.startswith('Shader'):
                 if supports_geometry_nodes:
@@ -177,21 +184,23 @@ shader_node_aliases = {{
         f.truncate(len(new_text))
 
     import importlib
-    from .backends import builtin_nodes, geometry_nodes, shader_nodes
+
+    from .backends import builtin_nodes, geometry_nodes
+    from .backends import shader_nodes as shader_nodes_mod
     importlib.reload(builtin_nodes)
     importlib.reload(geometry_nodes)
-    importlib.reload(shader_nodes)
-    for options_dict in [builtin_nodes.instances, geometry_nodes.geometry_nodes, shader_nodes.shader_nodes]:
+    importlib.reload(shader_nodes_mod)
+    for options_dict in [builtin_nodes.instances, geometry_nodes.geometry_nodes, shader_nodes_mod.shader_nodes]:
         for options in options_dict.values():
-            for node_name in options:
+            for node_name_alias in options:
                 if isinstance(node_name, str):
-                    if node_name in builtin_nodes.geometry_node_aliases:
+                    if node_name_alias in builtin_nodes.geometry_node_aliases:
                         continue
-                    if node_name in builtin_nodes.shader_node_aliases:
+                    if node_name_alias in builtin_nodes.shader_node_aliases:
                         continue
-                    if node_name in builtin_nodes.shader_geo_node_aliases:
+                    if node_name_alias in builtin_nodes.shader_geo_node_aliases:
                         continue
-                    print('Invalid alias:', node_name)
+                    print('Invalid alias:', node_name_alias)
 
 
 bpy.app.timers.register(generate_node_info, first_interval=0)

@@ -307,6 +307,7 @@ class TypeChecker():
             if isinstance(expr, td.Const) and (expr.dtype[0] == td.DataType.FLOAT or expr.dtype[0] == td.DataType.INT):
                 assert len(
                     expr.dtype) == 1, "Should just be a float or an integer"
+                assert isinstance(expr.value, (int, float)), "Checked above"
                 expr.value *= -1
                 return
             arg = td.Const(td.StackType.VALUE, [td.DataType.INT], [], -1)
