@@ -1,3 +1,4 @@
 .vscode
 *.bat
 __pycache__
+*cache*
