@@ -2,6 +2,7 @@ import traceback
 from typing import cast
 
 import bpy
+import mathutils
 from bpy.types import Node
 
 from . import file_loading
@@ -223,7 +224,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
         return {"FINISHED"}
 
     def modal(self, context: bpy.types.Context, event: bpy.types.Event):
-        if cast(bpy.types.mathutils.Vector, self.root_nodes[0][0].dimensions).x == 0:
+        if cast(mathutils.Vector, self.root_nodes[0][0].dimensions).x == 0:
             return {"RUNNING_MODAL"}
         space = cast(bpy.types.SpaceNodeEditor, context.space_data)
         links = space.edit_tree.links
