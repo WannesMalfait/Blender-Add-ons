@@ -156,6 +156,7 @@ class SimplifiedNodeTree:
         for link in node_tree.links:
             from_node = self.nodes[link.from_node.name]
             to_node = self.nodes[link.to_node.name]
+            from_socket = to_socket = -1
             for i, s in enumerate(link.from_node.outputs):
                 if s == link.from_socket:
                     from_socket = i
