@@ -115,7 +115,7 @@ def generate_node_info() -> None:
             ]
             alias_str = (
                 f"'{name}': "
-                + f"' NodeInstance('{node.bl_idname}', {enabled_inputs}, {enabled_outputs}, {property_values}), "
+                + f" NodeInstance('{node.bl_idname}', {enabled_inputs}, {enabled_outputs}, {property_values}), "
             )
 
             if node.bl_idname.startswith("Shader"):
