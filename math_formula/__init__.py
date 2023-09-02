@@ -24,7 +24,7 @@ bl_info = {
     "location": "Node Editor Toolbar and ALT+F",
     "description": "Quickly add nodes by typing in a formula",
     "category": "Node",
-    "blender": (3, 0, 0),  # Required so the add-on will actually load
+    "blender": (4, 0, 0),  # Required so the add-on will actually load
 }
 
 # Reload other modules as well
