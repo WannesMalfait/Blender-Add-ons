@@ -184,18 +184,38 @@ class Interpreter:
         else:
             # Create the node group's inner tree:
             node_tree = bpy.data.node_groups.new(node_group.name, self.tree.bl_idname)
-            for input in node_group.inputs:
-                in_socket = node_tree.inputs.new(
-                    self.data_type_to_socket_type(input.dtype), input.name
-                )
-                if input.value is not None:
-                    in_socket.default_value = input.value  # type: ignore
-            for output in node_group.outputs:
-                out_socket = node_tree.outputs.new(
-                    self.data_type_to_socket_type(output.dtype), output.name
-                )
-                if output.value is not None:
-                    out_socket.default_value = output.value  # type: ignore
+
+            # TODO: remove this when 4.0 released.
+            if bpy.app.version[0] < 4:  # type: ignore
+                for input in node_group.inputs:
+                    in_socket = node_tree.inputs.new(  # type: ignore
+                        self.data_type_to_socket_type(input.dtype), input.name
+                    )
+                    if input.value is not None:
+                        in_socket.default_value = input.value  # type: ignore
+                for output in node_group.outputs:
+                    out_socket = node_tree.outputs.new(  # type: ignore
+                        self.data_type_to_socket_type(output.dtype), output.name
+                    )
+                    if output.value is not None:
+                        out_socket.default_value = output.value  # type: ignore
+            else:
+                for input in node_group.inputs:
+                    in_socket = node_tree.interface.new_socket(
+                        input.name,
+                        in_out={"INPUT"},
+                        socket_type=self.data_type_to_socket_type(input.dtype),
+                    )
+                    if input.value is not None:
+                        in_socket.default_value = input.value  # type: ignore
+                for output in node_group.outputs:
+                    out_socket = node_tree.interface.new_socket(
+                        output.name,
+                        in_out={"OUTPUT"},
+                        socket_type=self.data_type_to_socket_type(output.dtype),
+                    )
+                    if output.value is not None:
+                        out_socket.default_value = output.value  # type: ignore
             group_input = node_tree.nodes.new("NodeGroupInput")
             group_output = node_tree.nodes.new("NodeGroupOutput")
 

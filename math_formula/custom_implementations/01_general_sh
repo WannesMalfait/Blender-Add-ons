@@ -1,3 +1,7 @@
+fn equal(a: float, b: float) -> c: float {
+    out c = math_compare(a, b);
+}
+
 fn less_equal(a: float, b: float) -> c: float {
     out c = not (a > b);
 }
