@@ -114,8 +114,8 @@ def generate_node_info() -> None:
                 for enum_j, prop in zip(curr_state, props)
             ]
             alias_str = (
-                f"'{name}': "
-                + f" NodeInstance('{node.bl_idname}', {enabled_inputs}, {enabled_outputs}, {property_values}), "
+                f"'{name}' : "
+                + f"NodeInstance('{node.bl_idname}', {enabled_inputs}, {enabled_outputs}, {property_values}), "
             )
 
             if node.bl_idname.startswith("Shader"):
@@ -226,7 +226,7 @@ shader_node_aliases = {{
     ]:
         for options in options_dict.values():
             for node_name_alias in options:
-                if isinstance(node_name, str):
+                if isinstance(node_name_alias, str):
                     if node_name_alias in builtin_nodes.geometry_node_aliases:
                         continue
                     if node_name_alias in builtin_nodes.shader_node_aliases:
