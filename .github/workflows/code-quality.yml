@@ -1,5 +1,7 @@
 name: Code-Quality
 on: [pull_request, push]
+paths:
+    - 'math_formula/*.py'
 
 jobs:
   build:
