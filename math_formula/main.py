@@ -442,7 +442,7 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             formula_history.append(
                 context.scene.math_formula_add.formula  # type: ignore
             )
-            context.window_manager.modal_handler_add(self)
+        context.window_manager.modal_handler_add(self)
         return {"RUNNING_MODAL"}
 
 
