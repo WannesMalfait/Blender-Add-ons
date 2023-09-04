@@ -9,7 +9,7 @@ bl_info = {
     "category": "Add Mesh",
     "description": "Add a supershape!",
     "author": "Wannes Malfait",
-    "wiki_url": "https://en.wikipedia.org/wiki/Superformula",
+    "wiki_url": "https://github.com/WannesMalfait/Blender-Add-ons/wiki/Users#supershape",
     "version": (1, 0),
     "blender": (2, 80, 0),
 }

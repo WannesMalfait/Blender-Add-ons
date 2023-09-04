@@ -9,6 +9,8 @@ bl_info = {
     "category": "Add Mesh",
     "description": "Add a parametric surface",
     "author": "Wannes Malfait",
+    "doc_url": "https://github.com/WannesMalfait/Blender-Add-ons/wiki/Users#parametric",
+    "tracker_url": "https://github.com/WannesMalfait/Blender-Add-ons/issues",
     "version": (1, 0),
     "blender": (2, 90, 0),
 }

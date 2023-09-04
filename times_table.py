@@ -7,6 +7,8 @@ bl_info = {
     "category": "Add Mesh",
     "description": "Add a cool mathematical design",
     "author": "Wannes Malfait",
+    "doc_url": "https://github.com/WannesMalfait/Blender-Add-ons/wiki/Users#times-table",
+    "tracker_url": "https://github.com/WannesMalfait/Blender-Add-ons/issues",
     "version": (1, 0),
     "blender": (2, 82, 0),
 }

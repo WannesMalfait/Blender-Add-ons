@@ -13,6 +13,8 @@ bl_info = {
     "description": "Find out what values of each node do",
     "warning": "Be careful when using 'Clean Folder' ",
     "category": "Node",
+    "doc_url": "https://github.com/WannesMalfait/Blender-Add-ons/wiki/Users#value-finder",
+    "tracker_url": "https://github.com/WannesMalfait/Blender-Add-ons/issues",
     "blender": (2, 90, 0),  # Required so the add-on will actually load
 }
 
