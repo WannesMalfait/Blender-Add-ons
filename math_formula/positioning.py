@@ -140,7 +140,8 @@ class PositionNode:
 class TreePositioner:
     """
     Class to position nodes in a node tree
-    Algorithm: https://www.cs.unc.edu/techreports/89-034.pdf
+    Algorithm: https://dl.icdst.org/pdfs/files/c461513ed71d4ced5b1244cc235f58d4.pdf
+    "A Node-Positioning Algorithm for General Trees" - John Q. Walker II
     """
 
     def __init__(self, context: Context, selected_only=False, invert_relations=False):
