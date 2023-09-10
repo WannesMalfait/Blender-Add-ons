@@ -1,4 +1,8 @@
 v2.0.0-alpha.4
+- Simple tests to detect regressions quicker.
+- Add support for loops
+- Add support for keyword arguments
+- Add a wiki, and update documentation
 - Improve "arrange from root" operator (#20)
 - Fix bug with default values for geometry sockets
 
