@@ -1,2 +1,2 @@
-res = voronoi2d(scale = 0.1, vector = tex_coord().object, randomness= 0.5);
+res = voronoi_2d(scale = 0.1, vector = tex_coords().object, randomness= 0.5);
 res.distance * res.position;

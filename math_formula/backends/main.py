@@ -254,60 +254,102 @@ class BackEnd(metaclass=ABCMeta):
         operations.append(td.Operation(td.OpType.RENAME_NODE, name))
 
     def find_best_match(
-        self, options: list[list[td.DataType]], args: list[td.ty_expr], name: str
-    ) -> int:
+        self,
+        options: list[list[tuple[str, td.DataType]]],
+        pos_args: list[td.ty_expr],
+        keyword_args: list[tuple[str, td.ty_expr]],
+        name: str,
+    ) -> tuple[int, list[int]]:
         """Find the best function to use from the list of options.
         The options argument contains a list of possible function argument types.
         Returns the index of the best match."""
 
-        # NOTE: This assumes that no 'empty' arguments were passed.
-        #       Those should have been handled before this.
-        arg_types = [arg.dtype[0] for arg in args]
+        num_pos_args = len(pos_args)
+        num_arguments_given = num_pos_args + len(keyword_args)
 
         # Find the one with the least amount of penalty
         # penalty = 0 means a perfect match
         # penalty >= 1000 means no match, or match that is extremely bad
         best_penalty = 1000
         best_index = 0
+        # To which index does the keyword correspond?
+        keyword_indices = [0 for _ in range(len(keyword_args))]
         for i, option in enumerate(options):
-            if len(option) < len(arg_types):
+            if len(option) < num_arguments_given:
                 # If we pass more arguments than the function accepts
                 # it can never be a match. If we pass less arguments
                 # the rest are implicit default arguments.
                 continue
-            penalty = sum(
+            penalty = 0
+            keywords_ok = True
+            tmp_kw_indices = keyword_indices.copy()
+            # Handle keyword arguments first, as these are more restrictive.
+            for arg_i, (arg_name, arg) in enumerate(keyword_args):
+                found = False
+                # Find the correct argument.
+                # Only look at the inputs that we don't
+                # pass a positional argument to.
+                for ind, input in enumerate(option[num_pos_args:]):
+                    if input[0] == arg_name:
+                        penalty += td.dtype_conversion_penalties[arg.dtype[0].value][
+                            input[1].value
+                        ]
+                        tmp_kw_indices[arg_i] = num_pos_args + ind
+                        found = True
+                        break
+                if not found:
+                    keywords_ok = False
+                    break
+
+            if not keywords_ok:
+                continue
+
+            # Add the penalties for the positional arguments
+            penalty += sum(
                 [
-                    td.dtype_conversion_penalties[arg_types[i].value][option[i].value]
-                    for i in range(len(arg_types))
+                    td.dtype_conversion_penalties[pos_args[i].dtype[0].value][
+                        option[i][1].value
+                    ]
+                    for i in range(len(pos_args))
                 ]
             )
 
             if best_penalty > penalty:
                 best_penalty = penalty
                 best_index = i
+                keyword_indices = tmp_kw_indices
             if best_penalty == 0:
                 break
         if best_penalty < 1000:
             # Ensure that the arguments are of the correct type
-            for arg, otype in zip(args, options[best_index]):
+            for arg, (_, otype) in zip(pos_args, options[best_index]):
                 if isinstance(arg, td.Const):
                     arg.value = self.convert(arg.value, arg.dtype[0], otype)
                 arg.dtype[0] = otype
-            return best_index
-        # print(f'\nOPTIONS: {options}\nARGS: {arg_types}')
+            for arg_i, kw_arg in enumerate(keyword_args):
+                otype = options[best_index][keyword_indices[arg_i]][1]
+                if isinstance(kw_arg[1], td.Const):
+                    kw_arg[1].value = self.convert(
+                        kw_arg[1].value, kw_arg[1].dtype[0], otype
+                    )
+                kw_arg[1].dtype[0] = otype
+
+            return best_index, keyword_indices
         raise TypeError(
-            f'Couldn\'t find find instance of function "{name}" with arguments {arg_types}'
+            f'Couldn\'t find find instance of function "{name}" with arguments: '
+            + f"{ ','.join([a.dtype[0].name for a in pos_args])}"
+            + f"{ ','.join([a[0] + '=' + a[1].dtype[0].name for a in keyword_args])}"
         )
 
     @staticmethod
-    def input_types(
+    def input_arguments(
         instance: td.Union[td.NodeInstance, td.TyFunction]
-    ) -> list[td.DataType]:
+    ) -> list[tuple[str, td.DataType]]:
         if isinstance(instance, td.NodeInstance):
             node = nodes[instance.key]
-            return [node.inputs[i][1] for i in instance.inputs]
+            return [node.inputs[i] for i in instance.inputs]
         else:
-            return [i.dtype for i in instance.inputs]
+            return [(i.name, i.dtype) for i in instance.inputs]
 
     @staticmethod
     def resolve_alias(
@@ -325,12 +367,18 @@ class BackEnd(metaclass=ABCMeta):
     def _resolve_function(
         self,
         name: str,
-        args: list[td.ty_expr],
+        pos_args: list[td.ty_expr],
+        keyword_args: list[tuple[str, td.ty_expr]],
         aliases: list[dict[str, td.NodeInstance]],
         dicts: list[
             dict[str, list[str | td.NodeInstance]] | dict[str, list[td.TyFunction]]
         ],
-    ) -> tuple[td.Union[td.TyFunction, td.NodeInstance], list[td.DataType], list[str]]:
+    ) -> tuple[
+        td.Union[td.TyFunction, td.NodeInstance],
+        list[td.DataType],
+        list[str],
+        list[int],
+    ]:
         instance_options: list[td.NodeInstance | td.TyFunction] = []
         for dict in dicts:
             if name in dict:
@@ -355,24 +403,32 @@ class BackEnd(metaclass=ABCMeta):
             raise TypeError(
                 f'No function named "{name}" found. Did you mean "{suggestions[0]}" or "{suggestions[1]}"?'
             )
-        all_options = [self.input_types(option) for option in instance_options]
-        index = self.find_best_match(all_options, args, name)
+        all_options = [self.input_arguments(option) for option in instance_options]
+        index, keyword_indices = self.find_best_match(
+            all_options, pos_args, keyword_args, name
+        )
         func = instance_options[index]
         if isinstance(func, td.TyFunction):
             out_types = [o.dtype for o in func.outputs]
             out_names = [o.name for o in func.outputs]
-            return func, out_types, out_names
+            return func, out_types, out_names, keyword_indices
         node = nodes[func.key]
         out_types = [node.outputs[i][1] for i in func.outputs]
         out_names = [node.outputs[i][0] for i in func.outputs]
-        return func, out_types, out_names
+        return func, out_types, out_names, keyword_indices
 
     @abstractmethod
     def resolve_function(
         self,
         name: str,
-        args: list[td.ty_expr],
+        pos_args: list[td.ty_expr],
+        keyword_args: list[tuple[str, td.ty_expr]],
         functions: dict[str, list[td.TyFunction]],
-    ) -> tuple[td.Union[td.TyFunction, td.NodeInstance], list[td.DataType], list[str]]:
+    ) -> tuple[
+        td.Union[td.TyFunction, td.NodeInstance],
+        list[td.DataType],
+        list[str],
+        list[int],
+    ]:
         """Resolve name to a built-in node by type matching on the arguments."""
         ...

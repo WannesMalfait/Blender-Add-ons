@@ -228,7 +228,7 @@ if __name__ == "__main__":
                 continue
 
             # Test the backend-specific code
-            success = True
+            passed = True
             for tree_type in ("Shader", "Geometry"):
                 if tree_type == "Shader":
                     type_checker = TypeChecker(
@@ -244,7 +244,7 @@ if __name__ == "__main__":
                 except NotImplementedError:
                     print("Implementation not yet finished, skipping test")
                     num_skipped += 1
-                    success = False
+                    passed = False
                     break
 
                 if not success:
@@ -273,13 +273,13 @@ if __name__ == "__main__":
                     with open(output_path, "rb") as f:  # type: ignore
                         other_tree = pickle.load(f)  # type: ignore
                         if tree != other_tree:
-                            success = False
+                            passed = False
                             break
                 else:
                     with open(output_path, "wb") as f:  # type: ignore
                         pickle.dump(tree, f)  # type: ignore
 
             # No errors
-            if success:
+            if passed:
                 num_succeeded += 1
     print(f"Tests finished {num_succeeded}/{tot_tests - num_skipped} succeeded")

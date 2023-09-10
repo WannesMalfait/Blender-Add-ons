@@ -278,17 +278,26 @@ class TypeChecker:
         elif isinstance(expr, ast_defs.Attribute):
             self.attribute(expr)
         elif isinstance(expr, ast_defs.Keyword):
-            raise NotImplementedError
+            assert False, (
+                "Unreachable: keyword arguments are handled when type checking"
+                + "function calls"
+            )
         elif isinstance(expr, ast_defs.Call):
             self.func_call(expr)
         else:
             print(expr, type(expr))
             assert False, "Unreachable code"
 
-    def resolve_function(self, name: str, args: list[td.ty_expr], ast: ast_defs.Ast):
+    def resolve_function(
+        self,
+        name: str,
+        pos_args: list[td.ty_expr],
+        keyword_args: list[tuple[str, td.ty_expr]],
+        ast: ast_defs.Ast,
+    ):
         try:
-            func, dtype, out_names = self.back_end.resolve_function(
-                name, args, self.functions
+            func, dtype, out_names, keyword_indices = self.back_end.resolve_function(
+                name, pos_args, keyword_args, self.functions
             )
         except TypeError as err:
             return self.error(str(err), ast)
@@ -302,10 +311,19 @@ class TypeChecker:
                 out_names = ["r", "g", "b", "a"]
         else:
             stype = td.StackType.STRUCT
+
+        # Fill with "default" arguments first.
+        final_args = pos_args + [
+            td.Const(td.StackType.VALUE, [td.DataType.DEFAULT], [], None)
+            for _ in range(len(func.inputs) - len(pos_args))
+        ]
+        for kw_i, input_i in enumerate(keyword_indices):
+            final_args[input_i] = keyword_args[kw_i][1]
+
         if isinstance(func, td.TyFunction):
-            self.curr_node = td.FunctionCall(stype, dtype, out_names, func, args)
+            self.curr_node = td.FunctionCall(stype, dtype, out_names, func, final_args)
         else:
-            self.curr_node = td.NodeCall(stype, dtype, out_names, func, args)
+            self.curr_node = td.NodeCall(stype, dtype, out_names, func, final_args)
 
     def func_call(self, call: ast_defs.Call):
         function_name = ""
@@ -315,9 +333,15 @@ class TypeChecker:
             call.pos_args.insert(0, call.func.value)
         else:
             function_name = call.func.id
+        ty_keyword_args = []
         if call.keyword_args != []:
-            # TODO: passing keyword arguments
-            raise NotImplementedError
+            for keyword_arg in call.keyword_args:
+                self.check_expr(keyword_arg.value)
+                checked_arg = self.curr_node
+                assert isinstance(
+                    checked_arg, td.ty_expr
+                ), "Argument should be an expression"
+                ty_keyword_args.append((keyword_arg.arg, checked_arg))
         ty_args = []
         for pos_arg in call.pos_args:
             self.check_expr(pos_arg)
@@ -326,7 +350,7 @@ class TypeChecker:
                 checked_arg, td.ty_expr
             ), "Argument should be an expression"
             ty_args.append(checked_arg)
-        self.resolve_function(function_name, ty_args, call)
+        self.resolve_function(function_name, ty_args, ty_keyword_args, call)
 
     def unary_op(self, un_op: ast_defs.UnaryOp):
         op = un_op.op
@@ -339,7 +363,7 @@ class TypeChecker:
         if expr.stype == td.StackType.EMPTY:
             return self.error("Argument expression has no value.", un_op)
         if isinstance(op, ast_defs.Not):
-            self.resolve_function("_not", [expr], un_op)
+            self.resolve_function("_not", [expr], [], un_op)
         elif isinstance(op, ast_defs.USub):
             if isinstance(expr, td.Const) and (
                 expr.dtype[0] == td.DataType.FLOAT or expr.dtype[0] == td.DataType.INT
@@ -349,7 +373,7 @@ class TypeChecker:
                 expr.value *= -1
                 return
             arg = td.Const(td.StackType.VALUE, [td.DataType.INT], [], -1)
-            self.resolve_function("mul", [arg, expr], un_op)
+            self.resolve_function("mul", [arg, expr], [], un_op)
         else:
             assert False, "Unreachable code"
 
@@ -365,33 +389,33 @@ class TypeChecker:
         if left.stype == td.StackType.EMPTY or right.stype == td.StackType.EMPTY:
             return self.error("Argument expression has no value.", bin_op)
         if isinstance(op, ast_defs.And):
-            self.resolve_function("_and", [left, right], bin_op)
+            self.resolve_function("_and", [left, right], [], bin_op)
         elif isinstance(op, ast_defs.Or):
-            self.resolve_function("_or", [left, right], bin_op)
+            self.resolve_function("_or", [left, right], [], bin_op)
         elif isinstance(op, ast_defs.Add):
-            self.resolve_function("add", [left, right], bin_op)
+            self.resolve_function("add", [left, right], [], bin_op)
         elif isinstance(op, ast_defs.Div):
-            self.resolve_function("div", [left, right], bin_op)
+            self.resolve_function("div", [left, right], [], bin_op)
         elif isinstance(op, ast_defs.Mod):
-            self.resolve_function("mod", [left, right], bin_op)
+            self.resolve_function("mod", [left, right], [], bin_op)
         elif isinstance(op, ast_defs.Mult):
-            self.resolve_function("mul", [left, right], bin_op)
+            self.resolve_function("mul", [left, right], [], bin_op)
         elif isinstance(op, ast_defs.Pow):
-            self.resolve_function("pow", [left, right], bin_op)
+            self.resolve_function("pow", [left, right], [], bin_op)
         elif isinstance(op, ast_defs.Sub):
-            self.resolve_function("sub", [left, right], bin_op)
+            self.resolve_function("sub", [left, right], [], bin_op)
         elif isinstance(op, ast_defs.Eq):
-            self.resolve_function("equal", [left, right], bin_op)
+            self.resolve_function("equal", [left, right], [], bin_op)
         elif isinstance(op, ast_defs.Gt):
-            self.resolve_function("greater_than", [left, right], bin_op)
+            self.resolve_function("greater_than", [left, right], [], bin_op)
         elif isinstance(op, ast_defs.GtE):
-            self.resolve_function("greater_equal", [left, right], bin_op)
+            self.resolve_function("greater_equal", [left, right], [], bin_op)
         elif isinstance(op, ast_defs.Lt):
-            self.resolve_function("less_than", [left, right], bin_op)
+            self.resolve_function("less_than", [left, right], [], bin_op)
         elif isinstance(op, ast_defs.LtE):
-            self.resolve_function("less_equal", [left, right], bin_op)
+            self.resolve_function("less_equal", [left, right], [], bin_op)
         elif isinstance(op, ast_defs.NotEq):
-            self.resolve_function("not_equal", [left, right], bin_op)
+            self.resolve_function("not_equal", [left, right], [], bin_op)
         else:
             assert False, "Unreachable code"
 
@@ -438,7 +462,7 @@ class TypeChecker:
             or z.stype == td.StackType.EMPTY
         ):
             return self.error("Argument expression has no value", vec)
-        self.resolve_function("vec3", [x, y, z], vec)
+        self.resolve_function("vec3", [x, y, z], [], vec)
 
     def name(self, name: ast_defs.Name):
         # We should only end up here when we want to 'load' a variable.
@@ -477,7 +501,7 @@ class TypeChecker:
         if expr.stype == td.StackType.SOCKET:
             if expr.dtype[0] == td.DataType.VEC3:
                 # Need to add a separate XYZ node for this to work.
-                self.resolve_function("sep_xyz", [expr], attr)
+                self.resolve_function("sep_xyz", [expr], [], attr)
                 expr = self.curr_node
                 assert isinstance(
                     expr, td.ty_expr

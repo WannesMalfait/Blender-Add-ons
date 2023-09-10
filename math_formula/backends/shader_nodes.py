@@ -37,12 +37,16 @@ class ShaderNodesBackEnd(BackEnd):
     def resolve_function(
         self,
         name: str,
-        args: list[td.ty_expr],
+        pos_args: list[td.ty_expr],
+        keyword_args: list[tuple[str, td.ty_expr]],
         functions: dict[str, list[td.TyFunction]],
-    ) -> tuple[td.TyFunction | td.NodeInstance, list[td.DataType], list[str]]:
+    ) -> tuple[
+        td.TyFunction | td.NodeInstance, list[td.DataType], list[str], list[int]
+    ]:
         return self._resolve_function(
             name,
-            args,
+            pos_args,
+            keyword_args,
             [shader_node_aliases, shader_geo_node_aliases],
             [shader_nodes, instances, functions],
         )
