@@ -153,9 +153,10 @@ class TreePositioner:
         self.invert_relations = invert_relations
         self.x_top_adjustment: int = 0
         self.y_top_adjustment: int = 0
-        self.max_width_per_level: list[int] = [0 for _ in range(100)]
+        # TODO: Get rid of this "arbitrary" size limit
+        self.max_width_per_level: list[int] = [0 for _ in range(1000)]
         self.prev_node_per_level: list["PositionNode" | None] = [
-            None for _ in range(100)
+            None for _ in range(1000)
         ]
         self.min_x_loc: int = +INF
         self.max_x_loc: int = -INF

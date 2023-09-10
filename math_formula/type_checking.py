@@ -49,7 +49,7 @@ class TypeChecker:
         elif isinstance(stmt, ast_defs.Assign):
             self.check_assign(stmt)
         elif isinstance(stmt, ast_defs.Loop):
-            raise NotImplementedError
+            self.check_loop(stmt)
         elif isinstance(stmt, ast_defs.FunctionDef):
             if in_function:
                 return self.error(
@@ -68,6 +68,29 @@ class TypeChecker:
             self.check_out(stmt)
         else:
             assert False, "Unreachable code"
+
+    def check_loop(
+        self,
+        loop: ast_defs.Loop,
+    ):
+        var = None
+        if loop.var is not None:
+            var = td.Var(
+                td.StackType.VALUE,
+                dtype=[td.DataType.INT],
+                out_names=[],
+                id=loop.var.id,
+                needs_instantion=False,
+            )
+            self.vars[loop.var.id] = var
+        body = []
+        for stmt in loop.body:
+            # Make it so no function or node group definitions can be made.
+            self.check_statement(stmt, in_function=True)
+            checked_stmt = self.curr_node
+            assert checked_stmt is not None, "There should be a statement"
+            body.append(checked_stmt)
+        self.curr_node = td.TyLoop(var, loop.start, loop.end, body)
 
     def out_types(
         self,

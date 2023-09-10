@@ -39,8 +39,8 @@ class Interpreter:
             assert isinstance(op_data, str), "Variable name should be a string."
             socket = self.stack.pop()
             assert isinstance(
-                socket, (NodeSocket, list)
-            ), "Create var expects a node socket or struct."
+                socket, (NodeSocket, list, int)
+            ), "Create var expects a node socket or struct or loop index."
             if isinstance(socket, list):
                 socket = cast(list[NodeSocket], socket)
             self.variables[op_data] = socket

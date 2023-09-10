@@ -54,10 +54,27 @@ class Compiler:
             self.compile_assign_like(stmt)
         elif isinstance(stmt, td.TyOut):
             self.compile_assign_like(stmt)
+        elif isinstance(stmt, td.TyLoop):
+            self.compile_loop(stmt)
         else:
             # These are the only possibilities for now
             assert False, "Unreachable code"
         self.operations.append(td.Operation(td.OpType.END_OF_STATEMENT, None))
+
+    def compile_loop(self, loop: td.TyLoop):
+        outer_ops = self.operations
+        self.operations = []
+        for stmt in loop.body:
+            self.compile_statement(stmt)
+        compiled_body = self.operations
+        self.operations = outer_ops
+
+        # TODO: Let the interpreter do the looping
+        for i in range(loop.start, loop.end + 1):
+            if loop.var is not None:
+                self.operations.append(td.Operation(td.OpType.PUSH_VALUE, i))
+                self.operations.append(td.Operation(td.OpType.CREATE_VAR, loop.var.id))
+            self.operations += compiled_body
 
     def compile_assign_like(self, assign: td.TyAssign | td.TyOut):
         targets = assign.targets

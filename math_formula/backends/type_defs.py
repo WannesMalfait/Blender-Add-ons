@@ -248,6 +248,14 @@ class TyOut(ty_stmt):
 
 
 @dataclass
+class TyLoop(ty_stmt):
+    var: Union[None, Var]
+    start: int
+    end: int
+    body: list[ty_stmt]
+
+
+@dataclass
 class CompiledFunction:
     inputs: list[str]
     body: list[Operation]
