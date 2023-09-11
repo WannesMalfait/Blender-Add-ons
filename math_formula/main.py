@@ -314,8 +314,15 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                     self._handle, "WINDOW"
                 )  # type: ignore
                 context.scene.math_formula_add.formula = formula  # type: ignore
+                # Get rid of duplicates from the history.
+                while True:
+                    try:
+                        formula_history.remove(formula)
+                    except ValueError:
+                        break
                 formula_history.append(formula)
-                formula_history_index += 1
+                # Set it back to the last element.
+                formula_history_index = len(formula_history) - 1
                 # Deselect all the nodes before adding new ones
                 bpy.ops.node.select_all(action="DESELECT")
                 try:
