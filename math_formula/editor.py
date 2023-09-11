@@ -526,7 +526,7 @@ class Editor:
                             token_font_style,
                             prefs.type_color  # type: ignore
                             if token.lexeme in string_to_data_type
-                            else prefs.default_color,  # type: ignore
+                            else prefs.identifier_color,  # type: ignore
                         )
                     else:
                         next_token = tokens[i + 1] if i + 1 < len(tokens) else token
@@ -535,7 +535,7 @@ class Editor:
                                 token_font_style, prefs.function_color  # type: ignore
                             )
                         else:
-                            color(token_font_style, prefs.default_color)  # type: ignore
+                            color(token_font_style, prefs.identifier_color)  # type: ignore
                 elif (
                     TokenType.OUT.value <= token.token_type.value <= TokenType.AND.value
                 ):

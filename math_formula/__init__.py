@@ -103,6 +103,12 @@ class MFMathFormula(bpy.types.AddonPreferences):
         default=(0.808, 0.569, 0.471),
         subtype="COLOR",
     )
+    identifier_color: bpy.props.FloatVectorProperty(
+        # 9CDCFE
+        name="Identifier Color",
+        default=(0.612, 0.863, 0.996),
+        subtype="COLOR",
+    )
     default_color: bpy.props.FloatVectorProperty(
         name="Default Color",
         default=(1.0, 1.0, 1.0),
@@ -162,6 +168,7 @@ class MFMathFormula(bpy.types.AddonPreferences):
             box.prop(self, "python_color")
             box.prop(self, "number_color")
             box.prop(self, "string_color")
+            box.prop(self, "identifier_color")
             box.prop(self, "default_color")
             box.prop(self, "keyword_color")
             box.prop(self, "type_color")
