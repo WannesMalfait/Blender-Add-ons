@@ -144,66 +144,68 @@ class Editor:
                 out.name for out in ty_func.outputs if out.name.startswith(token_text)
             ]
 
-    def try_auto_complete(self, tree_type: str) -> None:
-        token_under_cursor = None
+    def token_under_cursor(self) -> tuple[None | Token, None | Token]:
+        """Returns the token under the cursor, and the token before that"""
         prev_token = None
         for token in self.line_tokens[self.cursor_row]:
             if token.start < self.draw_cursor_col <= token.start + len(token.lexeme):
-                token_under_cursor = token
-                break
+                return token, prev_token
             prev_token = token
-        if token_under_cursor is not None:
-            if len(self.suggestions) != 0:
-                # Already calculated suggestions, so just use those.
-                suggestion = self.suggestions.popleft()
-                if " " in suggestion:
-                    self.replace_token(token_under_cursor, f"n'{suggestion}'")
-                else:
-                    self.replace_token(token_under_cursor, suggestion)
-                self.suggestions.append(suggestion)
-                return
-            if prev_token is not None:
-                if prev_token.lexeme == "." or token_under_cursor.lexeme == ".":
-                    self.attribute_suggestions(
-                        prev_token, token_under_cursor, tree_type
-                    )
-            options = list(instances.keys())
-            if tree_type == "GeometryNodeTree":
-                options += list(geometry_nodes.keys())
-                options += list(file_loading.file_data.geometry_nodes.keys())
-                options += list(shader_geo_node_aliases.keys())
-                options += list(geometry_node_aliases.keys())
-            else:
-                options += list(shader_nodes.keys())
-                options += list(file_loading.file_data.shader_nodes.keys())
-                options += list(shader_geo_node_aliases.keys())
-                options += list(shader_node_aliases.keys())
-            for name in options:
-                if name.startswith(token_under_cursor.lexeme):
-                    self.suggestions.append(name)
-            if len(self.suggestions) == 0:
-                # No exact matches, try with Levensthein distance
-                # Only do this if we have at least some text
-                if len(token_under_cursor.lexeme) < 4:
-                    return
-                options_with_dist = []
-                for option in options:
-                    d = levenshtein_distance(option, token_under_cursor.lexeme)
-                    # Only add the best options
-                    if d < 5:
-                        options_with_dist.append((option, d))
-                sorted_options = sorted(options_with_dist, key=lambda x: x[1])
-                self.suggestions += list(map(lambda x: x[0], sorted_options))
-            else:
-                self.suggestions = deque(sorted(self.suggestions, key=len))
-            if len(self.suggestions) == 0:
-                return
+        return (None, None)
+
+    def try_auto_complete(self, tree_type: str) -> None:
+        token_under_cursor, prev_token = self.token_under_cursor()
+        if token_under_cursor is None:
+            return
+        if len(self.suggestions) != 0:
+            # Already calculated suggestions, so just use those.
             suggestion = self.suggestions.popleft()
-            if token_under_cursor.lexeme == ".":
-                self.text_after_cursor(suggestion)
+            if " " in suggestion:
+                self.replace_token(token_under_cursor, f"n'{suggestion}'")
             else:
                 self.replace_token(token_under_cursor, suggestion)
             self.suggestions.append(suggestion)
+            return
+        if prev_token is not None:
+            if prev_token.lexeme == "." or token_under_cursor.lexeme == ".":
+                self.attribute_suggestions(prev_token, token_under_cursor, tree_type)
+        options = list(instances.keys())
+        if tree_type == "GeometryNodeTree":
+            options += list(geometry_nodes.keys())
+            options += list(file_loading.file_data.geometry_nodes.keys())
+            options += list(shader_geo_node_aliases.keys())
+            options += list(geometry_node_aliases.keys())
+        else:
+            options += list(shader_nodes.keys())
+            options += list(file_loading.file_data.shader_nodes.keys())
+            options += list(shader_geo_node_aliases.keys())
+            options += list(shader_node_aliases.keys())
+        for name in options:
+            if name.startswith(token_under_cursor.lexeme):
+                self.suggestions.append(name)
+        if len(self.suggestions) == 0:
+            # No exact matches, try with Levensthein distance
+            # Only do this if we have at least some text
+            if len(token_under_cursor.lexeme) < 4:
+                return
+            options_with_dist = []
+            for option in options:
+                d = levenshtein_distance(option, token_under_cursor.lexeme)
+                # Only add the best options
+                if d < 5:
+                    options_with_dist.append((option, d))
+            sorted_options = sorted(options_with_dist, key=lambda x: x[1])
+            self.suggestions += list(map(lambda x: x[0], sorted_options))
+        else:
+            self.suggestions = deque(sorted(self.suggestions, key=len))
+        if len(self.suggestions) == 0:
+            return
+        suggestion = self.suggestions.popleft()
+        if token_under_cursor.lexeme == ".":
+            self.text_after_cursor(suggestion)
+        else:
+            self.replace_token(token_under_cursor, suggestion)
+        self.suggestions.append(suggestion)
 
     def text_after_cursor(self, text: str) -> None:
         line = self.lines[self.cursor_row]
@@ -358,9 +360,46 @@ class Editor:
     def add_char_after_cursor(self, char: str) -> None:
         self.suggestions.clear()
         line = self.lines[self.cursor_row]
-        self.lines[self.cursor_row] = (
-            line[: self.draw_cursor_col] + char + line[self.draw_cursor_col :]
-        )
+
+        # Auto-close parenthesis.
+        match char:
+            case "(":
+                self.lines[self.cursor_row] = (
+                    line[: self.draw_cursor_col] + "()" + line[self.draw_cursor_col :]
+                )
+            case "[":
+                self.lines[self.cursor_row] = (
+                    line[: self.draw_cursor_col] + "[]" + line[self.draw_cursor_col :]
+                )
+            case "{":
+                self.lines[self.cursor_row] = (
+                    line[: self.draw_cursor_col] + "{}" + line[self.draw_cursor_col :]
+                )
+            # Only add closing bracket if not already there
+            case ")" | "]" | "}":
+                print(self.get_char_after_cursor())
+                if self.get_char_after_cursor() != char:
+                    self.lines[self.cursor_row] = (
+                        line[: self.draw_cursor_col]
+                        + char
+                        + line[self.draw_cursor_col :]
+                    )
+            case '"' | "'":
+                text = char * 2
+                if (token := self.token_under_cursor()[0]) is not None:
+                    if token.token_type is TokenType.ERROR:
+                        # Possibly inside an unclosed string,
+                        # so just add the closing " or '
+                        text = char
+                    if self.get_char_after_cursor() == char:
+                        text = ""
+                self.lines[self.cursor_row] = (
+                    line[: self.draw_cursor_col] + text + line[self.draw_cursor_col :]
+                )
+            case _:
+                self.lines[self.cursor_row] = (
+                    line[: self.draw_cursor_col] + char + line[self.draw_cursor_col :]
+                )
         self.draw_cursor_col += 1
         self.cursor_col = self.draw_cursor_col
         self.rescan_line()
@@ -377,6 +416,12 @@ class Editor:
             return None
 
         return self.lines[self.cursor_row][self.cursor_col - 1]
+
+    def get_char_after_cursor(self) -> str | None:
+        if self.cursor_col >= len(self.lines[self.cursor_row]):
+            return None
+
+        return self.lines[self.cursor_row][self.cursor_col]
 
     def new_line(self) -> None:
         self.suggestions.clear()
