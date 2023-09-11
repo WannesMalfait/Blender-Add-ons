@@ -418,7 +418,9 @@ class Editor:
         return self.lines[self.cursor_row][self.cursor_col - 1]
 
     def get_char_after_cursor(self) -> str | None:
-        if self.cursor_col >= len(self.lines[self.cursor_row]):
+        if len(self.lines[self.cursor_row]) == 0 or self.cursor_col >= len(
+            self.lines[self.cursor_row]
+        ):
             return None
 
         return self.lines[self.cursor_row][self.cursor_col]
@@ -429,15 +431,29 @@ class Editor:
         if self.get_char_before_cursor() == "{":
             indentation += 2
         if self.draw_cursor_col != len(self.lines[self.cursor_row]):
+            closing_brace = self.get_char_after_cursor() == "}"
             line = self.lines[self.cursor_row]
             self.lines[self.cursor_row] = line[: self.draw_cursor_col]
             self.rescan_line()
             self.cursor_row += 1
-            self.lines.insert(
-                self.cursor_row, " " * indentation + line[self.draw_cursor_col :]
-            )
-            self.line_tokens.insert(self.cursor_row, [])
-            self.rescan_line()
+            if closing_brace:
+                self.lines.insert(self.cursor_row, " " * indentation)
+                self.line_tokens.insert(self.cursor_row, [])
+                self.rescan_line()
+                self.cursor_row += 1
+                self.lines.insert(
+                    self.cursor_row,
+                    " " * max(0, indentation - 2) + line[self.draw_cursor_col :],
+                )
+                self.line_tokens.insert(self.cursor_row, [])
+                self.rescan_line()
+                self.cursor_row -= 1
+            else:
+                self.lines.insert(
+                    self.cursor_row, " " * indentation + line[self.draw_cursor_col :]
+                )
+                self.line_tokens.insert(self.cursor_row, [])
+                self.rescan_line()
             self.cursor_col = indentation
             self.draw_cursor_col = indentation
             return
