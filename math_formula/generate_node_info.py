@@ -1,3 +1,4 @@
+import itertools
 import os
 from typing import cast
 
@@ -14,6 +15,12 @@ def generate_node_info() -> None:
             or name.startswith("Function")
         ):
             all_nodes.add(name)
+
+    # Add some "progress indicator" to the mouse cursor.
+    # This gives feedback to the user that the script is
+    # running and doing something.
+    wm = bpy.context.window_manager
+    wm.progress_begin(0, len(all_nodes))
 
     shader_tree = bpy.data.node_groups.new("TESTING_SHADERS", "ShaderNodeTree")
     geo_tree = bpy.data.node_groups.new("TESTING_GEOMETRY", "GeometryNodeTree")
@@ -58,7 +65,9 @@ def generate_node_info() -> None:
     shader_alias_strs = []
     builtin_node_strs = []
 
-    for node_name in all_nodes:
+    for i, node_name in enumerate(all_nodes):
+        wm.progress_update(i)
+
         try:
             if node_name.startswith("Shader"):
                 node = shader_nodes.new(node_name)
@@ -102,20 +111,24 @@ def generate_node_info() -> None:
         default_name = snake(node.bl_label)
         if "legacy" in default_name:
             continue
-        curr_state = [0 for _ in props]
 
-        def generate_alias(name: str, curr_state: list[int]) -> None:
+        default_prop_values = [getattr(node, prop.identifier) for prop in props]
+
+        def generate_alias(
+            name: str, curr_state: list[str], permutation: tuple[int, ...]
+        ) -> None:
             enabled_inputs = [i for i, input in enumerate(node.inputs) if input.enabled]
             enabled_outputs = [
                 i for i, output in enumerate(node.outputs) if output.enabled
             ]
             property_values = [
-                (prop.identifier, prop.enum_items[enum_j].identifier)
-                for enum_j, prop in zip(curr_state, props)
+                (prop.identifier, enum_val) for enum_val, prop in zip(curr_state, props)
             ]
+            shuffled_property_values = [property_values[i] for i in permutation]
             alias_str = (
                 f"'{name}' : "
-                + f"NodeInstance('{node.bl_idname}', {enabled_inputs}, {enabled_outputs}, {property_values}), "
+                + f"NodeInstance('{node.bl_idname}', {enabled_inputs},"
+                + f" {enabled_outputs}, {shuffled_property_values}), "
             )
 
             if node.bl_idname.startswith("Shader"):
@@ -128,34 +141,48 @@ def generate_node_info() -> None:
             ):
                 geometry_alias_strs.append(alias_str)
 
-        # Monstrosity needed because recursion is needed to go over all combinations.
-        def rec(prop_i: int, name: str):
-            if prop_i == len(props):
-                # Final property was chosen. Store this combination.
-                generate_alias(name, curr_state)
-                return
+        # Create an alias for every possible combination of enum values
+        # that gives a valid result. Sadly, we can not determine which
+        # variants actually "do something", just which ones don't crash.
+        for combination in itertools.product(*[prop.enum_items for prop in props]):
+            # Enum variants being set may disable other enum variants.
+            # Because of this, we test every permutation of setting
+            # the enums.
+            # TODO: Is there some heuristic we can use to determine which
+            # permutation is the "right one"? Now we just take the first
+            # one that works.
+            for permutation in itertools.permutations(range(len(combination))):
+                name = default_name
+                all_ok = True
+                for i in permutation:
+                    prop = props[i]
+                    enum_value = combination[i]
+                    try:
+                        setattr(node, prop.identifier, enum_value.identifier)
+                    except TypeError:
+                        all_ok = False
+                        break
+                    # TODO: check that this is a valid name (no '&,' '/'...)
+                    name += "_" + snake(enum_value.name)
 
-            # We still have a choice for the value of the next property.
-            for enum_j in range(len(props[prop_i].enum_items)):
-                curr_state[prop_i] = enum_j
-                prop = props[prop_i]
-                enum_value = prop.enum_items[enum_j]
-                try:
-                    prev_value = getattr(node, prop.identifier)
-                    setattr(node, prop.identifier, enum_value.identifier)
-                except:
-                    # This property can't actually be set.
-                    # TODO: Check other permutations of setting this property.
-                    continue
-                # TODO: check that this is a valid name (no '&,' '/'...)
-                rec(prop_i + 1, name + "_" + snake(enum_value.name))
-                setattr(node, prop.identifier, prev_value)
+                if all_ok:
+                    generate_alias(
+                        name,
+                        [e.identifier for e in combination],
+                        permutation,
+                    )
+
+                # Reset node to default state
+                for prop, value in zip(reversed(props), reversed(default_prop_values)):
+                    setattr(node, prop.identifier, value)
+
+                if all_ok:
+                    # No need to add other permutations
+                    break
 
         # Generate the default case as well.
         if len(props) > 0:
-            generate_alias(default_name, curr_state=[])
-        # Recursively generate all posibilities.
-        rec(0, default_name)
+            generate_alias(default_name, [], ())
 
         builtin_node_strs.append(
             f"'{node.bl_idname}' : BuiltinNode([{inputs}],\n\t\t[{outputs}]),"
@@ -211,6 +238,8 @@ shader_node_aliases = {{
         f.write(new_text)
         f.truncate(len(new_text))
 
+        wm.progress_end()
+
     import importlib
 
     from .backends import builtin_nodes, geometry_nodes
@@ -235,8 +264,6 @@ shader_node_aliases = {{
                         continue
                     print("Invalid alias:", node_name_alias)
 
-
-bpy.app.timers.register(generate_node_info, first_interval=0)
 
 if __name__ == "__main__":
     generate_node_info()

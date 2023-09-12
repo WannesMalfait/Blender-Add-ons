@@ -13,7 +13,7 @@ geometry_nodes: dict[str, list[str | td.NodeInstance]] = {
     "less_than": [
         "compare_less_than_float_element_wise",
         "compare_less_than_integer_element_wise",
-        # 'compare_darker_color_element_wise', # Disabled due to bug in node info generation
+        "compare_color_darker_element_wise",
         "compare_less_than_vector_element_wise",
     ],
     "less_equal": [
@@ -24,7 +24,7 @@ geometry_nodes: dict[str, list[str | td.NodeInstance]] = {
     "greater_than": [
         "compare_greater_than_float_element_wise",
         "compare_greater_than_integer_element_wise",
-        # 'compare_brighter_color_element_wise', # Disabled due to bug in node info generation
+        "compare_color_brighter_element_wise",
         "compare_greater_than_vector_element_wise",
     ],
     "greater_equal": [
