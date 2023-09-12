@@ -538,6 +538,7 @@ class Editor:
         # First calculate where the suggestion will appear
         posx, posy = formula_pos
         char_width, char_height = char_size
+        posy -= self.cursor_row * char_height
         suggestion_offset = char_width * self.draw_cursor_col
         token_uc, prev_token_uc = self.token_under_cursor()
         if token_uc is not None and token_uc.token_type is TokenType.LEFT_PAREN:
