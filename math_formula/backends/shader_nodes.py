@@ -5,9 +5,6 @@ from .main import BackEnd
 shader_nodes: dict[str, list[str | td.NodeInstance]] = {
     "tex_coords": ["texture_coordinate"],
     "normal": [td.NodeInstance("ShaderNodeTexCoord", [], [1], [])],
-    "geometry": [
-        td.NodeInstance("ShaderNodeNewGeometry", [], [0, 1, 2, 3, 4, 5, 6, 7], [])
-    ],
     "position": [td.NodeInstance("ShaderNodeNewGeometry", [], [0], [])],
 }
 
