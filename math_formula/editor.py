@@ -3,6 +3,8 @@ from collections import deque
 
 import blf  # type: ignore
 import bpy
+import gpu
+from gpu_extras.batch import batch_for_shader
 
 from . import ast_defs, file_loading
 from .backends.builtin_nodes import (
@@ -31,6 +33,16 @@ fonts = {
     "bold": blf.load(os.path.join(font_directory, "Anonymous_Pro_0.ttf")),
     "bold_italic": blf.load(os.path.join(font_directory, "Anonymous_Pro_BI.ttf")),
 }
+
+
+rect_vertices = ((0, 0), (1, 0), (0, 1), (1, 1))
+
+rect_indices = ((0, 1, 2), (2, 1, 3))
+
+rect_shader = gpu.shader.from_builtin("UNIFORM_COLOR")
+rect_batch = batch_for_shader(
+    rect_shader, "TRIS", {"pos": rect_vertices}, indices=rect_indices
+)
 
 
 class Editor:
@@ -498,8 +510,77 @@ class Editor:
     def get_text(self) -> str:
         return "\n".join(self.lines)
 
+    def draw_suggestions(
+        self,
+        formula_pos: tuple[float, float],
+        padding: float,
+        char_size: tuple[float, float],
+        num_suggestions: int,
+        bg_color: tuple[float, float, float],
+        font_color: tuple[float, float, float],
+        font_id: int,
+    ):
+        # First calculate where the suggestion will appear
+        posx, posy = formula_pos
+        char_width, char_height = char_size
+        suggestion_offset = char_width * self.draw_cursor_col
+        token_uc, prev_token_uc = self.token_under_cursor()
+        if token_uc is not None and token_uc.token_type is TokenType.LEFT_PAREN:
+            assert prev_token_uc is not None, "Should be the function identifier"
+            suggestion_offset -= char_width * (len(prev_token_uc.lexeme) + 1)
+        elif token_uc is not None and token_uc.token_type is TokenType.IDENTIFIER:
+            suggestion_offset -= char_width * (len(token_uc.lexeme))
+
+        gpu.matrix.translate(
+            [
+                posx + suggestion_offset - padding,
+                posy - 0.3 * char_height,
+            ]
+        )
+        gpu.matrix.scale(
+            [
+                max(
+                    [
+                        len(suggestion)
+                        for _, suggestion in zip(
+                            range(num_suggestions), self.suggestions
+                        )
+                    ]
+                )
+                * char_width
+                + 2 * padding,
+                -min(num_suggestions + 1, len(self.suggestions)) * char_height
+                - padding,
+            ]
+        )
+        rect_shader.uniform_float("color", (bg_color[0], bg_color[1], bg_color[2], 1))
+        rect_batch.draw(rect_shader)
+        gpu.matrix.load_identity()
+
+        # Show the suggestions.
+        for i, suggestion in zip(range(num_suggestions + 1), self.suggestions):
+            # Decrease alpha with each suggestion.
+            blf.color(
+                font_id,
+                font_color[0],
+                font_color[1],
+                font_color[2],
+                max(0.6 ** (i + 1), 0.03),
+            )
+            blf.position(
+                font_id,
+                posx + suggestion_offset,
+                posy - (i + 1) * char_height,
+                0,
+            )
+            if i == num_suggestions:
+                # Just show that there are more suggestions
+                suggestion = "..."
+            blf.draw(font_id, suggestion)
+
     def draw_callback_px(self, context: bpy.types.Context):
         prefs = context.preferences.addons["math_formula"].preferences
+
         font_id = fonts["regular"]
         font_size = prefs.font_size  # type: ignore
         blf.size(font_id, font_size)
@@ -512,46 +593,36 @@ class Editor:
         posz = 0
 
         # Get the dimensions so that we know where to place the next stuff
-        width = blf.dimensions(font_id, "Formula: ")[0]
-        # Color for the non-user text.
+        formula_width: float = blf.dimensions(font_id, "Formula: ")[0]
+        info_message = (
+            "(Press CTRL + ENTER to confirm, ESC to cancel)"
+            + f"    (Line:{self.cursor_row+1} Col:{self.draw_cursor_col+1})"
+        )
+        info_width = blf.dimensions(font_id, info_message)[0]
+
+        # Bounding box for draw area
+        bb_width = max(
+            max([len(line) for line in self.lines]) * char_width + formula_width,
+            info_width,
+        )
+        bb_height = (len(self.lines) + 1) * char_height
+
+        # Draw the background
+        gpu.state.blend_set("ALPHA")
+        padding = 20
+        gpu.matrix.translate([posx - padding, posy + 2 * char_height + padding])
+        gpu.matrix.scale([bb_width + 2 * padding, -bb_height - 2 * padding])
+        bg = prefs.background_color  # type: ignore
+        alpha = prefs.background_alpha  # type: ignore
+        rect_shader.uniform_float("color", (bg[0], bg[1], bg[2], alpha))
+        rect_batch.draw(rect_shader)
+        gpu.matrix.load_identity()
+        gpu.state.blend_set("NONE")
+
+        # Draw the info message
         blf.color(font_id, 0.4, 0.5, 0.1, 1.0)
         blf.position(font_id, posx, posy + char_height, posz)
-        blf.draw(
-            font_id,
-            "(Press CTRL + ENTER to confirm, ESC to cancel)"
-            + f"    (Line:{self.cursor_row+1} Col:{self.draw_cursor_col+1})",
-        )
-
-        # Show 5 next suggestions.
-        # First calculate where the suggestion will appear
-        suggestion_offset = char_width * self.draw_cursor_col
-        token, prev_token = self.token_under_cursor()
-        if token is not None and token.token_type is TokenType.LEFT_PAREN:
-            assert prev_token is not None, "Should be the function identifier"
-            suggestion_offset -= char_width * (len(prev_token.lexeme) + 1)
-        elif token is not None and token.token_type is TokenType.IDENTIFIER:
-            suggestion_offset -= char_width * (len(token.lexeme))
-
-        # Show the suggestions just above the help text.
-        for i, suggestion in zip(range(6), self.suggestions):
-            # Decrease alpha with each suggestion.
-            blf.color(
-                font_id,
-                prefs.default_color[0],  # type: ignore
-                prefs.default_color[1],  # type: ignore
-                prefs.default_color[2],  # type: ignore
-                0.6 ** (i + 1),
-            )
-            blf.position(
-                font_id,
-                posx + width + suggestion_offset,
-                posy + (i + 2) * char_height,
-                posz,
-            )
-            if i == 5:
-                # Just show that there are more suggestions
-                suggestion = "..."
-            blf.draw(font_id, suggestion)
+        blf.draw(font_id, info_message)
 
         blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
         blf.position(font_id, posx, posy, posz)
@@ -559,7 +630,7 @@ class Editor:
         for line_num, tokens in enumerate(self.line_tokens):
             line = self.lines[line_num]
             prev = 0
-            line_posx = posx + width
+            line_posx = posx + formula_width
             line_posy = posy - char_height * line_num
             for i, token in enumerate(tokens):
                 blf.position(font_id, line_posx, line_posy, posz)
@@ -621,7 +692,7 @@ class Editor:
             error_base_y = posy - char_height * (len(self.lines) + 1)
             for n, error in enumerate(self.errors):
                 blf.position(
-                    font_id, posx + width, error_base_y - n * char_height, posz
+                    font_id, posx + formula_width, error_base_y - n * char_height, posz
                 )
                 blf.draw(font_id, str(error.message))
                 macro_token = error.token
@@ -629,20 +700,36 @@ class Editor:
                 error_row = macro_token.line - 1
                 blf.position(
                     font_id,
-                    posx + width + char_width * error_col,
+                    posx + formula_width + char_width * error_col,
                     posy - char_height * error_row - char_height * 0.75,
                     posz,
                 )
                 blf.draw(font_id, "^" * len(error.token.lexeme))
+
         # Draw cursor
         blf.color(font_id, 0.1, 0.4, 0.7, 1.0)
         blf.position(
             font_id,
-            posx + width + self.draw_cursor_col * char_width - char_width / 2,
+            posx + formula_width + self.draw_cursor_col * char_width - char_width / 2,
             posy - char_height * self.cursor_row,
             posz,
         )
         blf.draw(font_id, "|")
+
+        # Show suggestions.
+        # Needs to be done after drawing text,
+        # since the suggestions appear above text.
+        # Only show if we have more than one suggestion.
+        if len(self.suggestions) > 1:
+            self.draw_suggestions(
+                (posx + formula_width, posy),
+                10,
+                (char_width, char_height),
+                num_suggestions=10,
+                bg_color=prefs.background_color,  # type: ignore
+                font_color=prefs.default_color,  # type: ignore
+                font_id=font_id,
+            )
 
 
 def color(font_id, color):

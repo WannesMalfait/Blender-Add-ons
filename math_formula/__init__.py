@@ -85,6 +85,18 @@ class MFMathFormula(bpy.types.AddonPreferences):
         name="Show colors for syntax highlighting",
         default=False,
     )
+    background_color: bpy.props.FloatVectorProperty(
+        name="Background Color",
+        default=(0.1, 0.1, 0.1),
+        subtype="COLOR",
+    )
+    background_alpha: bpy.props.FloatProperty(
+        name="Background Alpha",
+        default=0.9,
+        min=0.0,
+        max=1.0,
+        subtype="FACTOR",
+    )
     python_color: bpy.props.FloatVectorProperty(
         # C586C0
         name="Python Color",
@@ -165,6 +177,8 @@ class MFMathFormula(bpy.types.AddonPreferences):
         if self.show_colors:
             box = layout.box()
             box.label(text="Syntax Highlighting")
+            box.prop(self, "background_color")
+            box.prop(self, "background_alpha")
             box.prop(self, "python_color")
             box.prop(self, "number_color")
             box.prop(self, "string_color")
