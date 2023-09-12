@@ -39,10 +39,11 @@ rect_vertices = ((0, 0), (1, 0), (0, 1), (1, 1))
 
 rect_indices = ((0, 1, 2), (2, 1, 3))
 
-rect_shader = gpu.shader.from_builtin("UNIFORM_COLOR")
-rect_batch = batch_for_shader(
-    rect_shader, "TRIS", {"pos": rect_vertices}, indices=rect_indices
-)
+if not bpy.app.background:
+    rect_shader = gpu.shader.from_builtin("UNIFORM_COLOR")
+    rect_batch = batch_for_shader(
+        rect_shader, "TRIS", {"pos": rect_vertices}, indices=rect_indices
+    )
 
 
 class Editor:
