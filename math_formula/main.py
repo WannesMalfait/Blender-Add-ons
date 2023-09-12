@@ -408,7 +408,6 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
         # INSERTION + DELETING
         elif event.type == "BACK_SPACE":
             self.editor.delete_before_cursor()
-            # Prevent over sensitive keys
             editor_action = True
         elif event.type == "DEL":
             self.editor.delete_after_cursor()

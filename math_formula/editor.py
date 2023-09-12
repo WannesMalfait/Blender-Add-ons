@@ -333,10 +333,17 @@ class Editor:
             self.lines.pop(self.cursor_row + 1)
             self.line_tokens.pop(self.cursor_row + 1)
             return
+
         line = self.lines[self.cursor_row]
-        self.lines[self.cursor_row] = (
-            line[: self.draw_cursor_col - 1] + line[self.draw_cursor_col :]
-        )
+        match (self.get_char_before_cursor(), self.get_char_after_cursor()):
+            case ("(", ")") | ("{", "}") | ("[", "]") | ('"', '"'):
+                self.lines[self.cursor_row] = (
+                    line[: self.draw_cursor_col - 1] + line[self.draw_cursor_col + 1 :]
+                )
+            case _:
+                self.lines[self.cursor_row] = (
+                    line[: self.draw_cursor_col - 1] + line[self.draw_cursor_col :]
+                )
         self.draw_cursor_col -= 1
         self.cursor_col = self.draw_cursor_col
         self.rescan_line()
@@ -354,9 +361,17 @@ class Editor:
             self.lines.pop(self.cursor_row + 1)
             self.line_tokens.pop(self.cursor_row + 1)
             return
-        self.lines[self.cursor_row] = (
-            line[: self.draw_cursor_col] + line[self.draw_cursor_col + 1 :]
-        )
+        self.draw_cursor_col += 1
+        match (self.get_char_before_cursor(), self.get_char_after_cursor()):
+            case ("(", ")") | ("{", "}") | ("[", "]") | ('"', '"'):
+                self.lines[self.cursor_row] = (
+                    line[: self.draw_cursor_col - 1] + line[self.draw_cursor_col + 1 :]
+                )
+            case _:
+                self.lines[self.cursor_row] = (
+                    line[: self.draw_cursor_col - 1] + line[self.draw_cursor_col :]
+                )
+        self.draw_cursor_col -= 1
         self.rescan_line()
 
     def paste_after_cursor(self, text: str) -> None:
@@ -413,7 +428,6 @@ class Editor:
                 )
             # Only add closing bracket if not already there
             case ")" | "]" | "}":
-                print(self.get_char_after_cursor())
                 if self.get_char_after_cursor() != char:
                     self.lines[self.cursor_row] = (
                         line[: self.draw_cursor_col]
@@ -446,20 +460,20 @@ class Editor:
         return len(line) - len(line.lstrip())
 
     def get_char_before_cursor(self) -> str | None:
-        if self.cursor_col <= 0 or self.cursor_col - 1 >= len(
+        if self.draw_cursor_col <= 0 or self.draw_cursor_col - 1 >= len(
             self.lines[self.cursor_row]
         ):
             return None
 
-        return self.lines[self.cursor_row][self.cursor_col - 1]
+        return self.lines[self.cursor_row][self.draw_cursor_col - 1]
 
     def get_char_after_cursor(self) -> str | None:
-        if len(self.lines[self.cursor_row]) == 0 or self.cursor_col >= len(
+        if len(self.lines[self.cursor_row]) == 0 or self.draw_cursor_col >= len(
             self.lines[self.cursor_row]
         ):
             return None
 
-        return self.lines[self.cursor_row][self.cursor_col]
+        return self.lines[self.cursor_row][self.draw_cursor_col]
 
     def new_line(self) -> None:
         self.suggestions.clear()
