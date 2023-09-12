@@ -336,7 +336,7 @@ class Editor:
 
         line = self.lines[self.cursor_row]
         match (self.get_char_before_cursor(), self.get_char_after_cursor()):
-            case ("(", ")") | ("{", "}") | ("[", "]") | ('"', '"'):
+            case ("(", ")") | ("{", "}") | ("[", "]") | ('"', '"') | ("'", "'"):
                 self.lines[self.cursor_row] = (
                     line[: self.draw_cursor_col - 1] + line[self.draw_cursor_col + 1 :]
                 )
@@ -363,7 +363,7 @@ class Editor:
             return
         self.draw_cursor_col += 1
         match (self.get_char_before_cursor(), self.get_char_after_cursor()):
-            case ("(", ")") | ("{", "}") | ("[", "]") | ('"', '"'):
+            case ("(", ")") | ("{", "}") | ("[", "]") | ('"', '"') | ("'", "'"):
                 self.lines[self.cursor_row] = (
                     line[: self.draw_cursor_col - 1] + line[self.draw_cursor_col + 1 :]
                 )
