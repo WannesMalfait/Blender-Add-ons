@@ -160,10 +160,28 @@ class Editor:
         if len(self.suggestions) != 0:
             # Already calculated suggestions, so just use those.
             suggestion = self.suggestions.popleft()
+            token_to_replace = token_under_cursor
+            if token_under_cursor.token_type is TokenType.LEFT_PAREN:
+                # Last thing we completed was a function, so we have
+                # an extra "()" at the end.
+                assert (
+                    prev_token is not None
+                ), "We completed a function, there should be a token before the '('"
+                token_to_replace = prev_token
+                # Remove the extra "()"
+                self.lines[self.cursor_row] = (
+                    self.lines[self.cursor_row][: self.cursor_col - 1]
+                    + self.lines[self.cursor_row][self.cursor_col + 1 :]
+                )
             if " " in suggestion:
-                self.replace_token(token_under_cursor, f"n'{suggestion}'")
+                self.replace_token(token_to_replace, f"n'{suggestion}'")
             else:
-                self.replace_token(token_under_cursor, suggestion)
+                self.replace_token(token_to_replace, suggestion)
+
+            if suggestion.endswith("()"):
+                # Place the cursor between the parenthesis.
+                self.draw_cursor_col -= 1
+                self.cursor_col = self.draw_cursor_col
             self.suggestions.append(suggestion)
             return
         if prev_token is not None:
@@ -182,7 +200,7 @@ class Editor:
             options += list(shader_node_aliases.keys())
         for name in options:
             if name.startswith(token_under_cursor.lexeme):
-                self.suggestions.append(name)
+                self.suggestions.append(name + "()")
         if len(self.suggestions) == 0:
             # No exact matches, try with Levensthein distance
             # Only do this if we have at least some text
@@ -193,7 +211,7 @@ class Editor:
                 d = levenshtein_distance(option, token_under_cursor.lexeme)
                 # Only add the best options
                 if d < 5:
-                    options_with_dist.append((option, d))
+                    options_with_dist.append((option + "()", d))
             sorted_options = sorted(options_with_dist, key=lambda x: x[1])
             self.suggestions += list(map(lambda x: x[0], sorted_options))
         else:
@@ -205,6 +223,11 @@ class Editor:
             self.text_after_cursor(suggestion)
         else:
             self.replace_token(token_under_cursor, suggestion)
+
+        if suggestion.endswith("()"):
+            # Place the cursor between the parenthesis.
+            self.draw_cursor_col -= 1
+            self.cursor_col = self.draw_cursor_col
         self.suggestions.append(suggestion)
 
     def text_after_cursor(self, text: str) -> None:
