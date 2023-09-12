@@ -522,6 +522,37 @@ class Editor:
             + f"    (Line:{self.cursor_row+1} Col:{self.draw_cursor_col+1})",
         )
 
+        # Show 5 next suggestions.
+        # First calculate where the suggestion will appear
+        suggestion_offset = char_width * self.draw_cursor_col
+        token, prev_token = self.token_under_cursor()
+        if token is not None and token.token_type is TokenType.LEFT_PAREN:
+            assert prev_token is not None, "Should be the function identifier"
+            suggestion_offset -= char_width * (len(prev_token.lexeme) + 1)
+        elif token is not None and token.token_type is TokenType.IDENTIFIER:
+            suggestion_offset -= char_width * (len(token.lexeme))
+
+        # Show the suggestions just above the help text.
+        for i, suggestion in zip(range(6), self.suggestions):
+            # Decrease alpha with each suggestion.
+            blf.color(
+                font_id,
+                prefs.default_color[0],  # type: ignore
+                prefs.default_color[1],  # type: ignore
+                prefs.default_color[2],  # type: ignore
+                0.6 ** (i + 1),
+            )
+            blf.position(
+                font_id,
+                posx + width + suggestion_offset,
+                posy + (i + 2) * char_height,
+                posz,
+            )
+            if i == 5:
+                # Just show that there are more suggestions
+                suggestion = "..."
+            blf.draw(font_id, suggestion)
+
         blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
         blf.position(font_id, posx, posy, posz)
         blf.draw(font_id, "Formula: ")
