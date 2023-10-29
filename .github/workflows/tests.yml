@@ -1,0 +1,40 @@
+name: test_action
+on:
+  workflow_dispatch:
+
+jobs:
+  make-tests-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.generate-matrix.outputs.matrix }}
+    steps:
+      - name: Generate Test Matrix
+        id: generate-matrix
+        run: python ./github/make-tests-matrix.py >> $GITHUB_OUTPUT
+
+  TESTS:
+    needs: make-tests-matrix
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJSON(needs.make-tests-matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Cache Blender
+        id: blenderBinaryCache
+        uses: actions/cache@v3
+        with:
+          path: /home/runner/blender
+          key: blender-${{matrix.version}}-${{matrix.sha}}
+      - name: Download Blender
+        if: steps.blenderBinaryCache.outputs.cache-hit != 'true'
+        run: curl ${{ matrix.download_url }} -o /home/runner/blender.tar.xz
+      - name: Mkdir
+        run: mkdir {/home/runner/.local/bin,/home/runner/blender} -p
+      - name: Extract Blender
+        if: steps.blenderBinaryCache.outputs.cache-hit != 'true'
+        run: tar -xf /home/runner/blender.tar.xz -C /home/runner/blender --strip-components=1
+      - name: Add Blender to PATH
+        run: ln -s /home/runner/blender/blender /home/runner/.local/bin/blender
+      - name: TEST
+        run: blender -b -noaudio --factor-startup --python-exit-code 1 -P ./math_formula/tests/run_tests.py

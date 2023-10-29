@@ -283,3 +283,7 @@ if __name__ == "__main__":
             if passed:
                 num_succeeded += 1
     print(f"Tests finished {num_succeeded}/{tot_tests - num_skipped} succeeded")
+
+    if num_succeeded != tot_tests - num_skipped:
+        # The test should fail
+        exit(1)
