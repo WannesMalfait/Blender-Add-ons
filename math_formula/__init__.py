@@ -18,7 +18,7 @@ from . import (
 )
 
 bl_info = {
-    "name": "Node Math Formula",
+    "name": "Math Formula",
     "author": "Wannes Malfait",
     "version": (2, 0, 0),
     "location": "Node Editor Toolbar and ALT+F",
