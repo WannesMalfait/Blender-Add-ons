@@ -37,5 +37,7 @@ jobs:
         run: tar -xf /home/runner/blender.tar.xz -C /home/runner/blender --strip-components=1
       - name: Add Blender to PATH
         run: ln -s /home/runner/blender/blender /home/runner/.local/bin/blender
+      - name: Install the add-on
+        run: rsync --recursive -v --exclude="*cache*" ${{ github.workspace }}/math_formula /home/runner/.config/blender/${{matrix.version_x_y}}/scripts/addons/
       - name: TEST
         run: blender -b -noaudio --factory-startup --python-exit-code 1 -P ${{ github.workspace }}/math_formula/tests/run_tests.py
