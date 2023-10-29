@@ -423,6 +423,7 @@ def python(self: Parser, can_assign: bool) -> None:
         converted_value = float(value)
     except ValueError as err:
         self.error(f"Expected result of python expression to be a number: {err}.")
+        converted_value = 0.0
     self.curr_node = ast_defs.Constant(token, converted_value, DataType.FLOAT)
 
 
@@ -550,8 +551,8 @@ def binary(self: Parser, can_assign: bool) -> None:
     left = self.curr_node
     rule = self.get_rule(operator_type)
     right: ast_defs.expr | None = self.parse_precedence(
-        Precedence(rule.precedence.value + 1)
-    )  # type: ignore
+        Precedence(rule.precedence.value + 1)  # type: ignore
+    )
     if left is None or right is None:
         return
     else:

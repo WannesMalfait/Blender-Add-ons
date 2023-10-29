@@ -128,7 +128,7 @@ def register():
     file_data = FileData()
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.app.handlers.load_post.append(load_custom_implementations)
+    bpy.app.handlers.load_post.append(load_custom_implementations)  # type: ignore
 
 
 def unregister():

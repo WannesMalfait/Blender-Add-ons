@@ -12,12 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     name: Code-Quality
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v4
       with:
         python-version: 3.x
-    - run: pip install --upgrade pip
+        cache: 'pip'
     - run: pip install fake-bpy-module-latest
-    - run: pip install "black<23" mypy==v1.5.1
+    - run: pip install "black<23" "pyright"
     - run: black --diff --check $(git ls-files 'math_formula/*.py')
-    - run: mypy $(git ls-files 'math_formula/*.py')
+    - run: pyright --level error --verbose math_formula/

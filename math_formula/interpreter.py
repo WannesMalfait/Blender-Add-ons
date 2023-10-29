@@ -238,7 +238,7 @@ class Interpreter:
             for index, foutput in enumerate(self.function_outputs):
                 if isinstance(foutput, NodeSocket):
                     node_tree.links.new(foutput, group_output.inputs[index])
-                elif output is not None:
+                elif foutput is not None:
                     group_output.inputs[index].default_value = foutput  # type: ignore
 
             # Restore state outside node group
