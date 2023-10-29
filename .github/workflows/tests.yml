@@ -38,7 +38,7 @@ jobs:
       - name: Add Blender to PATH
         run: ln -s /home/runner/blender/blender /home/runner/.local/bin/blender
       - name: Make scripts directory
-        run: mkdir -p /home/runner/blender/.config/${{matrix.version_x_y}}/scripts/addons/
+        run: mkdir -p /home/runner/.config/blender/${{matrix.version_x_y}}/scripts/addons/
       - name: Install the add-on
         run: rsync --recursive -v --exclude="*cache*" ${{ github.workspace }}/math_formula /home/runner/.config/blender/${{matrix.version_x_y}}/scripts/addons/
       - name: TEST
