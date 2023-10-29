@@ -203,7 +203,7 @@ class Interpreter:
                 for input in node_group.inputs:
                     in_socket = node_tree.interface.new_socket(
                         input.name,
-                        in_out={"INPUT"},
+                        in_out="INPUT",
                         socket_type=self.data_type_to_socket_type(input.dtype),
                     )
                     if input.value is not None:
@@ -211,7 +211,7 @@ class Interpreter:
                 for output in node_group.outputs:
                     out_socket = node_tree.interface.new_socket(
                         output.name,
-                        in_out={"OUTPUT"},
+                        in_out="OUTPUT",
                         socket_type=self.data_type_to_socket_type(output.dtype),
                     )
                     if output.value is not None:

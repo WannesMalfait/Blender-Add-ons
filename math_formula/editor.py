@@ -1,7 +1,7 @@
 import os
 from collections import deque
 
-import blf  # type: ignore
+import blf
 import bpy
 import gpu
 from gpu_extras.batch import batch_for_shader
@@ -57,6 +57,18 @@ class Editor:
         self.scanner = Scanner("")
         self.errors: list[Error] = []
         self.suggestions: deque[str] = deque()
+        self.reload_fonts()
+
+    @staticmethod
+    def reload_fonts():
+        global fonts
+        fonts = {
+            "bfont": 0,
+            "regular": blf.load(os.path.join(font_directory, "Anonymous_Pro.ttf")),
+            "italic": blf.load(os.path.join(font_directory, "Anonymous_Pro_I.ttf")),
+            "bold": blf.load(os.path.join(font_directory, "Anonymous_Pro_0.ttf")),
+            "bold_italic": blf.load(os.path.join(font_directory, "Anonymous_Pro_BI.ttf")),
+        }
 
     def replace_text(self, text: str):
         Editor.__init__(self, self.pos)
