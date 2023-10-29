@@ -25,7 +25,13 @@ class SimplifiedSocket:
         self.link = link
 
     def __str__(self) -> str:
-        return str(self.value) if self.link is None else str(self.link)
+        return (
+            str(self.value)
+            if self.value is not None
+            else "<default>"
+            if self.link is None
+            else str(self.link)
+        )
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -130,16 +136,16 @@ class SimplifiedNodeTree:
 
             in_sockets = [
                 SimplifiedSocket(
-                    i.default_value  # type:ignore
+                    i.default_value  # type: ignore \
+                    if i.enabled
+                    and not i.hide
+                    and not i.hide_value
+                    and not i.is_unavailable
+                    else None
                 )
                 for i in node.inputs
             ]
-            out_sockets = [
-                SimplifiedSocket(
-                    o.default_value  # type:ignore
-                )
-                for o in node.outputs
-            ]
+            out_sockets = [SimplifiedSocket(None) for o in node.outputs]
             node_group_tree: typing.Optional["SimplifiedNodeTree"] = None
             if isinstance(node, bpy.types.NodeGroup):
                 node_group_tree = SimplifiedNodeTree(node.node_tree)
