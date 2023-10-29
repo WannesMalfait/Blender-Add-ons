@@ -8,6 +8,7 @@ jobs:
     outputs:
       matrix: ${{ steps.generate-matrix.outputs.matrix }}
     steps:
+      - uses: actions/checkout@v4 
       - name: Generate Test Matrix
         id: generate-matrix
         run: python ${{ github.workspace }}/.github/make-tests-matrix.py >> $GITHUB_OUTPUT
@@ -19,7 +20,7 @@ jobs:
     strategy:
       matrix: ${{ fromJSON(needs.make-tests-matrix.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Cache Blender
         id: blenderBinaryCache
         uses: actions/cache@v3
