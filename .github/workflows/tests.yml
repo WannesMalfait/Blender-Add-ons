@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: Generate Test Matrix
         id: generate-matrix
-        run: python ./github/make-tests-matrix.py >> $GITHUB_OUTPUT
+        run: python ./.github/make-tests-matrix.py >> $GITHUB_OUTPUT
 
   TESTS:
     needs: make-tests-matrix
