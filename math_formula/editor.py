@@ -67,7 +67,9 @@ class Editor:
             "regular": blf.load(os.path.join(font_directory, "Anonymous_Pro.ttf")),
             "italic": blf.load(os.path.join(font_directory, "Anonymous_Pro_I.ttf")),
             "bold": blf.load(os.path.join(font_directory, "Anonymous_Pro_0.ttf")),
-            "bold_italic": blf.load(os.path.join(font_directory, "Anonymous_Pro_BI.ttf")),
+            "bold_italic": blf.load(
+                os.path.join(font_directory, "Anonymous_Pro_BI.ttf")
+            ),
         }
 
     def replace_text(self, text: str):
