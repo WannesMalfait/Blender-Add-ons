@@ -1,3 +1,11 @@
+v2.0.0
+- Improve node info generation
+- Editor: auto-closing parens/braces/quotes
+- Editor: show other suggestions
+- Editor: update visuals
+- Deduplication of formula history
+- Add CI for running tests
+
 v2.0.0-alpha.4
 - Simple tests to detect regressions quicker.
 - Add support for loops
