@@ -46,7 +46,7 @@ class PositionNode:
         self.prelim_y = 0
         self.modifier = 0
         self.depth = depth
-        self.left_neighbour: '"PositionNode" | None' = None
+        self.left_neighbour: "PositionNode | None" = None
 
     def set_children(self, children: list) -> None:
         if children != []:
@@ -155,7 +155,7 @@ class TreePositioner:
         self.y_top_adjustment: int = 0
         # TODO: Get rid of this "arbitrary" size limit
         self.max_width_per_level: list[int] = [0 for _ in range(1000)]
-        self.prev_node_per_level: list['"PositionNode" | None'] = [
+        self.prev_node_per_level: list["PositionNode | None"] = [
             None for _ in range(1000)
         ]
         self.min_x_loc: int = +INF
