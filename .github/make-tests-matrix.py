@@ -106,8 +106,8 @@ def get_daily_builds(jobs: list):
             "sha": release[3],
         }
 
-        if new_job["version"].endswith("-stable"):
-            # Only want the alpha and beta builds
+        if not new_job["version_x_y"].startswith("4"):
+            # Add-on only works in blender 4.0+
             continue
 
         if new_job["version"] in [job["version"] for job in jobs]:
