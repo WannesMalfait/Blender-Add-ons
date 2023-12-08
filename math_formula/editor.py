@@ -389,10 +389,10 @@ class Editor:
         self.rescan_line()
 
     def paste_after_cursor(self, text: str) -> None:
+        # Replace tabs with two spaces since the font drawing code doesn't like tabs.
+        text = text.expandtabs(2)
         self.suggestions.clear()
         line = self.lines[self.cursor_row]
-        # Replace tabs with two spaces since the font drawing code doesn't like tabs.
-        text.replace("\t", "  ")
         if (index := text.find("\n")) != -1:
             self.lines[self.cursor_row] = line[: self.draw_cursor_col] + text[:index]
             self.rescan_line()

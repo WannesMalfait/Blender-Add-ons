@@ -1,3 +1,5 @@
+import re
+import string
 import traceback
 from typing import cast
 
@@ -413,8 +415,15 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
             self.editor.delete_after_cursor()
             editor_action = True
         elif event.ctrl and event.type == "V":
-            # Paste from clipboard
-            self.editor.paste_after_cursor(context.window_manager.clipboard)
+            # Paste from clipboard.
+            # Ensure only printable characters are pasted.
+            self.editor.paste_after_cursor(
+                re.sub(
+                    f"[^{re.escape(string.printable)}]",
+                    "",
+                    context.window_manager.clipboard,
+                )
+            )
             editor_action = True
         elif event.unicode != "" and event.unicode.isprintable():
             # Only allow printable characters
