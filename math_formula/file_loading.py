@@ -113,7 +113,7 @@ class MF_OT_generate_node_info(bpy.types.Operator):
     bl_label = "Regenerate node info"
     bl_options = {"REGISTER", "UNDO"}
 
-    def execute(self, _context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context):
         from .generate_node_info import generate_node_info
 
         generate_node_info()
