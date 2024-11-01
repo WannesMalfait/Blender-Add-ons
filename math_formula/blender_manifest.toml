@@ -66,4 +66,4 @@ clipboard = "Pasting formulas from clipboard"
 [build]
 # # These are the default build excluded patterns.
 # # You only need to edit them if you want different options.
-paths_exclude_pattern = ["__pycache__/", ".*", "/*.zip", "*cache*"]
+paths_exclude_pattern = ["__pycache__/", ".*", "/*.zip", "*cache*", "tests/"]
