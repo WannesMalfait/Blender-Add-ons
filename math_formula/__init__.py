@@ -3,52 +3,14 @@ import bpy
 import rna_keymap_ui
 
 from . import (
-    ast_defs,
-    backends,
-    compiler,
-    editor,
     file_loading,
-    generate_node_info,
-    interpreter,
     main,
-    mf_parser,
-    positioning,
-    scanner,
-    type_checking,
 )
 
-bl_info = {
-    "name": "Math Formula",
-    "author": "Wannes Malfait",
-    "version": (2, 0, 0),
-    "location": "Node Editor Toolbar and ALT+F",
-    "description": "Quickly add nodes by typing in a formula",
-    "category": "Node",
-    "doc_url": "https://github.com/WannesMalfait/Blender-Add-ons/wiki/Users#math-formula",
-    "tracker_url": "https://github.com/WannesMalfait/Blender-Add-ons/issues",
-    "blender": (4, 0, 0),  # Required so the add-on will actually load
-}
-
-# Reload other modules as well
-if "bpy" in locals():
-    import importlib
-
-    importlib.reload(generate_node_info)
-    importlib.reload(main)
-    importlib.reload(mf_parser)
-    importlib.reload(scanner)
-    importlib.reload(type_checking)
-    importlib.reload(compiler)
-    importlib.reload(positioning)
-    importlib.reload(editor)
-    importlib.reload(backends)
-    importlib.reload(ast_defs)
-    importlib.reload(interpreter)
-    importlib.reload(file_loading)
 
 
 class MFMathFormula(bpy.types.AddonPreferences):
-    bl_idname = __name__
+    bl_idname = __package__
 
     custom_implementations_folder: bpy.props.StringProperty(
         name="Custom implementations Folder",

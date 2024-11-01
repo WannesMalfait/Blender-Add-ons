@@ -18,7 +18,7 @@ def load_custom_implementations(
     dummy, dir: str = "", force_update: bool = False
 ) -> list[tuple[str, list[Error]]]:
     if dir == "" or dir is None:
-        prefs = bpy.context.preferences.addons["math_formula"].preferences
+        prefs = bpy.context.preferences.addons[__package__].preferences
         dir = prefs.custom_implementations_folder  # type:ignore
     filenames = os.listdir(dir)
     # Ensure that we load files in the right order.
@@ -83,7 +83,7 @@ class MF_OT_load_custom_implementations(bpy.types.Operator):
     )
 
     def execute(self, context: bpy.types.Context):
-        prefs = context.preferences.addons["math_formula"].preferences
+        prefs = context.preferences.addons[__package__].preferences
         errors = load_custom_implementations(
             None, prefs.custom_implementations_folder, self.force_update  # type: ignore
         )

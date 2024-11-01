@@ -609,7 +609,7 @@ class Editor:
             blf.draw(font_id, suggestion)
 
     def draw_callback_px(self, context: bpy.types.Context):
-        prefs = context.preferences.addons["math_formula"].preferences
+        prefs = context.preferences.addons[__package__].preferences
 
         font_id = fonts["regular"]
         font_size = prefs.font_size  # type: ignore

@@ -377,10 +377,10 @@ class MF_OT_type_formula_then_add_nodes(bpy.types.Operator, MFBase):
                 self.old_editor_loc[1] + event.mouse_region_y - self.old_mouse_loc[1],
             )
         elif event.type == "WHEELUPMOUSE":
-            prefs = context.preferences.addons["math_formula"].preferences
+            prefs = context.preferences.addons[__package__].preferences
             prefs.font_size += 1  # type: ignore
         elif event.type == "WHEELDOWNMOUSE":
-            prefs = context.preferences.addons["math_formula"].preferences
+            prefs = context.preferences.addons[__package__].preferences
             prefs.font_size = max(8, prefs.font_size - 1)  # type: ignore
 
         # FORMULA HISTORY NAVIGATION
