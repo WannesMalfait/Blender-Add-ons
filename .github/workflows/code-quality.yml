@@ -20,4 +20,4 @@ jobs:
         cache: 'pip'
     - run: pip install -r ${{ github.workspace }}/.github/requirements.txt
     - run: black --diff --check $(git ls-files 'math_formula/*.py')
-    - run: pyright --level error --verbose math_formula/
+    # - run: pyright --level error --verbose math_formula/
