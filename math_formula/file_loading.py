@@ -7,9 +7,16 @@ from .backends.type_defs import FileData
 from .compiler import Compiler
 from .mf_parser import Error
 
-add_on_dir = os.path.dirname(os.path.realpath(__file__))
-custom_implementations_dir = os.path.join(add_on_dir, "custom_implementations")
-
+extension_dir = bpy.utils.extension_path_user(__package__, create=True)
+custom_implementations_dir = bpy.utils.extension_path_user(
+    __package__, path="custom_implementations", create=True
+)
+# This is the default standard library.
+# It can change between updates and should not be edited by the user,
+# so we keep it separate.
+default_implementations_dir = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "custom_implementations"
+)
 file_data = FileData()
 
 
@@ -20,16 +27,24 @@ def load_custom_implementations(
     if dir == "" or dir is None:
         prefs = bpy.context.preferences.addons[__package__].preferences
         dir = prefs.custom_implementations_folder  # type:ignore
-    filenames = os.listdir(dir)
-    # Ensure that we load files in the right order.
-    filenames.sort()
+    # Load the default standard library first.
+    filepaths = [
+        os.path.join(default_implementations_dir, filename)
+        for filename in sorted(os.listdir(default_implementations_dir))
+    ]
+    # Now we load the custom implementations
+    # so that they can overwrite defaults if wanted.
+    filepaths.extend(
+        [os.path.join(dir, filename) for filename in sorted(os.listdir(dir))]
+    )
     errors: list[tuple[str, list[Error]]] = []
     file_data.geometry_nodes = {}
     file_data.shader_nodes = {}
     if not force_update:
-        for filename in filenames:
+        for filepath in filepaths:
+            filename = os.path.basename(filepath)
             if filename.startswith("cache"):
-                with open(os.path.join(dir, filename), "rb") as f:
+                with open(filepath, "rb") as f:
                     cached = pickle.load(f)
                     if filename.endswith("_gn"):
                         file_data.geometry_nodes = cached
@@ -39,9 +54,10 @@ def load_custom_implementations(
         return errors
     geo_compiler = Compiler("GeometryNodeTree")
     sha_compiler = Compiler("ShaderNodeTree")
-    for filename in filenames:
+    for filepath in filepaths:
+        filename = os.path.basename(filepath)
         if not filename.startswith("cache"):
-            with open(os.path.join(dir, filename), "r") as f:
+            with open(filepath, "r") as f:
                 source = f.read()
                 if filename.endswith("_gn") or not filename.endswith("_sh"):
                     succeeded = geo_compiler.check_functions(source)
