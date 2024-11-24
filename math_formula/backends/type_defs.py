@@ -20,46 +20,48 @@ class DataType(IntEnum):
     TEXTURE = auto()
     MATERIAL = auto()
     ROTATION = auto()
+    MATRIX = auto()
+    MENU = auto()
 
 
 # Penalty for converting from type a to type b
 # Higher means worse; 1000 means never do this conversion
-# fmt: off
-dtype_conversion_penalties = (
-    (0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
-    (0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
-    (0, 0, 0, 11, 12, 14, 13, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000),
-    (0, 0, 22, 0, 11, 13, 12, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000),
-    (0, 0, 23, 22, 0, 12, 11, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000),
-    (0, 0, 25, 24, 23, 0, 21, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000),
-    (0, 0, 24, 23, 22, 11, 0, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000),
-    (0, 0, 1000, 1000, 1000, 1000, 1000, 0,
-     1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000),
-    (0, 0, 1000, 1000, 1000, 1000, 1000, 1000,
-     0, 1000, 1000, 1000, 1000, 1000, 1000, 1000),
-    (0, 0, 1000, 1000, 1000, 1000, 1000, 1000,
-     1000, 0, 1000, 1000, 1000, 1000, 1000, 1000),
-    (0, 0, 1000, 1000, 1000, 1000, 1000, 1000,
-     1000, 1000, 0, 1000, 1000, 1000, 1000, 1000),
-    (0, 0, 1000, 1000, 1000, 1000, 1000, 1000,
-     1000, 1000, 1000, 0, 1000, 1000, 1000, 1000),
-    (0, 0, 1000, 1000, 1000, 1000, 1000, 1000,
-     1000, 1000, 1000, 1000, 0, 1000, 1000, 1000),
-    (0, 0, 1000, 1000, 1000, 1000, 1000, 1000,
-     1000, 1000, 1000, 1000, 1000, 0, 1000, 1000),
-    (0, 0, 1000, 1000, 1000, 1000, 1000, 1000,
-     1000, 1000, 1000, 1000, 1000, 1000, 0, 1000),
-    (0, 0, 1000, 1000, 1000, 1000, 1000, 1000,
-     1000, 1000, 1000, 1000, 1000, 1000, 1000, 0),
-)
-# fmt: on
+# Default to disallowing conversions.
+dtype_conversion_penalties = [
+    [1000 if type_a != type_b else 0 for type_b in DataType] for type_a in DataType
+]
 
-assert (
-    DataType.ROTATION.value == len(dtype_conversion_penalties) - 1
-), "Correct table size"
-assert (
-    DataType.ROTATION.value == len(dtype_conversion_penalties[0]) - 1
-), "Correct table size"
+dtype_conversion_penalties[DataType.BOOL.value][DataType.INT.value] = 11
+dtype_conversion_penalties[DataType.BOOL.value][DataType.FLOAT.value] = 12
+dtype_conversion_penalties[DataType.BOOL.value][DataType.VEC3.value] = 13
+dtype_conversion_penalties[DataType.BOOL.value][DataType.RGBA.value] = 14
+
+dtype_conversion_penalties[DataType.INT.value][DataType.BOOL.value] = 22
+dtype_conversion_penalties[DataType.INT.value][DataType.FLOAT.value] = 11
+dtype_conversion_penalties[DataType.INT.value][DataType.VEC3.value] = 12
+dtype_conversion_penalties[DataType.INT.value][DataType.RGBA.value] = 13
+
+dtype_conversion_penalties[DataType.FLOAT.value][DataType.BOOL.value] = 23
+dtype_conversion_penalties[DataType.FLOAT.value][DataType.INT.value] = 22
+dtype_conversion_penalties[DataType.FLOAT.value][DataType.VEC3.value] = 11
+dtype_conversion_penalties[DataType.FLOAT.value][DataType.RGBA.value] = 12
+
+dtype_conversion_penalties[DataType.VEC3.value][DataType.BOOL.value] = 24
+dtype_conversion_penalties[DataType.VEC3.value][DataType.INT.value] = 23
+dtype_conversion_penalties[DataType.VEC3.value][DataType.FLOAT.value] = 22
+dtype_conversion_penalties[DataType.VEC3.value][DataType.RGBA.value] = 11
+
+dtype_conversion_penalties[DataType.RGBA.value][DataType.BOOL.value] = 25
+dtype_conversion_penalties[DataType.RGBA.value][DataType.INT.value] = 24
+dtype_conversion_penalties[DataType.RGBA.value][DataType.FLOAT.value] = 23
+dtype_conversion_penalties[DataType.RGBA.value][DataType.VEC3.value] = 21
+
+for dtype in DataType:
+    dtype_conversion_penalties[DataType.UNKNOWN.value][dtype.value] = 1
+    dtype_conversion_penalties[DataType.DEFAULT.value][dtype.value] = 1
+    dtype_conversion_penalties[dtype.value][DataType.UNKNOWN.value] = 0
+    dtype_conversion_penalties[dtype.value][DataType.DEFAULT.value] = 0
+
 
 string_to_data_type = {
     "_": DataType.UNKNOWN,
@@ -76,8 +78,10 @@ string_to_data_type = {
     "img": DataType.IMAGE,
     "collection": DataType.COLLECTION,
     "tex": DataType.TEXTURE,
-    "mat": DataType.MATERIAL,
+    "material": DataType.MATERIAL,
     "quaternion": DataType.ROTATION,
+    "matrix": DataType.MATRIX,
+    "menu": DataType.MENU,
 }
 
 ValueType = Union[bool, int, float, list[float], str, None]

@@ -8,7 +8,6 @@ from . import (
 )
 
 
-
 class MFMathFormula(bpy.types.AddonPreferences):
     bl_idname = __package__
 
@@ -223,9 +222,6 @@ class MF_PT_file_panel(bpy.types.Panel, main.MFBase):
             text="Reload Custom Implementations",
         )
         props.force_update = True
-        col.operator(
-            file_loading.MF_OT_generate_node_info.bl_idname, icon="FILE_REFRESH"
-        )
 
 
 addon_keymaps = []
