@@ -16,12 +16,6 @@ def generate_node_info() -> None:
         ):
             all_nodes.add(name)
 
-    # Add some "progress indicator" to the mouse cursor.
-    # This gives feedback to the user that the script is
-    # running and doing something.
-    wm = bpy.context.window_manager
-    wm.progress_begin(0, len(all_nodes))
-
     shader_tree = bpy.data.node_groups.new("TESTING_SHADERS", "ShaderNodeTree")
     geo_tree = bpy.data.node_groups.new("TESTING_GEOMETRY", "GeometryNodeTree")
     shader_tree.nodes.clear()
@@ -43,6 +37,8 @@ def generate_node_info() -> None:
         "TEXTURE": "TEXTURE",
         "MATERIAL": "MATERIAL",
         "ROTATION": "ROTATION",
+        "MATRIX": "MATRIX",
+        "MENU": "MENU",
     }
 
     default_props = bpy.types.FunctionNode.bl_rna.properties  # type:ignore
@@ -66,8 +62,6 @@ def generate_node_info() -> None:
     builtin_node_strs = []
 
     for i, node_name in enumerate(all_nodes):
-        wm.progress_update(i)
-
         try:
             if node_name.startswith("Shader"):
                 node = shader_nodes.new(node_name)
@@ -236,33 +230,7 @@ shader_node_aliases = {{
         new_text = text[:start] + generated + text[end:]
         f.seek(0)
         f.write(new_text)
-        f.truncate(len(new_text))
-
-        wm.progress_end()
-
-    import importlib
-
-    from .backends import builtin_nodes, geometry_nodes
-    from .backends import shader_nodes as shader_nodes_mod
-
-    importlib.reload(builtin_nodes)
-    importlib.reload(geometry_nodes)
-    importlib.reload(shader_nodes_mod)
-    for options_dict in [
-        builtin_nodes.instances,
-        geometry_nodes.geometry_nodes,
-        shader_nodes_mod.shader_nodes,
-    ]:
-        for options in options_dict.values():
-            for node_name_alias in options:
-                if isinstance(node_name_alias, str):
-                    if node_name_alias in builtin_nodes.geometry_node_aliases:
-                        continue
-                    if node_name_alias in builtin_nodes.shader_node_aliases:
-                        continue
-                    if node_name_alias in builtin_nodes.shader_geo_node_aliases:
-                        continue
-                    print("Invalid alias:", node_name_alias)
+        f.truncate()
 
 
 if __name__ == "__main__":
