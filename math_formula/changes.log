@@ -1,3 +1,8 @@
+v2.0.2
+- Update add-on to work as an extension
+- Add support for menu and matrix sockets
+- Add aliases for the integer math node
+
 v2.0.1
 - Editor: fix pasting text with non-printable characters
 
