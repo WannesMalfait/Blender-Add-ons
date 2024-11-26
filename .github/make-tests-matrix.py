@@ -99,7 +99,6 @@ def get_daily_builds(jobs: list):
         page,
     )
     for release in releases:
-        print(release)
         new_job = {
             "version": release[1],
             "version_x_y": release[2],
