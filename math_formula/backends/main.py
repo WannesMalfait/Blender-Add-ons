@@ -353,7 +353,7 @@ class BackEnd(metaclass=ABCMeta):
 
     @staticmethod
     def resolve_alias(
-        thing: td.NodeInstance | td.TyFunction | str,
+        thing: td.TyFunction | str,
         aliases: list[dict[str, td.NodeInstance]],
     ) -> td.NodeInstance | td.TyFunction:
         if not isinstance(thing, str):
@@ -370,9 +370,7 @@ class BackEnd(metaclass=ABCMeta):
         pos_args: list[td.ty_expr],
         keyword_args: list[tuple[str, td.ty_expr]],
         aliases: list[dict[str, td.NodeInstance]],
-        dicts: list[
-            dict[str, list[str | td.NodeInstance]] | dict[str, list[td.TyFunction]]
-        ],
+        dicts: list[dict[str, list[str]] | dict[str, list[td.TyFunction]]],
     ) -> tuple[
         td.Union[td.TyFunction, td.NodeInstance],
         list[td.DataType],

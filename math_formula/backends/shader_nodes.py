@@ -2,10 +2,8 @@ from . import type_defs as td
 from .builtin_nodes import instances, shader_geo_node_aliases, shader_node_aliases
 from .main import BackEnd
 
-shader_nodes: dict[str, list[str | td.NodeInstance]] = {
+shader_nodes: dict[str, list[str]] = {
     "tex_coords": ["texture_coordinate"],
-    "normal": [td.NodeInstance("ShaderNodeTexCoord", [], [1], [])],
-    "position": [td.NodeInstance("ShaderNodeNewGeometry", [], [0], [])],
 }
 
 

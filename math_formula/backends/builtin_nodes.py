@@ -3235,14 +3235,13 @@ shader_node_aliases = {
 
 # End auto generated
 
-instances: dict[str, list[str | NodeInstance]] = {
+instances: dict[str, list[str]] = {
     "add": ["math_add", "vector_math_add"],
     "sub": ["math_subtract", "vector_math_subtract"],
     "mul": [
         "math_multiply",
         "vector_math_multiply",
         "vector_math_scale",
-        NodeInstance("ShaderNodeVectorMath", [3, 0], [0], [("operation", "SCALE")]),
     ],
     "div": ["math_divide", "vector_math_divide"],
     "mul_add": ["math_multiply_add", "vector_math_multiply_add"],

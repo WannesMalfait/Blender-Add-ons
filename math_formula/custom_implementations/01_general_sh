@@ -1,3 +1,11 @@
+fn normal() -> normal: vec3 {
+    out normal = tex_coords().normal;
+}
+
+fn position() -> position: vec3 {
+    out position = geometry().position;
+}
+
 fn equal(a: float, b: float) -> c: float {
     out c = math_compare(a, b);
 }

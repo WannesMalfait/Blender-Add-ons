@@ -1,3 +1,7 @@
+fn mul(a: float, b: vec3) -> c: vec3 {
+    out c = b * a;
+}
+
 fn _and(a: float, b: float) -> c: float {
     out c = a * b;
 }

@@ -2,7 +2,24 @@ from . import type_defs as td
 from .builtin_nodes import geometry_node_aliases, instances, shader_geo_node_aliases
 from .main import BackEnd
 
-geometry_nodes: dict[str, list[str | td.NodeInstance]] = {
+geometry_nodes: dict[str, list[str]] = {
+    "add": ["integer_math_add"],
+    "sub": ["integer_math_subtract"],
+    "mul": ["integer_math_multiply", "multiply_matrices"],
+    "div": ["integer_math_divide"],
+    "mul_add": ["integer_math_multiply_add"],
+    "pow": ["integer_math_power"],
+    "abs": ["integer_math_absolute"],
+    "min": ["integer_math_minimum"],
+    "max": ["integer_math_maximum"],
+    "sign": ["integer_math_sign"],
+    "div_round": ["integer_math_divide_round"],
+    "div_floor": ["integer_math_divide_floor"],
+    "div_ceil": ["integer_math_divide_ceil"],
+    "mod": ["integer_math_modulo"],
+    "mod_floored": ["integer_math_floored_modulo"],
+    "gcd": ["integer_math_greatest_common_divisor"],
+    "lcm": ["integer_math_least_common_multiple"],
     "_and": ["boolean_math_and"],
     "_or": ["boolean_math_or"],
     "_not": ["boolean_math_not"],
