@@ -347,20 +347,3 @@ class Scanner:
         elif c == "'" or c == '"':
             return self.string(closing=c)
         return self.error_token("Unrecognized token")
-
-
-if __name__ == "__main__":
-    import os
-
-    add_on_dir = os.path.dirname(os.path.realpath(__file__))
-
-    test_directory = os.path.join(add_on_dir, "tests")
-    filenames = os.listdir(test_directory)
-    for filename in filenames:
-        print(f'\nTesting: "{filename}"')
-        with open(os.path.join(test_directory, filename), "r") as f:
-            scanner = Scanner(f.read())
-            tokens = []
-            while (token := scanner.scan_token()).token_type != TokenType.EOL:
-                tokens.append(token)
-            print(tokens)
