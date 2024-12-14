@@ -1,3 +1,9 @@
+v2.0.3
+Release for review comments on the extensions platform.
+- Set max Blender version
+- Add font license
+- Remove old left-over testing code from files
+
 v2.0.2
 - Update add-on to work as an extension
 - Add support for menu and matrix sockets
