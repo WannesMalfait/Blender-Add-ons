@@ -34,10 +34,6 @@ font_paths = {
 }
 fonts = {
     "bfont": 0,
-    # "regular": blf.load(font_paths["regular"]),
-    # "italic": blf.load(font_paths["italic"]),
-    # "bold": blf.load(font_paths["bold"]),
-    # "bold_italic": blf.load(font_paths["bold_italic"]),
 }
 
 
