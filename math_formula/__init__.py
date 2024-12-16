@@ -4,6 +4,7 @@ import rna_keymap_ui
 
 from . import (
     file_loading,
+    editor,
     main,
 )
 
@@ -312,6 +313,7 @@ classes = (
 
 def register():
     file_loading.register()
+    editor.register()
     main.register()
     for cls in classes:
         bpy.utils.register_class(cls)
@@ -336,6 +338,7 @@ def register():
 
 def unregister():
     main.unregister()
+    editor.unregister()
     file_loading.unregister()
     for cls in classes:
         bpy.utils.unregister_class(cls)

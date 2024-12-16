@@ -26,13 +26,28 @@ from .scanner import Scanner, Token, TokenType
 add_on_dir = os.path.dirname(os.path.realpath(__file__))
 
 font_directory = os.path.join(add_on_dir, "fonts")
+font_paths = {
+    "regular": os.path.join(font_directory, "Anonymous_Pro.ttf"),
+    "italic": os.path.join(font_directory, "Anonymous_Pro_I.ttf"),
+    "bold": os.path.join(font_directory, "Anonymous_Pro_0.ttf"),
+    "bold_italic": os.path.join(font_directory, "Anonymous_Pro_BI.ttf"),
+}
 fonts = {
     "bfont": 0,
-    "regular": blf.load(os.path.join(font_directory, "Anonymous_Pro.ttf")),
-    "italic": blf.load(os.path.join(font_directory, "Anonymous_Pro_I.ttf")),
-    "bold": blf.load(os.path.join(font_directory, "Anonymous_Pro_0.ttf")),
-    "bold_italic": blf.load(os.path.join(font_directory, "Anonymous_Pro_BI.ttf")),
+    # "regular": blf.load(font_paths["regular"]),
+    # "italic": blf.load(font_paths["italic"]),
+    # "bold": blf.load(font_paths["bold"]),
+    # "bold_italic": blf.load(font_paths["bold_italic"]),
 }
+
+
+def register():
+    Editor.reload_fonts()
+
+
+def unregister():
+    for font_path in font_paths.values():
+        blf.unload(font_path)
 
 
 rect_vertices = ((0, 0), (1, 0), (0, 1), (1, 1))
@@ -64,13 +79,9 @@ class Editor:
         global fonts
         fonts = {
             "bfont": 0,
-            "regular": blf.load(os.path.join(font_directory, "Anonymous_Pro.ttf")),
-            "italic": blf.load(os.path.join(font_directory, "Anonymous_Pro_I.ttf")),
-            "bold": blf.load(os.path.join(font_directory, "Anonymous_Pro_0.ttf")),
-            "bold_italic": blf.load(
-                os.path.join(font_directory, "Anonymous_Pro_BI.ttf")
-            ),
         }
+        for name, font_path in font_paths.items():
+            fonts[name] = blf.load(font_path)
 
     def replace_text(self, text: str):
         Editor.__init__(self, self.pos)
