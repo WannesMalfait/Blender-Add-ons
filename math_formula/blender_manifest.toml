@@ -3,7 +3,7 @@ schema_version = "1.0.0"
 # Example of manifest file for a Blender extension
 # Change the values according to your extension
 id = "math_formula"
-version = "2.0.3"
+version = "2.0.4"
 name = "Math Formula"
 tagline = "Quickly add nodes by typing in a formula"
 maintainer = "Wannes Malfait <wannes.malfait@gmail.com>"

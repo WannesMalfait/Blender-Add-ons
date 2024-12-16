@@ -1,3 +1,7 @@
+v2.0.4
+Another fixes release for review comments.
+- Properly unload fonts and handlers when unregistering.
+
 v2.0.3
 Release for review comments on the extensions platform.
 - Set max Blender version
