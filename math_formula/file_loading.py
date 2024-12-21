@@ -130,6 +130,9 @@ def register():
     file_data = FileData()
     for cls in classes:
         bpy.utils.register_class(cls)
+    # Load and compile all the custom implementations on register
+    load_custom_implementations(None, dir=custom_implementations_dir, force_update=True)
+    # Load them again (from cache) when blender is opened
     bpy.app.handlers.load_post.append(load_custom_implementations)  # type: ignore
 
 
