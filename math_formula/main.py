@@ -243,6 +243,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
                 self.root_nodes[i + 1], tree.links, cursor_loc=(-100, 100)
             )
 
+        bpy.ops.node.translate_attach_remove_on_cancel("INVOKE_DEFAULT")
         return {"FINISHED"}
 
     def invoke(self, context: bpy.types.Context, event: bpy.types.Event):
