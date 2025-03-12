@@ -1,3 +1,7 @@
+v2.1.0
+- Update node info for blender 4.4
+- (Fix) Load custom implementations on register.
+- Translate nodes with mouse when adding a formula.
 v2.0.4
 Another fixes release for review comments.
 - Properly unload fonts and handlers when unregistering.
