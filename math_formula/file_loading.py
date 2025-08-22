@@ -74,12 +74,16 @@ def load_custom_implementations(
     file_data.geometry_nodes = geo_compiler.type_checker.functions
     file_data.shader_nodes = sha_compiler.type_checker.functions
     # Add to cache
-    with open(os.path.join(dir, "cache_gn"), "w+b") as f:
-        pickle.dump(file_data.geometry_nodes, f)
-        f.close()
-    with open(os.path.join(dir, "cache_sh"), "w+b") as f:
-        pickle.dump(file_data.shader_nodes, f)
-        f.close()
+    try:
+        with open(os.path.join(dir, "cache_gn"), "w+b") as f:
+            pickle.dump(file_data.geometry_nodes, f)
+            f.close()
+        with open(os.path.join(dir, "cache_sh"), "w+b") as f:
+            pickle.dump(file_data.shader_nodes, f)
+            f.close()
+    except pickle.PicklingError:
+        # Occurs when reloading the add-on during dev testing.
+        print("Reloading messed up pickling.")
     return errors
 
 
