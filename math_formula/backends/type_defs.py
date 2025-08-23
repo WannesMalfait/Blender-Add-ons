@@ -22,6 +22,8 @@ class DataType(IntEnum):
     ROTATION = auto()
     MATRIX = auto()
     MENU = auto()
+    CLOSURE = auto()
+    BUNDLE = auto()
 
 
 # Penalty for converting from type a to type b
@@ -82,6 +84,8 @@ string_to_data_type = {
     "quaternion": DataType.ROTATION,
     "matrix": DataType.MATRIX,
     "menu": DataType.MENU,
+    "closure": DataType.CLOSURE,
+    "bundle": DataType.BUNDLE,
 }
 
 ValueType = Union[bool, int, float, list[float], str, None]

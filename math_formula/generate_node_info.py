@@ -39,6 +39,8 @@ def generate_node_info() -> None:
         "ROTATION": "ROTATION",
         "MATRIX": "MATRIX",
         "MENU": "MENU",
+        "CLOSURE": "CLOSURE",
+        "BUNDLE": "BUNDLE",
     }
 
     default_props = bpy.types.FunctionNode.bl_rna.properties  # type:ignore
@@ -111,9 +113,15 @@ def generate_node_info() -> None:
         def generate_alias(
             name: str, curr_state: list[str], permutation: tuple[int, ...]
         ) -> None:
-            enabled_inputs = [i for i, input in enumerate(node.inputs) if input.enabled]
+            enabled_inputs = [
+                i
+                for i, input in enumerate(node.inputs)
+                if input.enabled and input.type != "CUSTOM"
+            ]
             enabled_outputs = [
-                i for i, output in enumerate(node.outputs) if output.enabled
+                i
+                for i, output in enumerate(node.outputs)
+                if output.enabled and output.type != "CUSTOM"
             ]
             property_values = [
                 (prop.identifier, enum_val) for enum_val, prop in zip(curr_state, props)
