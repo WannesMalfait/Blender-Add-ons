@@ -521,7 +521,7 @@ class TypeChecker:
                 f'"{attr.attr}" does not match one of the output names: {expr.out_names}',
                 attr,
             )
-        if expr.stype == td.StackType.SOCKET:
+        if expr.stype == td.StackType.SOCKET or expr.stype == td.StackType.VALUE:
             if expr.dtype[0] == td.DataType.VEC3:
                 # Need to add a separate XYZ node for this to work.
                 self.resolve_function("sep_xyz", [expr], [], attr)
