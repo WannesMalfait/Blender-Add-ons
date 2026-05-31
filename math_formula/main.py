@@ -119,7 +119,7 @@ class MF_OT_arrange_from_root(bpy.types.Operator):
         default=False,
     )
 
-    invert_relations: bpy.props.BoolProperty(  # type:ignore
+    invert_relations: bpy.props.BoolProperty(  # type: ignore
         name="Invert Relations",
         description="Invert the relations between parents and children",
         default=False,
@@ -153,7 +153,7 @@ class MF_OT_math_formula_add(bpy.types.Operator, MFBase):
     bl_label = "Math Formula"
     bl_options = {"REGISTER", "UNDO"}
 
-    use_mouse_location: bpy.props.BoolProperty(  # type:ignore
+    use_mouse_location: bpy.props.BoolProperty(  # type: ignore
         default=False,
     )
 

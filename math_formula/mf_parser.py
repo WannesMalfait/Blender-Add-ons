@@ -129,26 +129,26 @@ class Parser:
     @overload
     def parse_precedence(
         self, precedence: Literal[Precedence.ASSIGNMENT], skip_advance=False
-    ) -> ast_defs.stmt | None:
-        ...
+    ) -> ast_defs.stmt | None: ...
 
     @overload
     def parse_precedence(
         self,
-        precedence: Literal[Precedence.OR]
-        | Literal[Precedence.AND]
-        | Literal[Precedence.NOT]
-        | Literal[Precedence.COMPARISON]
-        | Literal[Precedence.TERM]
-        | Literal[Precedence.FACTOR]
-        | Literal[Precedence.UNARY]
-        | Literal[Precedence.EXPONENT]
-        | Literal[Precedence.ATTRIBUTE]
-        | Literal[Precedence.CALL]
-        | Literal[Precedence.PRIMARY],
+        precedence: (
+            Literal[Precedence.OR]
+            | Literal[Precedence.AND]
+            | Literal[Precedence.NOT]
+            | Literal[Precedence.COMPARISON]
+            | Literal[Precedence.TERM]
+            | Literal[Precedence.FACTOR]
+            | Literal[Precedence.UNARY]
+            | Literal[Precedence.EXPONENT]
+            | Literal[Precedence.ATTRIBUTE]
+            | Literal[Precedence.CALL]
+            | Literal[Precedence.PRIMARY]
+        ),
         skip_advance=False,
-    ) -> ast_defs.expr | None:
-        ...
+    ) -> ast_defs.expr | None: ...
 
     def parse_precedence(
         self, precedence: Precedence, skip_advance=False

@@ -146,9 +146,9 @@ class TreePositioner:
 
     def __init__(self, context: Context, selected_only=False, invert_relations=False):
         prefs = context.preferences.addons[__package__].preferences
-        self.level_separation: int = prefs.node_distance  # type:ignore
-        self.sibling_separation: int = prefs.sibling_distance  # type:ignore
-        self.subtree_separation: int = prefs.subtree_distance  # type:ignore
+        self.level_separation: int = prefs.node_distance  # type: ignore
+        self.sibling_separation: int = prefs.sibling_distance  # type: ignore
+        self.subtree_separation: int = prefs.subtree_distance  # type: ignore
         self.selected_only = selected_only
         self.invert_relations = invert_relations
         self.x_top_adjustment: int = 0

@@ -28,9 +28,7 @@ class SimplifiedSocket:
         return (
             str(self.value)
             if self.value is not None
-            else "<default>"
-            if self.link is None
-            else str(self.link)
+            else "<default>" if self.link is None else str(self.link)
         )
 
     def __repr__(self) -> str:
@@ -123,10 +121,10 @@ class SimplifiedNodeTree:
         # We don't need to store the links explicitly,
         # as these can be found in the relevant sockets
         self.nodes: dict[str, SimplifiedNode] = {}
-        default_props = bpy.types.FunctionNode.bl_rna.properties  # type:ignore
+        default_props = bpy.types.FunctionNode.bl_rna.properties  # type: ignore
         for node in node_tree.nodes:
             props = {}
-            for prop in node.bl_rna.properties:  # type:ignore
+            for prop in node.bl_rna.properties:  # type: ignore
                 if (
                     not prop.is_readonly
                     and prop.type == "ENUM"

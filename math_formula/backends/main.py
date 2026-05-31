@@ -22,8 +22,7 @@ class BackEnd(metaclass=ABCMeta):
         value: td.ValueType,
         from_type: td.DataType,
         to_type: Literal[td.DataType.BOOL],
-    ) -> bool:
-        ...
+    ) -> bool: ...
 
     @overload
     def convert(
@@ -31,8 +30,7 @@ class BackEnd(metaclass=ABCMeta):
         value: td.ValueType,
         from_type: td.DataType,
         to_type: Literal[td.DataType.INT],
-    ) -> int:
-        ...
+    ) -> int: ...
 
     @overload
     def convert(
@@ -40,8 +38,7 @@ class BackEnd(metaclass=ABCMeta):
         value: td.ValueType,
         from_type: td.DataType,
         to_type: Literal[td.DataType.FLOAT],
-    ) -> float:
-        ...
+    ) -> float: ...
 
     @overload
     def convert(
@@ -49,8 +46,7 @@ class BackEnd(metaclass=ABCMeta):
         value: td.ValueType,
         from_type: td.DataType,
         to_type: Literal[td.DataType.VEC3],
-    ) -> list[float]:
-        ...
+    ) -> list[float]: ...
 
     @overload
     def convert(
@@ -58,14 +54,12 @@ class BackEnd(metaclass=ABCMeta):
         value: td.ValueType,
         from_type: td.DataType,
         to_type: Literal[td.DataType.RGBA],
-    ) -> list[float]:
-        ...
+    ) -> list[float]: ...
 
     @overload
     def convert(
         self, value: td.ValueType, from_type: td.DataType, to_type: td.DataType
-    ) -> td.ValueType:
-        ...
+    ) -> td.ValueType: ...
 
     def convert(
         self, value: td.ValueType, from_type: td.DataType, to_type: td.DataType
@@ -153,8 +147,7 @@ class BackEnd(metaclass=ABCMeta):
         name: str,
         value: td.ValueType | None,
         dtype: td.DataType,
-    ):
-        ...
+    ): ...
 
     def create_input_helper(
         self,
@@ -343,7 +336,7 @@ class BackEnd(metaclass=ABCMeta):
 
     @staticmethod
     def input_arguments(
-        instance: td.Union[td.NodeInstance, td.TyFunction]
+        instance: td.Union[td.NodeInstance, td.TyFunction],
     ) -> list[tuple[str, td.DataType]]:
         if isinstance(instance, td.NodeInstance):
             node = nodes[instance.key]

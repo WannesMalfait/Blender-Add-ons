@@ -43,7 +43,7 @@ def generate_node_info() -> None:
         "BUNDLE": "BUNDLE",
     }
 
-    default_props = bpy.types.FunctionNode.bl_rna.properties  # type:ignore
+    default_props = bpy.types.FunctionNode.bl_rna.properties  # type: ignore
 
     def snake(s: str) -> str:
         """Turn a string into snake case"""

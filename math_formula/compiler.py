@@ -23,9 +23,11 @@ class Compiler:
         if file_data is not None:
             self.type_checker = TypeChecker(
                 self.back_end,
-                file_data.geometry_nodes
-                if tree_type == "GeometryNodeTree"
-                else file_data.shader_nodes,
+                (
+                    file_data.geometry_nodes
+                    if tree_type == "GeometryNodeTree"
+                    else file_data.shader_nodes
+                ),
             )
         else:
             self.type_checker = TypeChecker(self.back_end, {})

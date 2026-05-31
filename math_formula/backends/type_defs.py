@@ -177,12 +177,10 @@ class StackType(IntEnum):
     EMPTY = auto()
 
 
-class ty_ast:
-    ...
+class ty_ast: ...
 
 
-class ty_stmt(ty_ast):
-    ...
+class ty_stmt(ty_ast): ...
 
 
 @dataclass

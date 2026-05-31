@@ -26,7 +26,7 @@ def load_custom_implementations(
 ) -> list[tuple[str, list[Error]]]:
     if dir == "" or dir is None:
         prefs = bpy.context.preferences.addons[__package__].preferences
-        dir = prefs.custom_implementations_folder  # type:ignore
+        dir = prefs.custom_implementations_folder  # type: ignore
     # Load the default standard library first.
     filepaths = [
         os.path.join(default_implementations_dir, filename)
